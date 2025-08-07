@@ -1,0 +1,46 @@
+{
+  "name": "roster-control",
+  "version": "1.0.0",
+  "description": "Discord bot for managing Squad server rosters with real-time monitoring and admin controls",
+  "main": "index.js",
+  "scripts": {
+    "start": "NODE_ENV=production node index.js",
+    "dev": "NODE_ENV=development nodemon index.js",
+    "dev:debug": "NODE_ENV=development nodemon --inspect index.js",
+    "test": "jest",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "deploy:commands": "node scripts/deploy-commands.js",
+    "deploy:commands:dev": "NODE_ENV=development node scripts/deploy-commands.js",
+    "deploy:commands:prod": "NODE_ENV=production node scripts/deploy-commands.js"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "squad",
+    "roster",
+    "whitelist",
+    "battlemetrics"
+  ],
+  "author": "",
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "sequelize": "^6.35.2",
+    "mariadb": "^3.2.3",
+    "node-fetch": "^3.3.2",
+    "socket.io-client": "^4.7.4",
+    "winston": "^3.11.0",
+    "dotenv": "^16.3.1",
+    "umzug": "^3.5.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "eslint": "^8.56.0",
+    "jest": "^29.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

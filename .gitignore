@@ -1,0 +1,45 @@
+node_modules
+
+# Cursor IDE
+.cursor/
+.cursorrules
+
+# Project management files
+PLANNING.md
+TASKS.md
+
+# Environment variables
+.env
+.env.development
+.env.production
+
+# Logs
+logs/
+*.log
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# nyc test coverage
+.nyc_output
+
+# Dependency directories
+node_modules/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
