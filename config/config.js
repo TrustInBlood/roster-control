@@ -1,19 +1,12 @@
 const path = require('path');
 const dotenv = require('dotenv');
 
-// Load environment-specific config
-const env = process.env.NODE_ENV || 'development';
-const envFile = path.join(__dirname, `../.env.${env}`);
-dotenv.config({ path: envFile });
-
-// Fallback to default .env if environment-specific file doesn't exist
+// Load environment config
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
 const config = {
   // Environment
-  env: env,
-  isDevelopment: env === 'development',
-  isProduction: env === 'production',
+  env: process.env.NODE_ENV || 'development',
 
   // Discord Configuration
   discord: {

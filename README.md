@@ -50,18 +50,11 @@ Roster Control integrates with MariaDB for persistent storage, BattleMetrics API
 
 2. **Environment Configuration**
    
-   The bot supports multiple environments (development and production). Copy the appropriate example file:
+   Copy the example environment file and update it with your settings:
    
-   **Development:**
    ```bash
-   cp env.development.example .env.development
-   # Edit .env.development with your development settings
-   ```
-   
-   **Production:**
-   ```bash
-   cp env.production.example .env.production
-   # Edit .env.production with your production settings
+   cp .env.example .env
+   # Edit .env with your settings
    ```
    
 
