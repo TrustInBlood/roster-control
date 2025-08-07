@@ -1,5 +1,6 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const { handleVoiceStateUpdate } = require('./handlers/voiceStateHandler');
 const fs = require('fs');
 const path = require('path');
 const winston = require('winston');
@@ -9,6 +10,8 @@ const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.GuildVoiceStates,
+        GatewayIntentBits.GuildMembers
     ]
 });
 
@@ -54,6 +57,9 @@ if (process.env.NODE_ENV !== 'production') {
 client.on('ready', () => {
     logger.info(`Logged in as ${client.user.tag}`);
 });
+
+// Voice state update handler
+client.on('voiceStateUpdate', handleVoiceStateUpdate);
 
 // Import handlers
 const { permissionMiddleware } = require('./handlers/permissionHandler');
