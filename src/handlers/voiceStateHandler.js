@@ -15,11 +15,12 @@ async function handleVoiceStateUpdate(oldState, newState) {
             if (!channel) return;
 
             const member = newState.member;
+            const voiceChannel = newState.channel;
             
             const embed = new EmbedBuilder()
                 .setColor(0x00FFFF) // Cyan color for voice notifications
                 .setTitle('Voice Channel Join')
-                .setDescription(`${member} joined the monitored voice channel`)
+                .setDescription(`${member} joined ${voiceChannel.toString()}`)
                 .addFields(
                     { name: 'Username', value: member.user.tag, inline: true },
                     { name: 'Nickname', value: member.nickname || 'None', inline: true }
