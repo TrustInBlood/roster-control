@@ -12,7 +12,8 @@
     "lint:fix": "eslint . --fix",
     "deploy:commands": "node scripts/deploy-commands.js",
     "deploy:commands:dev": "NODE_ENV=development node scripts/deploy-commands.js",
-    "deploy:commands:prod": "NODE_ENV=production node scripts/deploy-commands.js"
+    "deploy:commands:prod": "NODE_ENV=production node scripts/deploy-commands.js",
+    "test:db": "node scripts/test-db-connection.js"
   },
   "keywords": [
     "discord",

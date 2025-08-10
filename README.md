@@ -60,11 +60,55 @@ Roster Control integrates with MariaDB for persistent storage, BattleMetrics API
 
 
 3. **Database Setup**
-   ```bash
-   # Create database
-   mysql -u root -p -e "CREATE DATABASE roster_control;"
    
-   # Run migrations (happens automatically on startup)
+   **Option A: Quick Setup (Single Command)**
+   ```bash
+   # Create database with default settings
+   mysql -u root -p -e "CREATE DATABASE roster_control CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+   ```
+   
+   **Option B: Secure Setup (Recommended)**
+   
+   Connect to MariaDB and run these commands:
+   ```sql
+   -- Connect to MariaDB as root
+   mysql -u root -p
+   
+   -- Create the database with proper character encoding
+   CREATE DATABASE roster_control CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+   
+   -- Create a dedicated user for the application
+   CREATE USER 'roster_user'@'localhost' IDENTIFIED BY 'your_secure_password_here';
+   
+   -- Grant privileges to the user
+   GRANT ALL PRIVILEGES ON roster_control.* TO 'roster_user'@'localhost';
+   
+   -- Apply privileges
+   FLUSH PRIVILEGES;
+   
+   -- Verify setup
+   SHOW DATABASES;
+   USE roster_control;
+   SELECT @@character_set_database, @@collation_database;
+   EXIT;
+   ```
+   
+   **Update your .env file with the database credentials:**
+   ```bash
+   DB_HOST=localhost
+   DB_PORT=3306
+   DB_NAME=roster_control
+   DB_USER=roster_user  # or 'root' if using Option A
+   DB_PASSWORD=your_secure_password_here
+   ```
+   
+   **Test Database Connection:**
+   ```bash
+   npm run test:db
+   ```
+   
+   **Run migrations (happens automatically on startup):**
+   ```bash
    npm start
    ```
 
