@@ -27,7 +27,7 @@ async function testPlayerModel() {
     console.log('👤 Testing player creation...');
     const testPlayer = await Player.create({
       steamId: '76561198012345678',
-      eosId: 'EOS_1234567890abcdef1234567890abcdef',
+      eosId: '0002b25dc9564312bf0d2b468a9b4c44',
       username: 'TestPlayer',
       rosterStatus: true,
       notes: 'Test player for model validation'
@@ -54,7 +54,7 @@ async function testPlayerModel() {
     
     // Test finding the player by EOS ID
     console.log('🔍 Testing player retrieval by EOS ID...');
-    const foundPlayerByEos = await Player.findOne({ where: { eosId: 'EOS_1234567890abcdef1234567890abcdef' } });
+    const foundPlayerByEos = await Player.findOne({ where: { eosId: '0002b25dc9564312bf0d2b468a9b4c44' } });
     
     if (foundPlayerByEos) {
       console.log('✅ Player found by EOS ID:', foundPlayerByEos.username);

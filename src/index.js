@@ -1,6 +1,8 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const { handleVoiceStateUpdate } = require('./handlers/voiceStateHandler');
+const { setupRoleChangeHandler } = require('./handlers/roleChangeHandler');
+const DutyStatusSyncService = require('./services/DutyStatusSyncService');
 const fs = require('fs');
 const path = require('path');
 const winston = require('winston');
@@ -54,12 +56,70 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // Event handler
-client.on('ready', () => {
+client.on('ready', async () => {
     logger.info(`Logged in as ${client.user.tag}`);
+    console.log(`🤖 Bot logged in as ${client.user.tag}`);
+    
+    // Set up role change handler
+    const roleChangeHandler = setupRoleChangeHandler(client);
+    console.log('🔧 Role change handler initialized');
+    
+    // Wait a moment for all guilds to be loaded
+    setTimeout(async () => {
+        await performStartupSync(client);
+    }, 5000);
 });
 
 // Voice state update handler
 client.on('voiceStateUpdate', handleVoiceStateUpdate);
+
+// Startup sync function
+async function performStartupSync(client) {
+    try {
+        console.log('🚀 Starting bot startup sync...');
+        const syncService = new DutyStatusSyncService();
+        
+        for (const [guildId, guild] of client.guilds.cache) {
+            console.log(`🔄 Syncing guild: ${guild.name}`);
+            
+            try {
+                const syncResults = await syncService.syncGuildDutyStatus(guild);
+                
+                // Log sync summary
+                console.log(`📊 Sync completed for ${guild.name}:`, {
+                    scanned: syncResults.scanned,
+                    roleHolders: syncResults.discordRoleHolders,
+                    recordsCreated: syncResults.recordsCreated,
+                    discrepancies: syncResults.discrepanciesFound,
+                    resolved: syncResults.discrepanciesResolved,
+                    errors: syncResults.errors.length
+                });
+                
+                if (syncResults.errors.length > 0) {
+                    console.warn(`⚠️ Sync errors for ${guild.name}:`, syncResults.errors);
+                }
+                
+            } catch (error) {
+                console.error(`❌ Failed to sync guild ${guild.name}:`, error);
+                logger.error('Guild sync failed', {
+                    guildId: guild.id,
+                    guildName: guild.name,
+                    error: error.message,
+                    stack: error.stack
+                });
+            }
+        }
+        
+        console.log('✅ Startup sync completed for all guilds');
+        
+    } catch (error) {
+        console.error('❌ Startup sync failed:', error);
+        logger.error('Startup sync failed', {
+            error: error.message,
+            stack: error.stack
+        });
+    }
+}
 
 // Import handlers
 const { permissionMiddleware } = require('./handlers/permissionHandler');
