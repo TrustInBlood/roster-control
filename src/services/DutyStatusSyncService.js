@@ -162,26 +162,58 @@ class DutyStatusSyncService {
 
     async _createMissingRecord(member, syncResults) {
         try {
-            const result = await this.dutyFactory.setOnDuty(null, {
-                member,
-                source: 'startup_sync',
-                reason: 'User had role on bot startup - creating missing database record',
-                skipNotification: true,
-                metadata: {
-                    syncType: 'missing_record',
-                    botStartup: true
-                }
+            // First check if any database record already exists for this user
+            console.log(`🔍 Checking for existing database records for ${member.user.tag}`);
+            
+            const existingRecord = await DutyStatusChange.findOne({
+                where: {
+                    discordUserId: member.user.id,
+                    guildId: member.guild.id
+                },
+                order: [['createdAt', 'DESC']]
             });
 
-            if (result.success) {
-                syncResults.recordsCreated++;
-                console.log(`✅ Created database record for ${member.user.tag}`);
-            } else {
-                throw new Error(result.error);
+            if (existingRecord) {
+                console.log(`📋 Found existing record for ${member.user.tag}: ${existingRecord.status ? 'ON' : 'OFF'} duty (${existingRecord.createdAt})`);
+                syncResults.databaseRecordsFound++;
+                
+                // Check if the existing record matches current Discord state
+                if (existingRecord.status === true) {
+                    console.log(`✅ ${member.user.tag} database record matches Discord role (both ON duty)`);
+                } else {
+                    console.log(`⚠️ ${member.user.tag} has role but database shows OFF duty - will handle as discrepancy`);
+                }
+                return; // Don't create a new record
             }
+
+            // No existing record found, create one
+            console.log(`📝 No database record found for ${member.user.tag} - creating missing record`);
+            
+            const changeRecord = await DutyStatusChange.create({
+                discordUserId: member.user.id,
+                discordUsername: member.user.username,
+                status: true, // They have the role, so they're on duty
+                previousStatus: false, // No previous record, assume false
+                source: 'startup_sync',
+                reason: 'User had on-duty role at bot startup - creating missing database record',
+                guildId: member.guild.id,
+                metadata: {
+                    syncType: 'missing_record',
+                    botStartup: true,
+                    userTag: member.user.tag,
+                    userDisplayName: member.displayName,
+                    roleAlreadyPresent: true,
+                    syncTimestamp: new Date().toISOString()
+                },
+                success: true
+            });
+
+            syncResults.recordsCreated++;
+            console.log(`✅ Created database record for ${member.user.tag} (ID: ${changeRecord.id})`);
+            
         } catch (error) {
-            console.error(`❌ Failed to create record for ${member.user.tag}:`, error);
-            syncResults.errors.push(`${member.user.tag}: Failed to create record - ${error.message}`);
+            console.error(`❌ Failed to process database record for ${member.user.tag}:`, error);
+            syncResults.errors.push(`${member.user.tag}: Failed to process database record - ${error.message}`);
         }
     }
 
