@@ -77,15 +77,23 @@ class DutyStatusSyncService {
     }
 
     async _getRecentDutyChanges(guildId, hours = 168) { // 7 days
-        const { Op } = require('sequelize');
-        const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000);
-        return await DutyStatusChange.findAll({
-            where: {
-                guildId,
-                createdAt: { [Op.gte]: cutoff }
-            },
-            order: [['createdAt', 'DESC']]
-        });
+        try {
+            const { Op } = require('sequelize');
+            const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000);
+            return await DutyStatusChange.findAll({
+                where: {
+                    guildId,
+                    createdAt: { [Op.gte]: cutoff }
+                },
+                order: [['createdAt', 'DESC']]
+            });
+        } catch (error) {
+            if (error.name === 'SequelizeDatabaseError' && error.original?.code === 'ER_NO_SUCH_TABLE') {
+                console.log('📝 DutyStatusChange table does not exist yet - returning empty array');
+                return [];
+            }
+            throw error;
+        }
     }
 
     _getLatestStatusByUser(changes) {

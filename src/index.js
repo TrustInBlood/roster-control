@@ -3,6 +3,7 @@ const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const { handleVoiceStateUpdate } = require('./handlers/voiceStateHandler');
 const { setupRoleChangeHandler } = require('./handlers/roleChangeHandler');
 const DutyStatusSyncService = require('./services/DutyStatusSyncService');
+const { sequelize } = require('./database/index');
 const fs = require('fs');
 const path = require('path');
 const winston = require('winston');
@@ -77,6 +78,10 @@ client.on('voiceStateUpdate', handleVoiceStateUpdate);
 async function performStartupSync(client) {
     try {
         console.log('🚀 Starting bot startup sync...');
+        
+        // First, ensure all database tables exist
+        await ensureDatabaseTables();
+        
         const syncService = new DutyStatusSyncService();
         
         for (const [guildId, guild] of client.guilds.cache) {
@@ -118,6 +123,54 @@ async function performStartupSync(client) {
             error: error.message,
             stack: error.stack
         });
+    }
+}
+
+// Database initialization function
+async function ensureDatabaseTables() {
+    try {
+        console.log('🗄️ Ensuring database tables exist...');
+        
+        // Test database connection
+        await sequelize.authenticate();
+        console.log('✅ Database connection verified');
+        
+        // Sync all models (create tables if they don't exist, but don't drop existing ones)
+        await sequelize.sync({ alter: false });
+        console.log('✅ Database tables synchronized');
+        
+        // Verify critical tables exist
+        const tables = await sequelize.getQueryInterface().showAllTables();
+        console.log(`📊 Found ${tables.length} database tables:`, tables.join(', '));
+        
+        const requiredTables = ['players', 'duty_status_changes'];
+        const missingTables = requiredTables.filter(table => !tables.includes(table));
+        
+        if (missingTables.length > 0) {
+            console.warn('⚠️ Missing required tables:', missingTables);
+            console.log('🔧 Attempting to create missing tables...');
+            
+            // Force sync only if tables are missing
+            await sequelize.sync({ force: false, alter: true });
+            console.log('✅ Missing tables created');
+        }
+        
+    } catch (error) {
+        console.error('❌ Database initialization failed:', error);
+        
+        // If it's a table missing error, try to create it
+        if (error.name === 'SequelizeDatabaseError' && error.original?.code === 'ER_NO_SUCH_TABLE') {
+            console.log('🔧 Attempting to create missing tables...');
+            try {
+                await sequelize.sync({ alter: true });
+                console.log('✅ Tables created successfully');
+            } catch (syncError) {
+                console.error('❌ Failed to create tables:', syncError);
+                throw syncError;
+            }
+        } else {
+            throw error;
+        }
     }
 }
 
