@@ -60,12 +60,13 @@ class DutyStatusFactory {
                 return result;
             }
 
-            // Check current status
+            // Check current Discord role status (this is the source of truth)
             const currentlyOnDuty = member.roles.cache.has(this.onDutyRoleId);
             result.data.wasOnDuty = currentlyOnDuty;
 
-            // Validate state change
-            if (currentlyOnDuty === isOnDuty) {
+            // Only validate state change for command-based changes
+            // For external changes, we're just logging what already happened
+            if (options.source !== 'external' && currentlyOnDuty === isOnDuty) {
                 result.error = isOnDuty 
                     ? 'User is already on duty'
                     : 'User is not currently on duty';
@@ -83,14 +84,19 @@ class DutyStatusFactory {
 
             console.log(`🔄 Processing duty status change: ${member.user.tag} -> ${isOnDuty ? 'ON' : 'OFF'} duty`);
 
-            // Handle role change
-            const roleResult = await this._handleRoleChange(member, onDutyRole, isOnDuty);
-            if (!roleResult.success) {
-                result.error = roleResult.error;
-                return result;
+            // Handle role change (skip for external changes since role already changed)
+            if (options.source !== 'external') {
+                const roleResult = await this._handleRoleChange(member, onDutyRole, isOnDuty);
+                if (!roleResult.success) {
+                    result.error = roleResult.error;
+                    return result;
+                }
+                result.data.roleChanged = true;
+                console.log(`✅ Role ${isOnDuty ? 'added' : 'removed'} successfully`);
+            } else {
+                result.data.roleChanged = false; // Role was changed externally
+                console.log(`📝 External role change detected - logging the change`);
             }
-            result.data.roleChanged = true;
-            console.log(`✅ Role ${isOnDuty ? 'added' : 'removed'} successfully`);
 
             // Send notification (unless explicitly skipped)
             if (!options.skipNotification) {

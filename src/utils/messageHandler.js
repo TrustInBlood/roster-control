@@ -1,4 +1,4 @@
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, InteractionResponseFlags } = require('discord.js');
 
 /**
  * Sends an ephemeral response to an interaction
@@ -12,7 +12,7 @@ const { EmbedBuilder } = require('discord.js');
 async function sendEphemeralResponse(interaction, { content, success = true, embed = null }) {
     const response = {
         content: `${success ? '✅' : '❌'} ${content}`,
-        ephemeral: true
+        flags: InteractionResponseFlags.Ephemeral
     };
 
     if (embed) {
@@ -75,7 +75,7 @@ async function sendError(interaction, content, embed = null) {
  * @param {Function} operation - Async operation to execute
  */
 async function withLoadingMessage(interaction, loadingMessage, operation) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: InteractionResponseFlags.Ephemeral });
     try {
         const result = await operation();
         return result;
