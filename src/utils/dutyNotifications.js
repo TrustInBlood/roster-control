@@ -21,6 +21,7 @@ async function sendDutyNotification(interaction, isOnDuty) {
             .setColor(isOnDuty ? 0x00FF00 : 0xFF0000)
             .setTitle('Admin Duty Status Update')
             .setDescription(`${interaction.user} is now ${isOnDuty ? 'on' : 'off'} duty`)
+            .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
             .setTimestamp();
 
         await channel.send({ embeds: [embed] });

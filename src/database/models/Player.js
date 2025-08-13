@@ -1,4 +1,4 @@
-const { DataTypes } = require('sequelize');
+const { DataTypes, Op } = require('sequelize');
 const { sequelize } = require('../index');
 
 const Player = sequelize.define('Player', {
@@ -151,7 +151,7 @@ Player.getActivePlayers = function(hours = 24) {
   const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000);
   return this.findAll({ 
     where: { 
-      lastSeen: { [sequelize.Op.gte]: cutoff } 
+      lastSeen: { [Op.gte]: cutoff } 
     } 
   });
 };

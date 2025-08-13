@@ -1,6 +1,7 @@
 const { EmbedBuilder } = require('discord.js');
 const { CHANNELS } = require('../../config/channels');
 const { ON_DUTY_ROLE_ID } = require('../../config/roles');
+// const DutyStatusFactory = require('../services/DutyStatusFactory'); // Available for future automatic duty management
 
 /**
  * Handles voice state updates and notifies on-duty admins when users join the monitored channel
@@ -37,6 +38,20 @@ async function handleVoiceStateUpdate(oldState, newState) {
                 embeds: [embed]
             });
         }
+
+        // Future enhancement: Automatic duty management based on voice state
+        // This is where the DutyStatusFactory could be used for automatic role removal
+        // when admins are inactive for extended periods or join/leave specific channels
+        //
+        // Example implementation:
+        // if (shouldAutoRemoveDuty(oldState, newState)) {
+        //     const dutyFactory = new DutyStatusFactory();
+        //     await dutyFactory.removeInactiveDuty(member, {
+        //         source: 'voice_state',
+        //         reason: 'User left monitored channel or became inactive',
+        //         skipNotification: false
+        //     });
+        // }
     } catch (error) {
         console.error('Error handling voice state update:', error);
     }

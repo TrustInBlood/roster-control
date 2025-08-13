@@ -1,4 +1,5 @@
 const winston = require('winston');
+const { MessageFlags } = require('discord.js');
 
 class CommandError extends Error {
     constructor(message, code, userMessage) {
@@ -46,7 +47,7 @@ async function handleCommandError(error, interaction, logger) {
     // Prepare user-facing error message
     let errorMessage = {
         content: error instanceof CommandError ? error.userMessage : 'An unexpected error occurred.',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
     };
 
     // Send error response to user
