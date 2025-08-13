@@ -36,7 +36,7 @@ class RoleChangeHandler {
                     member: newMember,
                     source: 'external',
                     reason: `Role ${newHasRole ? 'added' : 'removed'} externally (not via bot commands)`,
-                    skipNotification: true, // Skip notifications for external changes to avoid duplicates
+                    skipNotification: false, // Send notifications for external changes
                     metadata: {
                         externalChange: true,
                         oldRoleStatus: oldHasRole,

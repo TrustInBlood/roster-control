@@ -171,13 +171,12 @@ class DutyStatusFactory {
     async _handleNotification(interaction, member, isOnDuty) {
         try {
             if (interaction) {
+                // For command-based changes, use the interaction-based notification
                 return await sendDutyNotification(interaction, isOnDuty);
             } else {
-                // For non-interaction based changes (external role changes, sync), 
-                // skip notifications to avoid duplicates since the role change handler 
-                // will log the change appropriately
-                console.log(`📝 Skipping notification for ${member.user.tag} (non-interaction change)`);
-                return { success: true };
+                // For external role changes, send direct notification to duty logs
+                console.log(`📢 Sending notification for ${member.user.tag} (external change)`);
+                return await this._sendDirectNotification(member, isOnDuty);
             }
         } catch (error) {
             return {
@@ -199,20 +198,13 @@ class DutyStatusFactory {
                 };
             }
 
+            // Use the same embed style as command notifications for consistency
             const embed = new EmbedBuilder()
                 .setColor(isOnDuty ? 0x00FF00 : 0xFF0000)
-                .setTitle('Duty Status Changed')
-                .setDescription(`${member} is now ${isOnDuty ? 'on' : 'off'} duty.`)
-                .addFields(
-                    { name: 'User', value: member.user.tag, inline: true },
-                    { name: 'Status', value: isOnDuty ? '✅ On Duty' : '❌ Off Duty', inline: true },
-                    { name: 'Source', value: 'Automatic/External', inline: true }
-                )
+                .setTitle('Admin Duty Status Update')
+                .setDescription(`${member} is now ${isOnDuty ? 'on' : 'off'} duty`)
+                .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
                 .setTimestamp();
-
-            if (member.user.avatar) {
-                embed.setThumbnail(member.user.displayAvatarURL({ dynamic: true }));
-            }
 
             await channel.send({ embeds: [embed] });
             
