@@ -173,8 +173,11 @@ class DutyStatusFactory {
             if (interaction) {
                 return await sendDutyNotification(interaction, isOnDuty);
             } else {
-                // For non-interaction based changes, send direct notification to duty logs channel
-                return await this._sendDirectNotification(member, isOnDuty);
+                // For non-interaction based changes (external role changes, sync), 
+                // skip notifications to avoid duplicates since the role change handler 
+                // will log the change appropriately
+                console.log(`📝 Skipping notification for ${member.user.tag} (non-interaction change)`);
+                return { success: true };
             }
         } catch (error) {
             return {
