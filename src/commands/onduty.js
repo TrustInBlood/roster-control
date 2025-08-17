@@ -14,6 +14,7 @@ module.exports = {
             // Attempt to set user on duty using the factory
             const result = await dutyFactory.setOnDuty(interaction, {
                 channelId: interaction.channelId,
+                skipNotification: true, // Let the role change handler send the notification
                 metadata: {
                     commandName: 'onduty',
                     triggeredAt: new Date().toISOString()
