@@ -1,4 +1,4 @@
-const { COMMAND_PERMISSIONS } = require('../../config/roles');
+const { COMMAND_PERMISSIONS } = require('../../config/discord');
 const { sendError } = require('../utils/messageHandler');
 
 /**

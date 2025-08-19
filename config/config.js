@@ -21,9 +21,9 @@ const config = {
     port: parseInt(process.env.DB_PORT) || 3306,
     name: process.env.DB_NAME || 'roster_control',
     user: process.env.DB_USER,
-    password: process.env.DB_PASS,
+    password: process.env.DB_PASSWORD,
     dialect: 'mariadb',
-    logging: env === 'development' ? console.log : false,
+    logging: process.env.NODE_ENV === 'development' ? console.log : false,
     pool: {
       max: 5,
       min: 0,
@@ -55,7 +55,7 @@ const config = {
   // Logging Configuration
   logging: {
     level: process.env.LOG_LEVEL || 'info',
-    filename: `logs/${env}.log`,
+    filename: `logs/${process.env.NODE_ENV || 'development'}.log`,
     maxSize: '10m',
     maxFiles: 5
   },
