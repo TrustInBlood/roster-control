@@ -1,7 +1,7 @@
-const { ON_DUTY_ROLE_ID } = require('../../config/roles');
+const { ON_DUTY_ROLE_ID } = require('../../config/discord');
 const { sendDutyNotification } = require('../utils/dutyNotifications');
 const { DutyStatusChange } = require('../database/models');
-const { CHANNELS } = require('../../config/channels');
+const { CHANNELS } = require('../../config/discord');
 const { EmbedBuilder } = require('discord.js');
 
 class DutyStatusFactory {

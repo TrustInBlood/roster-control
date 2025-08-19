@@ -1,6 +1,6 @@
 const { EmbedBuilder } = require('discord.js');
-const { CHANNELS } = require('../../config/channels');
-const { ON_DUTY_ROLE_ID } = require('../../config/roles');
+const { CHANNELS } = require('../../config/discord');
+const { ON_DUTY_ROLE_ID } = require('../../config/discord');
 // const DutyStatusFactory = require('../services/DutyStatusFactory'); // Available for future automatic duty management
 
 /**

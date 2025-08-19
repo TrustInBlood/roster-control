@@ -1,4 +1,4 @@
-const { ON_DUTY_ROLE_ID } = require('../../config/roles');
+const { ON_DUTY_ROLE_ID } = require('../../config/discord');
 const { DutyStatusChange } = require('../database/models');
 const DutyStatusFactory = require('./DutyStatusFactory');
 

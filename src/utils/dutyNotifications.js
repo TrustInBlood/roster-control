@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require('discord.js');
-const { CHANNELS } = require('../../config/channels');
+const { CHANNELS } = require('../../config/discord');
 
 /**
  * Sends a notification about an admin's duty status change

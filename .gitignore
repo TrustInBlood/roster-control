@@ -12,6 +12,11 @@ TASKS.md
 .env
 .env.development
 .env.production
+.env.dev
+
+# Development-specific Discord configurations
+config/roles.development.js
+config/channels.development.js
 
 # Logs
 logs/
