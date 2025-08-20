@@ -7,6 +7,11 @@ const { EmbedBuilder } = require('discord.js');
 class DutyStatusFactory {
     constructor() {
         this.onDutyRoleId = ON_DUTY_ROLE_ID;
+        this.roleChangeHandler = null; // Will be set by the handler
+    }
+    
+    setRoleChangeHandler(handler) {
+        this.roleChangeHandler = handler;
     }
 
     async setOnDuty(interaction, options = {}) {
@@ -86,6 +91,11 @@ class DutyStatusFactory {
 
             // Handle role change (skip for external changes since role already changed)
             if (options.source !== 'external') {
+                // Notify role change handler that we're about to make a change
+                if (this.roleChangeHandler) {
+                    this.roleChangeHandler.addToProcessingSet(member.user.id);
+                }
+                
                 const roleResult = await this._handleRoleChange(member, onDutyRole, isOnDuty);
                 if (!roleResult.success) {
                     result.error = roleResult.error;

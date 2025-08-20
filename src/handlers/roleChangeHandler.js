@@ -6,6 +6,17 @@ class RoleChangeHandler {
         this.onDutyRoleId = ON_DUTY_ROLE_ID;
         this.dutyFactory = new DutyStatusFactory();
         this.processingUsers = new Set(); // Prevent duplicate processing
+        
+        // Set up cross-reference
+        this.dutyFactory.setRoleChangeHandler(this);
+    }
+    
+    addToProcessingSet(userId) {
+        this.processingUsers.add(userId);
+        // Remove after longer timeout to account for Discord event delays
+        setTimeout(() => {
+            this.processingUsers.delete(userId);
+        }, 10000); // 10 seconds should be more than enough
     }
 
     async handleGuildMemberUpdate(oldMember, newMember) {
@@ -22,7 +33,7 @@ class RoleChangeHandler {
             // Prevent duplicate processing if this user is already being processed
             const userId = newMember.user.id;
             if (this.processingUsers.has(userId)) {
-                console.log(`⏭️ Skipping duplicate role change processing for ${newMember.user.tag}`);
+                console.log(`⏭️ Skipping duplicate role change processing for ${newMember.user.tag} (bot-initiated change)`);
                 return;
             }
 
@@ -55,7 +66,7 @@ class RoleChangeHandler {
                 // Always remove from processing set
                 setTimeout(() => {
                     this.processingUsers.delete(userId);
-                }, 5000); // Remove after 5 seconds to prevent permanent blocking
+                }, 10000); // Remove after 10 seconds to prevent permanent blocking
             }
 
         } catch (error) {
