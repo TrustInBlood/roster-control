@@ -14,7 +14,12 @@
     "deploy:commands:dev": "NODE_ENV=development node scripts/deploy-commands.js",
     "deploy:commands:prod": "NODE_ENV=production node scripts/deploy-commands.js",
     "test:db": "node scripts/test-db-connection.js",
-    "test:player": "node scripts/test-player-model.js"
+    "test:player": "node scripts/test-player-model.js",
+    "test:db:full": "node scripts/test-new-database-setup.js",
+    "test:models": "node scripts/test-all-new-models.js",
+    "db:migrate": "node scripts/migrate-database.js",
+    "db:migrate:status": "node scripts/migration-status.js",
+    "db:migrate:rollback": "node scripts/rollback-migration.js"
   },
   "keywords": [
     "discord",

@@ -1,17 +1,26 @@
 const { sequelize, testConnection } = require('../../config/database');
+const { defineAssociations } = require('./associations');
 
 // Database connection manager
 class DatabaseManager {
   constructor() {
     this.sequelize = sequelize;
     this.isConnected = false;
+    this.associationsDefined = false;
   }
 
-  // Initialize database connection
+  // Initialize database connection and associations
   async connect() {
     try {
       const connected = await testConnection();
       this.isConnected = connected;
+      
+      // Define model associations after connection is established
+      if (connected && !this.associationsDefined) {
+        defineAssociations();
+        this.associationsDefined = true;
+      }
+      
       return connected;
     } catch (error) {
       console.error('Failed to connect to database:', error);

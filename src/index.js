@@ -3,7 +3,8 @@ const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const { handleVoiceStateUpdate } = require('./handlers/voiceStateHandler');
 const { setupRoleChangeHandler } = require('./handlers/roleChangeHandler');
 const DutyStatusSyncService = require('./services/DutyStatusSyncService');
-const { sequelize } = require('./database/index');
+const { databaseManager } = require('./database/index');
+const { migrationManager } = require('./database/migrator');
 const fs = require('fs');
 const path = require('path');
 const winston = require('winston');
@@ -79,8 +80,8 @@ async function performStartupSync(client) {
     try {
         console.log('🚀 Starting bot startup sync...');
         
-        // First, ensure all database tables exist
-        await ensureDatabaseTables();
+        // First, ensure database is connected and run migrations
+        await ensureDatabaseReady();
         
         const syncService = new DutyStatusSyncService();
         
@@ -126,51 +127,68 @@ async function performStartupSync(client) {
     }
 }
 
-// Database initialization function
-async function ensureDatabaseTables() {
+// Database initialization function using migrations
+async function ensureDatabaseReady() {
     try {
-        console.log('🗄️ Ensuring database tables exist...');
+        console.log('🗄️ Initializing database connection and schema...');
         
-        // Test database connection
-        await sequelize.authenticate();
-        console.log('✅ Database connection verified');
+        // Connect to database and set up associations
+        const connected = await databaseManager.connect();
+        if (!connected) {
+            throw new Error('Failed to establish database connection');
+        }
+        console.log('✅ Database connection established');
         
-        // Sync all models (create tables if they don't exist, but don't drop existing ones)
-        await sequelize.sync({ alter: false });
-        console.log('✅ Database tables synchronized');
+        // Run all pending migrations
+        const migrationResult = await migrationManager.runMigrations();
+        
+        if (migrationResult.migrationsRun > 0) {
+            console.log(`✅ Applied ${migrationResult.migrationsRun} database migration(s)`);
+        } else {
+            console.log('✅ Database schema is up to date');
+        }
+        
+        // Verify database health
+        const isHealthy = await databaseManager.healthCheck();
+        if (!isHealthy) {
+            throw new Error('Database health check failed');
+        }
+        
+        // Get migration status for logging
+        const status = await migrationManager.getStatus();
+        console.log(`📊 Database status: ${status.executed.length} migrations executed, ${status.pending.length} pending`);
         
         // Verify critical tables exist
+        const sequelize = databaseManager.getSequelize();
         const tables = await sequelize.getQueryInterface().showAllTables();
-        console.log(`📊 Found ${tables.length} database tables:`, tables.join(', '));
+        console.log(`📋 Active tables: ${tables.length} (${tables.join(', ')})`);
         
-        const requiredTables = ['players', 'duty_status_changes'];
+        const requiredTables = ['players', 'duty_status_changes', 'admins', 'servers', 'audit_logs'];
         const missingTables = requiredTables.filter(table => !tables.includes(table));
         
         if (missingTables.length > 0) {
-            console.warn('⚠️ Missing required tables:', missingTables);
-            console.log('🔧 Attempting to create missing tables...');
-            
-            // Force sync only if tables are missing
-            await sequelize.sync({ force: false, alter: true });
-            console.log('✅ Missing tables created');
+            console.warn(`⚠️ Warning: Expected tables not found: ${missingTables.join(', ')}`);
+            console.warn('This might indicate a migration issue or fresh installation');
         }
+        
+        console.log('✅ Database initialization complete');
         
     } catch (error) {
         console.error('❌ Database initialization failed:', error);
         
-        // If it's a table missing error, try to create it
-        if (error.name === 'SequelizeDatabaseError' && error.original?.code === 'ER_NO_SUCH_TABLE') {
-            console.log('🔧 Attempting to create missing tables...');
-            try {
-                await sequelize.sync({ alter: true });
-                console.log('✅ Tables created successfully');
-            } catch (syncError) {
-                console.error('❌ Failed to create tables:', syncError);
-                throw syncError;
-            }
-        } else {
-            throw error;
+        // Log additional migration status information for debugging
+        try {
+            const status = await migrationManager.getStatus();
+            console.error('📋 Migration status at failure:', {
+                executed: status.executed,
+                pending: status.pending,
+                total: status.total
+            });
+        } catch (statusError) {
+            console.error('❌ Could not retrieve migration status:', statusError.message);
         }
+        
+        throw error;
     }
 }
 

@@ -1,5 +1,5 @@
 const { DataTypes, Op } = require('sequelize');
-const { sequelize } = require('../index');
+const { sequelize } = require('../../../config/database');
 
 const Player = sequelize.define('Player', {
   // Auto-increment primary key
