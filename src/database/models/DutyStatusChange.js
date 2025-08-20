@@ -1,5 +1,5 @@
 const { DataTypes, Op } = require('sequelize');
-const { sequelize } = require('../index');
+const { sequelize } = require('../../../config/database');
 
 const DutyStatusChange = sequelize.define('DutyStatusChange', {
   // Auto-increment primary key
@@ -41,7 +41,7 @@ const DutyStatusChange = sequelize.define('DutyStatusChange', {
   
   // Source of the change (command, automatic, admin, etc.)
   source: {
-    type: DataTypes.ENUM('command', 'automatic', 'admin', 'voice_state', 'manual', 'external', 'startup_sync', 'manual_sync'),
+    type: DataTypes.STRING(50),
     allowNull: false,
     defaultValue: 'command',
     comment: 'Source that triggered the duty status change'
