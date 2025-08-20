@@ -4,10 +4,6 @@ node_modules
 .cursor/
 .cursorrules
 
-# Project management files
-PLANNING.md
-TASKS.md
-
 # Environment variables
 .env
 .env.development

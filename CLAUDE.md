@@ -26,13 +26,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Core System Design
 This is a **Discord bot for Squad server roster management** with the following key architectural components:
 
-**Data Layer**: MariaDB with Sequelize ORM, featuring automated migrations and connection pooling. The primary model is `Player` with comprehensive tracking of Steam IDs, EOS IDs, roster status, and activity history.
+**Data Layer**: MariaDB with Sequelize ORM, featuring automated Umzug migrations and connection pooling. Core models include `Player` (Steam/EOS IDs, roster status), `Admin` (Discord info, permissions), `Server` (Squad server configs), `AuditLog` (comprehensive action tracking), and `DutyStatusChange` (duty status history).
 
 **Bot Framework**: Discord.js v14 with modular command structure, role-based permissions, and automated event handling for voice state monitoring.
 
 **Integration Layer**: Designed for BattleMetrics API integration and SquadJS real-time event processing (planned), with proper rate limiting and reconnection logic.
 
-**On-Duty System**: Role-based admin management where admins can set themselves on/off duty, with automatic notifications and voice channel monitoring.
+**On-Duty System**: Discord role-based admin management where roles are the source of truth for duty status. Includes duty change logging, external role change detection, automatic notifications, and voice channel monitoring.
 
 ### Key Components
 
@@ -42,9 +42,15 @@ This is a **Discord bot for Squad server roster management** with the following 
 - Support for multiple role IDs per command
 
 #### Database Architecture (`src/database/`)
-- **Sequelize Models**: Player model with comprehensive fields (steamId, eosId, username, roster status, activity tracking)
+- **Sequelize Models**: 
+  - `Player` - Steam/EOS IDs, username, roster status, activity tracking
+  - `Admin` - Discord user info, permission levels (no duty status - roles determine this)
+  - `Server` - Squad server configs, health status, connection details
+  - `AuditLog` - Comprehensive action tracking with actor/target info
+  - `DutyStatusChange` - Duty status change logs with source tracking
+- **Migration System**: Umzug-powered automated database migrations
 - **Connection Management**: Singleton DatabaseManager with health checks and connection pooling
-- **Configuration**: Charset-aware MariaDB setup (utf8mb4_unicode_ci)
+- **Configuration**: Charset-aware MariaDB setup (utf8mb4_unicode_ci), flexible TEXT fields instead of ENUMs
 
 #### Command System (`src/commands/`)
 - **Modular Structure**: Each command is a separate file with `data` (SlashCommandBuilder) and `execute` properties
@@ -53,6 +59,7 @@ This is a **Discord bot for Squad server roster management** with the following 
 
 #### Event Handling (`src/handlers/`)
 - **Voice State Monitoring**: Automatic notifications when users join monitored voice channels
+- **Role Change Detection**: Monitors Discord role changes, distinguishes bot vs external changes
 - **Duty Notifications**: Embed-based status updates sent to configured channels
 - **Error Management**: Comprehensive error handling with logging
 
@@ -81,9 +88,12 @@ Configuration is managed through `.env` file (see `.env.example`):
 
 ### Database Operations
 - Use Sequelize models, not raw SQL
-- Player model includes static methods: `findBySteamId()`, `findByEosId()`, `getRosterMembers()`
-- Instance methods: `updateActivity()`, `addPlayTime()`
+- Use Umzug for database migrations (automated on startup)
+- All models include comprehensive static methods for querying
+- Player model: `findBySteamId()`, `findByEosId()`, `getRosterMembers()`
+- Admin model: `findByDiscordId()`, `getActiveAdmins()`, `getAdminsByLevel()`
 - Always use database connection manager for health checks
+- Database schema uses flexible TEXT fields instead of ENUMs for future-proofing
 
 ### Error Handling
 - Use `sendError()` and `sendSuccess()` from `src/utils/messageHandler.js`
@@ -98,23 +108,25 @@ Configuration is managed through `.env` file (see `.env.example`):
 ## Project Structure Context
 
 ### Current Implementation Status
-- ✅ **Complete**: Discord bot framework, basic commands, permission system, database models, error handling
-- 🔄 **In Progress**: Database migrations, SquadJS integration, BattleMetrics API
+- ✅ **Complete**: Discord bot framework, all database models with migrations, role-based on-duty system, external role change detection, duty status logging, permission system, error handling
+- 🔄 **In Progress**: SquadJS integration, BattleMetrics API
 - 📋 **Planned**: Whitelist management commands, player activity tracking, RCON integration
 
 ### Key Files for Development
 - `src/index.js` - Main bot entry point with event handlers
-- `src/database/models/Player.js` - Primary data model
+- `src/database/models/` - All database models (Player, Admin, Server, AuditLog, DutyStatusChange)
+- `src/handlers/roleChangeHandler.js` - Discord role change detection and processing
+- `src/services/DutyStatusFactory.js` - Duty status management and logging
 - `config/roles.js` - Permission configuration (contains actual Discord role IDs)
 - `config/channels.js` - Channel configuration (contains actual Discord channel IDs)
-- `PLANNING.md` - Detailed project roadmap and architecture decisions
+- `migrations/` - Database migration files managed by Umzug
 - `TASKS.md` - Current implementation status and next steps
 
 ### Integration Points
 - **BattleMetrics API**: Rate-limited HTTP client for server/player data
 - **SquadJS**: WebSocket connection for real-time game events
 - **Discord Events**: Voice state monitoring for admin notifications
-- **Database**: Automated sync on startup, no manual migrations needed
+- **Database**: Automated Umzug migrations on startup, comprehensive logging and audit trails
 
 ## Important Notes
 
