@@ -130,6 +130,10 @@ Configuration is managed through `.env` file (see `.env.example`):
 
 ## Important Notes
 
+### Code Style Guidelines
+- **Avoid using emojis** in code, comments, or output unless specifically requested by the user
+- Use clear, descriptive text instead of emoji characters for better readability and maintainability
+
 ### Security Considerations
 - Role IDs and channel IDs in config files are environment-specific
 - Database uses connection pooling with charset configuration for Squad player names
