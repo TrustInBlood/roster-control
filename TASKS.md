@@ -55,30 +55,30 @@
 
 ## Phase 2: Squad Server & BattleMetrics Integration
 
-### Multi-Squad Server Integration (via SquadJS)
-- [ ] Design multi-server architecture
-  - [ ] Support for 5 Squad servers via separate SquadJS instances
-  - [ ] Server identification and management system
-  - [ ] Centralized event processing from multiple SquadJS instances
-- [ ] Configure SquadJS connections for multiple servers
-  - [ ] Set up server configurations in environment files (5 servers)
-  - [ ] Implement SquadJS instance management
-  - [ ] Configure connection pooling for multiple SquadJS instances
-- [ ] Implement SquadJS event listeners for key events
-  - [ ] Player join events (with server identification)
-  - [ ] Player leave events (with server identification)
-  - [ ] Server status updates (per server)
-- [ ] Configure SquadJS connection manager for multiple instances
-  - [ ] Handle connection failures per server
-  - [ ] Implement reconnection logic for individual servers
-  - [ ] Monitor health of all SquadJS connections
-- [ ] Implement error handling and reconnection logic using SquadJS
-  - [ ] Per-server error handling
-  - [ ] Automatic reconnection for failed instances
-  - [ ] Alert system for server connection issues
-- [ ] Add server authentication and security measures
-  - [ ] Secure credential management for 5 servers
-  - [ ] Access control per server
+### Multi-Squad Server Integration (via SquadJS) ✅ COMPLETED
+- [x] Design multi-server architecture
+  - [x] Support for 5 Squad servers via separate SquadJS instances
+  - [x] Server identification and management system
+  - [x] Centralized event processing from multiple SquadJS instances
+- [x] Configure SquadJS connections for multiple servers
+  - [x] Set up server configurations in environment files (5 servers)
+  - [x] Implement SquadJS instance management
+  - [x] Configure connection pooling for multiple SquadJS instances
+- [x] Implement SquadJS event listeners for key events
+  - [x] Player join events (with server identification)
+  - [x] Player leave events (with server identification)
+  - [x] Server status updates (per server)
+- [x] Configure SquadJS connection manager for multiple instances
+  - [x] Handle connection failures per server
+  - [x] Implement reconnection logic for individual servers
+  - [x] Monitor health of all SquadJS connections
+- [x] Implement error handling and reconnection logic using SquadJS
+  - [x] Per-server error handling
+  - [x] Automatic reconnection for failed instances
+  - [x] Alert system for server connection issues
+- [x] Add server authentication and security measures
+  - [x] Secure credential management for 5 servers
+  - [x] Access control per server
 
 ### BattleMetrics Integration
 - [ ] Set up `node-fetch` for BattleMetrics API queries
@@ -248,31 +248,75 @@
 
 ### ✅ Completed
 - Project initialization and structure
-- Basic environment configuration system
-- Package.json with all dependencies
+- Environment configuration system with dev/prod environment support
+- Package.json with all dependencies (including express for HTTP server)
 - ESLint configuration
-- Command deployment scripts
-- Comprehensive README
+- Command deployment scripts with environment-specific configuration
+- Comprehensive README and documentation
 - Gitignore configuration
 - Discord bot framework (commands, handlers, permissions, logging)
-- Core bot commands (/ping, /help, /onduty, /offduty)
+- Core bot commands (/ping, /help, /onduty, /offduty, /linkid, /unlink)
 - Error handling and permission system
 - Winston logging setup
-- Complete database schema with all models (Player, Admin, Server, AuditLog, DutyStatusChange)
+- Complete database schema with all models (Player, Admin, Server, AuditLog, DutyStatusChange, VerificationCode, PlayerDiscordLink, Whitelist, Group, UnlinkHistory)
 - Database migrations and connection management
 - Role-based on-duty admin system with Discord role integration
 - External role change detection and logging prevention for bot-initiated changes
 - Duty status change logging and audit trails
 - Voice channel monitoring for admin notifications
+- SquadJS integration for 5 servers with connection management and event processing
+- Discord account linking system with verification codes and chat monitoring
+- HTTP whitelist server with configurable ports and JSON endpoints
+- Comprehensive testing infrastructure with unit and integration tests
+- WhitelistService with caching and multi-server support
 
 ### 🔄 In Progress
-- SquadJS integration for 5 servers
 - BattleMetrics API integration
+- Unit testing infrastructure
+
+## Phase 3.5: Account Linking & Whitelist Integration ✅ COMPLETED
+
+### Discord Account Linking System ✅ COMPLETED
+- [x] Implement `/linkid` command for Discord-to-game account linking
+  - [x] Generate secure verification codes with expiration
+  - [x] Store verification codes in database with cleanup
+  - [x] Handle code expiration with user notifications
+- [x] Create SquadJS linking service for chat message processing
+  - [x] Monitor in-game chat for verification codes
+  - [x] Process valid codes and create account links
+  - [x] Update Discord interactions with success/failure messages
+  - [x] Send in-game RCON notifications to players
+- [x] Implement PlayerDiscordLink model for account associations
+  - [x] Store Discord user ID, Steam ID, EOS ID, and username
+  - [x] Support account link updates (re-linking)
+  - [x] Validate that at least one game ID is provided
+- [x] Create VerificationCode model for temporary codes
+  - [x] Generate unique alphanumeric codes
+  - [x] Implement expiration and cleanup mechanisms
+  - [x] Case-insensitive code matching
+- [x] Integrate with whitelist system
+  - [x] Update whitelist entries with Discord usernames
+  - [x] Cross-reference Steam/EOS IDs with existing whitelist data
+
+### Whitelist HTTP Integration ✅ COMPLETED  
+- [x] Create HTTP server for external whitelist access
+  - [x] Implement `/staff` and `/whitelist` endpoints
+  - [x] Configure environment-based port selection (HTTP_PORT)
+  - [x] Return JSON formatted whitelist data
+- [x] Integrate with WhitelistService for data retrieval
+  - [x] Cache whitelist data with configurable refresh intervals
+  - [x] Support multiple whitelist types (staff, whitelist)
+  - [x] Handle database connection errors gracefully
+- [x] Create comprehensive testing infrastructure
+  - [x] Unit tests for all database models
+  - [x] Unit tests for linking service functionality
+  - [x] Integration tests for complete workflow
+  - [x] Mock helpers for Discord.js and SquadJS components
 
 ### 📋 Next Steps
-1. Implement SquadJS integration for 5 servers
-2. Set up BattleMetrics API integration
-3. Build roster management commands with database backend
-4. Implement player activity tracking
-5. Write unit tests for core modules
-6. Set up database backup and pruning systems
+1. Complete BattleMetrics API integration
+2. Build roster management commands with database backend
+3. Implement player activity tracking
+4. Complete unit testing suite
+5. Set up database backup and pruning systems
+6. Deploy to production with proper environment configuration
