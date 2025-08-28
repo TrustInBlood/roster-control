@@ -267,12 +267,11 @@
 - SquadJS integration for 5 servers with connection management and event processing
 - Discord account linking system with verification codes and chat monitoring
 - HTTP whitelist server with configurable ports and JSON endpoints
-- Comprehensive testing infrastructure with unit and integration tests
+- Basic Jest configuration (tests removed due to complexity issues)
 - WhitelistService with caching and multi-server support
 
 ### 🔄 In Progress
 - BattleMetrics API integration
-- Unit testing infrastructure
 
 ## Phase 3.5: Account Linking & Whitelist Integration ✅ COMPLETED
 
@@ -307,16 +306,16 @@
   - [x] Cache whitelist data with configurable refresh intervals
   - [x] Support multiple whitelist types (staff, whitelist)
   - [x] Handle database connection errors gracefully
-- [x] Create comprehensive testing infrastructure
-  - [x] Unit tests for all database models
-  - [x] Unit tests for linking service functionality
-  - [x] Integration tests for complete workflow
-  - [x] Mock helpers for Discord.js and SquadJS components
+- [ ] Create comprehensive testing infrastructure
+  - [ ] Unit tests for all database models
+  - [ ] Unit tests for linking service functionality
+  - [ ] Integration tests for complete workflow
+  - [ ] Mock helpers for Discord.js and SquadJS components
 
 ### 📋 Next Steps
 1. Complete BattleMetrics API integration
 2. Build roster management commands with database backend
 3. Implement player activity tracking
-4. Complete unit testing suite
+4. Rebuild testing infrastructure (if needed)
 5. Set up database backup and pruning systems
 6. Deploy to production with proper environment configuration
