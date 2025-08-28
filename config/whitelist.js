@@ -1,7 +1,7 @@
 const config = {
   // HTTP server configuration
   http: {
-    port: 3001,
+    port: process.env.HTTP_PORT || 3001,
     host: '0.0.0.0'
   },
 
