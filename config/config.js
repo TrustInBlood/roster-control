@@ -1,8 +1,13 @@
 const path = require('path');
 const dotenv = require('dotenv');
 
-// Load environment config
-dotenv.config({ path: path.join(__dirname, '../.env') });
+// Load environment config based on NODE_ENV
+const env = process.env.NODE_ENV || 'development';
+const envFile = env === 'production' ? '.env' : '.env.development';
+const envPath = path.join(__dirname, `../${envFile}`);
+
+console.log(`Loading environment config from: ${envFile} (NODE_ENV: ${env})`);
+dotenv.config({ path: envPath });
 
 const config = {
   // Environment
