@@ -43,15 +43,6 @@ const config = {
     }
   },
 
-  // SquadJS Configuration
-  squadjs: {
-    host: process.env.SQUADJS_HOST || 'localhost',
-    port: parseInt(process.env.SQUADJS_PORT) || 3000,
-    password: process.env.SQUADJS_PASSWORD,
-    reconnectInterval: 5000,
-    maxReconnectAttempts: 10
-  },
-
   // Logging Configuration
   logging: {
     level: process.env.LOG_LEVEL || 'info',

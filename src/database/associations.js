@@ -1,4 +1,4 @@
-const { Player, DutyStatusChange, Admin, Server, AuditLog } = require('./models');
+const { Player, DutyStatusChange, Admin, Server, AuditLog, Group, Whitelist, PlayerDiscordLink, VerificationCode, UnlinkHistory } = require('./models');
 
 // Define model associations/relationships
 function defineAssociations() {

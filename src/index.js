@@ -3,11 +3,13 @@ const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const { handleVoiceStateUpdate } = require('./handlers/voiceStateHandler');
 const { setupRoleChangeHandler } = require('./handlers/roleChangeHandler');
 const DutyStatusSyncService = require('./services/DutyStatusSyncService');
+const { setupWhitelistRoutes } = require('./services/WhitelistIntegration');
 const { databaseManager } = require('./database/index');
 const { migrationManager } = require('./database/migrator');
 const fs = require('fs');
 const path = require('path');
 const winston = require('winston');
+const express = require('express');
 
 // Initialize the Discord client with necessary intents
 const client = new Client({
@@ -57,6 +59,9 @@ if (process.env.NODE_ENV !== 'production') {
     }));
 }
 
+// Make logger available to commands
+client.logger = logger;
+
 // Event handler
 client.on('ready', async () => {
     logger.info(`Logged in as ${client.user.tag}`);
@@ -65,6 +70,9 @@ client.on('ready', async () => {
     // Set up role change handler
     const roleChangeHandler = setupRoleChangeHandler(client);
     console.log('🔧 Role change handler initialized');
+    
+    // Initialize whitelist functionality
+    await initializeWhitelist();
     
     // Wait a moment for all guilds to be loaded
     setTimeout(async () => {
@@ -161,10 +169,11 @@ async function ensureDatabaseReady() {
         // Verify critical tables exist
         const sequelize = databaseManager.getSequelize();
         const tables = await sequelize.getQueryInterface().showAllTables();
-        console.log(`📋 Active tables: ${tables.length} (${tables.join(', ')})`);
+        const tableNames = tables.map(t => t.tableName || t).sort();
+        console.log(`📋 Active tables: ${tableNames.length} (${tableNames.join(', ')})`);
         
-        const requiredTables = ['players', 'duty_status_changes', 'admins', 'servers', 'audit_logs'];
-        const missingTables = requiredTables.filter(table => !tables.includes(table));
+        const requiredTables = ['players', 'duty_status_changes', 'admins', 'servers', 'audit_logs', 'groups', 'whitelists', 'player_discord_links', 'verification_codes', 'unlink_history'];
+        const missingTables = requiredTables.filter(table => !tableNames.includes(table));
         
         if (missingTables.length > 0) {
             console.warn(`⚠️ Warning: Expected tables not found: ${missingTables.join(', ')}`);
@@ -211,6 +220,83 @@ client.on('interactionCreate', async interaction => {
     } catch (error) {
         await handleCommandError(error, interaction, logger);
     }
+});
+
+// Initialize whitelist functionality
+async function initializeWhitelist() {
+    try {
+        console.log('🔗 Initializing whitelist integration...');
+        
+        // Setup HTTP server
+        const app = express();
+        
+        // Setup whitelist routes and services
+        const whitelistServices = await setupWhitelistRoutes(
+            app, 
+            databaseManager.getSequelize(), 
+            logger, 
+            client
+        );
+
+        // Start HTTP server
+        const port = whitelistServices.config.http.port;
+        const host = whitelistServices.config.http.host;
+        
+        const server = app.listen(port, host, () => {
+            logger.info(`Whitelist HTTP server listening on ${host}:${port}`);
+            console.log(`🌐 Whitelist HTTP server started on ${host}:${port}`);
+        });
+
+        // Store for graceful shutdown
+        global.whitelistServices = whitelistServices;
+        global.httpServer = server;
+
+        console.log('✅ Whitelist integration initialized successfully');
+        logger.info('Whitelist integration initialized successfully', {
+            squadJSServers: whitelistServices.config.squadjs.servers.length,
+            squadJSConnected: whitelistServices.connectionManager.isConnected(),
+            connectionStatus: whitelistServices.connectionManager.getConnectionStatus()
+        });
+        
+    } catch (error) {
+        console.error('❌ Failed to initialize whitelist integration:', error);
+        logger.error('Failed to initialize whitelist integration', { error: error.message });
+    }
+}
+
+// Graceful shutdown handler
+process.on('SIGINT', () => {
+    console.log('\n🛑 Received SIGINT, shutting down gracefully...');
+    
+    if (global.whitelistServices) {
+        global.whitelistServices.gracefulShutdown();
+    }
+    
+    if (global.httpServer) {
+        global.httpServer.close(() => {
+            console.log('✅ HTTP server closed');
+        });
+    }
+    
+    client.destroy();
+    process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+    console.log('\n🛑 Received SIGTERM, shutting down gracefully...');
+    
+    if (global.whitelistServices) {
+        global.whitelistServices.gracefulShutdown();
+    }
+    
+    if (global.httpServer) {
+        global.httpServer.close(() => {
+            console.log('✅ HTTP server closed');
+        });
+    }
+    
+    client.destroy();
+    process.exit(0);
 });
 
 // Login to Discord
