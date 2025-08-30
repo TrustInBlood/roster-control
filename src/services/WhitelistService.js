@@ -88,6 +88,11 @@ class WhitelistService {
   }
 
   async formatWhitelistContent(entries) {
+    // Return default message if no entries
+    if (!entries || entries.length === 0) {
+      return '/////////////////////////////////\n////// No entries \n/////////////////////////////////\n';
+    }
+
     const groupMap = new Map();
     const grouplessEntries = [];
 

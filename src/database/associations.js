@@ -88,6 +88,17 @@ function defineAssociations() {
     constraints: false
   });
 
+  // Group and Whitelist relationships
+  Group.hasMany(Whitelist, {
+    foreignKey: 'group_id',
+    as: 'whitelistEntries'
+  });
+
+  Whitelist.belongsTo(Group, {
+    foreignKey: 'group_id',
+    as: 'group'
+  });
+
   // Polymorphic relationships for AuditLog
   // Note: These are handled through constraints: false and scopes above
   // since Sequelize doesn't have native polymorphic support
