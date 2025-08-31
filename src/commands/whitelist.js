@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle, ComponentType, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const { permissionMiddleware } = require('../handlers/permissionHandler');
 const { withLoadingMessage, createResponseEmbed, sendSuccess, sendError } = require('../utils/messageHandler');
 const { Whitelist } = require('../database/models');
@@ -122,41 +122,13 @@ module.exports = {
       subcommand
         .setName('grant')
         .setDescription('Grant whitelist access to a user')
-        .addStringOption(option =>
-          option.setName('reason')
-            .setDescription('Reason for granting whitelist')
-            .setRequired(true)
-            .addChoices(
-              { name: 'Service Member (6 months)', value: 'service-member' },
-              { name: 'First Responder (6 months)', value: 'first-responder' },
-              { name: 'Donator', value: 'donator' },
-              { name: 'Reporting', value: 'reporting' }
-            ))
         .addUserOption(option =>
           option.setName('user')
             .setDescription('Discord user to grant whitelist')
             .setRequired(true))
         .addStringOption(option =>
           option.setName('steamid')
-            .setDescription('Steam ID64 of the user')
-            .setRequired(true))
-        .addStringOption(option =>
-          option.setName('duration')
-            .setDescription('Duration for donator whitelist')
-            .setRequired(false)
-            .addChoices(
-              { name: '6 months', value: '6m' },
-              { name: '1 year', value: '1y' }
-            ))
-        .addIntegerOption(option =>
-          option.setName('days')
-            .setDescription('Custom days for reporting (default: 7)')
-            .setRequired(false)
-            .setMinValue(1)
-            .setMaxValue(365))
-        .addStringOption(option =>
-          option.setName('note')
-            .setDescription('Additional note for this whitelist entry')
+            .setDescription('Steam ID64 of the user (optional if account is linked)')
             .setRequired(false)))
     
     // Info subcommand
@@ -241,44 +213,410 @@ module.exports = {
 };
 
 async function handleGrant(interaction) {
-  await withLoadingMessage(interaction, 'Processing whitelist grant...', async () => {
-    const reason = interaction.options.getString('reason');
-    const discordUser = interaction.options.getUser('user');
-    const steamid = interaction.options.getString('steamid');
-    const duration = interaction.options.getString('duration');
-    const days = interaction.options.getInteger('days');
-    const note = interaction.options.getString('note');
+  const discordUser = interaction.options.getUser('user');
+  const steamid = interaction.options.getString('steamid');
 
-    // Resolve user information and create account link
+  try {
+    // Step 1: Resolve user information first
     const userInfo = await resolveUserInfo(steamid, discordUser, true);
 
-    // Determine duration based on reason
-    let durationValue, durationType;
+    // Step 2: Show reason selection embed
+    const reasonEmbed = createResponseEmbed({
+      title: '🎯 Select Whitelist Type',
+      description: `**Granting whitelist for:** ${discordUser ? `<@${discordUser.id}>` : 'Unknown User'}\n**Steam ID:** ${userInfo.steamid64}\n\nPlease select the type of whitelist to grant:`,
+      color: 0x3498db
+    });
 
-    switch (reason) {
-      case 'service-member':
-      case 'first-responder':
-        durationValue = 6;
-        durationType = 'months';
-        break;
-      
-      case 'donator':
-        if (!duration) {
-          throw new Error('Duration is required for donator whitelist. Please select 6m or 1y.');
+    const reasonSelect = new StringSelectMenuBuilder()
+      .setCustomId('whitelist_reason_select')
+      .setPlaceholder('Choose whitelist type...')
+      .addOptions([
+        {
+          label: '🎖️ Service Member',
+          description: 'Automatic 6 months whitelist',
+          value: 'service-member'
+        },
+        {
+          label: '🚑 First Responder', 
+          description: 'Automatic 6 months whitelist',
+          value: 'first-responder'
+        },
+        {
+          label: '💎 Donator',
+          description: 'Custom duration whitelist',
+          value: 'donator'
+        },
+        {
+          label: '📋 Reporting',
+          description: 'Custom days whitelist',
+          value: 'reporting'
         }
-        durationValue = duration === '6m' ? 6 : 12;
-        durationType = 'months';
-        break;
+      ]);
+
+    const reasonRow = new ActionRowBuilder().addComponents(reasonSelect);
+
+    await interaction.reply({
+      embeds: [reasonEmbed],
+      components: [reasonRow],
+      ephemeral: true
+    });
+
+    // Step 3: Handle reason selection and show duration options
+    const reasonCollector = interaction.channel.createMessageComponentCollector({
+      componentType: ComponentType.StringSelect,
+      filter: (i) => i.customId === 'whitelist_reason_select' && i.user.id === interaction.user.id,
+      time: 300000 // 5 minutes
+    });
+
+    reasonCollector.on('collect', async (reasonInteraction) => {
+      const selectedReason = reasonInteraction.values[0];
       
-      case 'reporting':
-        durationValue = days || 7;
-        durationType = 'days';
-        break;
+      try {
+        if (!reasonInteraction.deferred && !reasonInteraction.replied) {
+          await reasonInteraction.deferUpdate();
+        }
+        await handleDurationSelection(reasonInteraction, {
+          reason: selectedReason,
+          discordUser,
+          userInfo,
+          originalUser: interaction.user
+        });
+      } catch (error) {
+        console.error('Error handling reason selection:', error);
+        if (!reasonInteraction.replied && !reasonInteraction.deferred) {
+          try {
+            await reasonInteraction.reply({
+              content: '❌ An error occurred while processing your selection. Please try again.',
+              ephemeral: true
+            });
+          } catch (replyError) {
+            console.error('Failed to send error reply:', replyError);
+          }
+        }
+      }
+    });
+
+    reasonCollector.on('end', (collected, reason) => {
+      if (reason === 'time' && collected.size === 0) {
+        interaction.editReply({
+          content: '❌ Whitelist grant timed out. Please try again.',
+          embeds: [],
+          components: []
+        });
+      }
+    });
+
+  } catch (error) {
+    console.error('Whitelist grant error:', error);
+    await sendError(interaction, error.message);
+  }
+}
+
+async function handleDurationSelection(interaction, grantData) {
+  const { reason, discordUser, userInfo, originalUser } = grantData;
+
+  // Show different duration selection based on reason
+  switch (reason) {
+    case 'service-member':
+    case 'first-responder':
+      // Skip duration selection, go straight to confirmation (auto 6 months)
+      await handleConfirmation(interaction, {
+        ...grantData,
+        durationValue: 6,
+        durationType: 'months',
+        durationText: '6 months'
+      });
+      break;
       
-      default:
-        throw new Error('Invalid reason specified.');
+    case 'donator':
+      await showDonatorDurationSelection(interaction, grantData);
+      break;
+      
+    case 'reporting':
+      await showReportingDurationSelection(interaction, grantData);
+      break;
+      
+    default:
+      await interaction.update({
+        content: '❌ Invalid whitelist type selected.',
+        embeds: [],
+        components: []
+      });
+  }
+}
+
+async function showDonatorDurationSelection(interaction, grantData) {
+  const { discordUser, userInfo } = grantData;
+  
+  const durationEmbed = createResponseEmbed({
+    title: '💎 Donator Duration Selection',
+    description: `**User:** ${discordUser ? `<@${discordUser.id}>` : 'Unknown User'}\n**Steam ID:** ${userInfo.steamid64}\n\nSelect the donator whitelist duration:`,
+    color: 0xe91e63
+  });
+
+  const durationRow = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId('donator_6m')
+        .setLabel('6 Months')
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji('📅'),
+      new ButtonBuilder()
+        .setCustomId('donator_1y')
+        .setLabel('1 Year')
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji('🗓️')
+    );
+
+  await interaction.editReply({
+    embeds: [durationEmbed],
+    components: [durationRow]
+  });
+
+  // Handle duration button selection
+  const durationCollector = interaction.channel.createMessageComponentCollector({
+    componentType: ComponentType.Button,
+    filter: (i) => (i.customId === 'donator_6m' || i.customId === 'donator_1y') && i.user.id === grantData.originalUser.id,
+    time: 300000
+  });
+
+  durationCollector.on('collect', async (buttonInteraction) => {
+    try {
+      const duration = buttonInteraction.customId === 'donator_6m' ? { value: 6, type: 'months', text: '6 months' } : { value: 12, type: 'months', text: '1 year' };
+      
+      if (!buttonInteraction.deferred && !buttonInteraction.replied) {
+        await buttonInteraction.deferUpdate();
+      }
+      await handleConfirmation(buttonInteraction, {
+        ...grantData,
+        durationValue: duration.value,
+        durationType: duration.type,
+        durationText: duration.text
+      });
+    } catch (error) {
+      console.error('Error handling donator duration selection:', error);
+    }
+  });
+}
+
+async function showReportingDurationSelection(interaction, grantData) {
+  const { discordUser, userInfo } = grantData;
+  
+  const durationEmbed = createResponseEmbed({
+    title: '📋 Reporting Duration Selection',
+    description: `**User:** ${discordUser ? `<@${discordUser.id}>` : 'Unknown User'}\n**Steam ID:** ${userInfo.steamid64}\n\nSelect the reporting whitelist duration:`,
+    color: 0xff9800
+  });
+
+  const durationRow = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId('reporting_3d')
+        .setLabel('3 Days')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('🕐'),
+      new ButtonBuilder()
+        .setCustomId('reporting_7d')
+        .setLabel('7 Days')
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji('📅'),
+      new ButtonBuilder()
+        .setCustomId('reporting_14d')
+        .setLabel('14 Days')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('🗓️'),
+      new ButtonBuilder()
+        .setCustomId('reporting_30d')
+        .setLabel('30 Days')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('📆'),
+      new ButtonBuilder()
+        .setCustomId('reporting_custom')
+        .setLabel('Custom')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('✏️')
+    );
+
+  await interaction.editReply({
+    embeds: [durationEmbed],
+    components: [durationRow]
+  });
+
+  // Handle duration button selection
+  const durationCollector = interaction.channel.createMessageComponentCollector({
+    componentType: ComponentType.Button,
+    filter: (i) => i.customId.startsWith('reporting_') && i.user.id === grantData.originalUser.id,
+    time: 300000
+  });
+
+  durationCollector.on('collect', async (buttonInteraction) => {
+    if (buttonInteraction.customId === 'reporting_custom') {
+      // Show modal for custom duration input
+      const customDaysModal = new ModalBuilder()
+        .setCustomId('reporting_custom_modal')
+        .setTitle('Custom Reporting Duration');
+
+      const daysInput = new TextInputBuilder()
+        .setCustomId('custom_days_input')
+        .setLabel('Number of Days')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Enter number of days (1-365)')
+        .setRequired(true)
+        .setMinLength(1)
+        .setMaxLength(3);
+
+      const daysRow = new ActionRowBuilder().addComponents(daysInput);
+      customDaysModal.addComponents(daysRow);
+
+      await buttonInteraction.showModal(customDaysModal);
+
+      // Handle modal submission
+      const modalCollector = interaction.channel.createMessageComponentCollector({
+        componentType: ComponentType.Modal,
+        filter: (i) => i.customId === 'reporting_custom_modal' && i.user.id === grantData.originalUser.id,
+        time: 300000
+      });
+
+      // Create a more specific modal filter
+      try {
+        const modalResponse = await buttonInteraction.awaitModalSubmit({
+          filter: (i) => i.customId === 'reporting_custom_modal' && i.user.id === grantData.originalUser.id,
+          time: 300000
+        });
+
+        const customDays = parseInt(modalResponse.fields.getTextInputValue('custom_days_input'));
+        
+        if (isNaN(customDays) || customDays < 1 || customDays > 365) {
+          await modalResponse.reply({
+            content: '❌ Please enter a valid number of days between 1 and 365.',
+            ephemeral: true
+          });
+          return;
+        }
+
+        if (!modalResponse.deferred && !modalResponse.replied) {
+          await modalResponse.deferUpdate();
+        }
+        await handleConfirmation(modalResponse, {
+          ...grantData,
+          durationValue: customDays,
+          durationType: 'days',
+          durationText: `${customDays} day${customDays > 1 ? 's' : ''}`
+        });
+
+      } catch (error) {
+        console.error('Modal submission error:', error);
+        // Modal timed out or errored
+      }
+      
+      return;
     }
 
+    // Handle preset duration buttons
+    try {
+      const durationMap = {
+        'reporting_3d': { value: 3, type: 'days', text: '3 days' },
+        'reporting_7d': { value: 7, type: 'days', text: '7 days' },
+        'reporting_14d': { value: 14, type: 'days', text: '14 days' },
+        'reporting_30d': { value: 30, type: 'days', text: '30 days' }
+      };
+      
+      const duration = durationMap[buttonInteraction.customId];
+      
+      if (!buttonInteraction.deferred && !buttonInteraction.replied) {
+        await buttonInteraction.deferUpdate();
+      }
+      await handleConfirmation(buttonInteraction, {
+        ...grantData,
+        durationValue: duration.value,
+        durationType: duration.type,
+        durationText: duration.text
+      });
+    } catch (error) {
+      console.error('Error handling reporting duration selection:', error);
+    }
+  });
+}
+
+async function handleConfirmation(interaction, grantData) {
+  const { reason, discordUser, userInfo, durationValue, durationType, durationText } = grantData;
+  
+  const confirmEmbed = createResponseEmbed({
+    title: '✅ Confirm Whitelist Grant',
+    description: `Please confirm the whitelist details below:`,
+    fields: [
+      { name: 'User', value: discordUser ? `<@${discordUser.id}>` : 'Unknown User', inline: true },
+      { name: 'Steam ID', value: userInfo.steamid64, inline: true },
+      { name: 'Type', value: reason.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase()), inline: true },
+      { name: 'Duration', value: durationText, inline: true },
+      { name: 'Granted By', value: `<@${grantData.originalUser.id}>`, inline: true }
+    ],
+    color: 0x4caf50
+  });
+
+  const confirmRow = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId('confirm_grant')
+        .setLabel('Confirm & Grant')
+        .setStyle(ButtonStyle.Success)
+        .setEmoji('✅'),
+      new ButtonBuilder()
+        .setCustomId('cancel_grant')
+        .setLabel('Cancel')
+        .setStyle(ButtonStyle.Danger)
+        .setEmoji('❌')
+    );
+
+  await interaction.editReply({
+    embeds: [confirmEmbed],
+    components: [confirmRow]
+  });
+
+  // Handle confirmation
+  const confirmCollector = interaction.channel.createMessageComponentCollector({
+    componentType: ComponentType.Button,
+    filter: (i) => (i.customId === 'confirm_grant' || i.customId === 'cancel_grant') && i.user.id === grantData.originalUser.id,
+    time: 300000
+  });
+
+  confirmCollector.on('collect', async (buttonInteraction) => {
+    try {
+      if (buttonInteraction.customId === 'cancel_grant') {
+        await buttonInteraction.update({
+          content: '❌ Whitelist grant cancelled.',
+          embeds: [],
+          components: []
+        });
+        return;
+      }
+
+      // Process the actual grant
+      if (!buttonInteraction.deferred && !buttonInteraction.replied) {
+        await buttonInteraction.deferUpdate();
+      }
+      await processWhitelistGrant(buttonInteraction, {
+        ...grantData,
+        durationValue,
+        durationType,
+        durationText
+      });
+    } catch (error) {
+      console.error('Error handling confirmation:', error);
+    }
+  });
+}
+
+async function processWhitelistGrant(interaction, grantData) {
+  const { reason, discordUser, userInfo, durationValue, durationType, durationText } = grantData;
+
+  await interaction.editReply({
+    content: '⏳ Processing whitelist grant...',
+    embeds: [],
+    components: []
+  });
+
+  try {
     // Grant the whitelist
     const whitelistEntry = await Whitelist.grantWhitelist({
       steamid64: userInfo.steamid64,
@@ -287,8 +625,7 @@ async function handleGrant(interaction) {
       reason: reason,
       duration_value: durationValue,
       duration_type: durationType,
-      granted_by: interaction.user.id,
-      note: note
+      granted_by: grantData.originalUser.id
     });
 
     // Assign Discord role based on whitelist reason
@@ -303,58 +640,56 @@ async function handleGrant(interaction) {
         if (member) {
           const role = guild.roles.cache.get(roleId);
           if (role && !member.roles.cache.has(roleId)) {
-            await member.roles.add(role, `${reason.replace('-', ' ')} whitelist granted by ${interaction.user.tag}`);
+            await member.roles.add(role, `${reason.replace('-', ' ')} whitelist granted by ${grantData.originalUser.tag}`);
             roleAssigned = true;
           }
         }
       } catch (error) {
         console.error(`Failed to assign ${reason} role:`, error);
-        // Continue without failing the command
       }
     }
 
-    // Format duration for display
-    const durationText = durationType === 'months' 
-      ? `${durationValue} month${durationValue > 1 ? 's' : ''}`
-      : `${durationValue} day${durationValue > 1 ? 's' : ''}`;
-
-    const embed = createResponseEmbed({
-      title: '✅ Whitelist Granted',
-      description: `Successfully granted whitelist access${roleAssigned ? ' and assigned Discord role' : ''}`,
+    const successEmbed = createResponseEmbed({
+      title: '✅ Whitelist Granted Successfully',
+      description: `Whitelist access has been granted successfully${roleAssigned ? ' and Discord role assigned' : ''}!`,
       fields: [
-        { name: 'User', value: discordUser ? `<@${discordUser.id}>` : 'Unknown Discord User', inline: true },
+        { name: 'User', value: discordUser ? `<@${discordUser.id}>` : 'Unknown User', inline: true },
         { name: 'Steam ID', value: userInfo.steamid64, inline: true },
-        { name: 'Reason', value: reason.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase()), inline: true },
+        { name: 'Type', value: reason.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase()), inline: true },
         { name: 'Duration', value: durationText, inline: true },
         { name: 'Expires', value: whitelistEntry.expiration ? whitelistEntry.expiration.toLocaleDateString() : 'Never', inline: true },
-        { name: 'Granted By', value: `<@${interaction.user.id}>`, inline: true }
+        { name: 'Granted By', value: `<@${grantData.originalUser.id}>`, inline: true }
       ],
-      color: 0x00FF00
+      color: 0x00ff00
     });
 
     if (roleAssigned) {
       const roleName = reason.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase());
-      embed.addFields({ name: 'Discord Role', value: `✅ ${roleName} role assigned`, inline: true });
-    } else if (roleId && discordUser) {
-      embed.addFields({ name: 'Discord Role', value: '⚠️ Role assignment failed or user already has role', inline: true });
-    } else if (discordUser && !roleId) {
-      embed.addFields({ name: 'Discord Role', value: 'ℹ️ No specific role for this whitelist type', inline: true });
-    }
-
-    if (note) {
-      embed.addFields({ name: 'Note', value: note, inline: false });
+      successEmbed.addFields({ name: 'Discord Role', value: `✅ ${roleName} role assigned`, inline: true });
     }
 
     if (userInfo.linkedAccount) {
-      embed.addFields({ 
+      successEmbed.addFields({ 
         name: 'Account Link', 
         value: `✅ Discord-Steam link ${userInfo.linkedAccount}`, 
         inline: true 
       });
     }
 
-    await sendSuccess(interaction, 'Whitelist granted successfully!', embed);
-  });
+    await interaction.editReply({
+      content: '',
+      embeds: [successEmbed],
+      components: []
+    });
+
+  } catch (error) {
+    console.error('Whitelist grant processing error:', error);
+    await interaction.editReply({
+      content: `❌ Failed to grant whitelist: ${error.message}`,
+      embeds: [],
+      components: []
+    });
+  }
 }
 
 async function handleInfo(interaction) {
