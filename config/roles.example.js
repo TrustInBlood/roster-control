@@ -6,7 +6,7 @@
  */
 const COMMAND_PERMISSIONS = {
     // Admin commands
-    'whitelist': ['ADMIN_ROLE_ID', 'MOD_ROLE_ID'],  // Replace with actual role IDs
+    'whitelist': ['YOUR_ADMIN_ROLE_ID', 'YOUR_MOD_ROLE_ID'],  // Same as duty commands
     'duty': ['YOUR_ADMIN_ROLE_ID', 'YOUR_MOD_ROLE_ID'],       // Roles that can use duty commands
     
     // Public commands

@@ -5,7 +5,7 @@
  */
 const COMMAND_PERMISSIONS = {
     // Admin commands
-    'whitelist': ['ADMIN_ROLE_ID', 'MOD_ROLE_ID'],  // Replace with actual role IDs
+    'whitelist': ['1363025391366967386', '1256127324928213012', '1363025129814233190', '1363025129814233190', '1363017008039329972', '814554233377652736'],  // Same as duty commands
     'duty': ['1363025391366967386', '1256127324928213012', '1363025129814233190', '1363025129814233190', '1363017008039329972', '814554233377652736'],       // Roles that can use duty commands
     
     // Public commands
