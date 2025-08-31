@@ -1,4 +1,5 @@
-require('dotenv').config();
+// Load environment-specific configuration
+require('../config/config');
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const { handleVoiceStateUpdate } = require('./handlers/voiceStateHandler');
 const { setupRoleChangeHandler } = require('./handlers/roleChangeHandler');

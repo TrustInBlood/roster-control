@@ -20,7 +20,15 @@ COMMAND_PERMISSIONS.offduty = COMMAND_PERMISSIONS.duty;
 // The role ID that represents an admin being on duty
 const ON_DUTY_ROLE_ID = '1402396896257118258'; // Replace with actual role ID
 
+// Special roles that can award whitelist access - Update with your production server role IDs
+const WHITELIST_AWARD_ROLES = {
+    DONATOR: 'donator_role_id_here',         // Replace with actual donator role ID
+    FIRST_RESPONDER: 'first_responder_role_id_here', // Replace with actual first responder role ID
+    SERVICE_MEMBER: 'service_member_role_id_here'    // Replace with actual service member role ID
+};
+
 module.exports = {
     COMMAND_PERMISSIONS,
-    ON_DUTY_ROLE_ID
+    ON_DUTY_ROLE_ID,
+    WHITELIST_AWARD_ROLES
 };
