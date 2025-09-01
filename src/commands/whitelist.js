@@ -682,6 +682,26 @@ async function processWhitelistGrant(interaction, grantData) {
       components: []
     });
 
+    // Send a public announcement embed (non-ephemeral)
+    try {
+      const publicEmbed = createResponseEmbed({
+        title: '✅ Whitelist Granted',
+        description: `${discordUser ? `<@${discordUser.id}>` : userInfo.steamid64} has been granted **${reason.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}** whitelist access`,
+        fields: [
+          { name: 'Duration', value: durationText, inline: true },
+          { name: 'Granted By', value: `<@${grantData.originalUser.id}>`, inline: true }
+        ],
+        color: 0x00ff00
+      });
+
+      await interaction.followUp({
+        embeds: [publicEmbed]
+      });
+    } catch (publicError) {
+      console.error('Failed to send public whitelist announcement:', publicError);
+      // Don't let this failure affect the main process
+    }
+
   } catch (error) {
     console.error('Whitelist grant processing error:', error);
     await interaction.editReply({
