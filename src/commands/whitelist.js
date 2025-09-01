@@ -713,7 +713,8 @@ async function processWhitelistGrant(interaction, grantData) {
 }
 
 async function handleInfo(interaction) {
-  await withLoadingMessage(interaction, 'Checking whitelist status...', async () => {
+  try {
+    await interaction.deferReply(); // Non-ephemeral defer
     const discordUser = interaction.options.getUser('user');
     const steamid = interaction.options.getString('steamid');
 
@@ -764,8 +765,15 @@ async function handleInfo(interaction) {
       });
     }
 
-    await sendSuccess(interaction, 'Whitelist status retrieved!', embed);
-  });
+    await interaction.editReply({
+      embeds: [embed]
+    });
+  } catch (error) {
+    console.error('Whitelist info error:', error);
+    await interaction.editReply({
+      content: `❌ Failed to retrieve whitelist status: ${error.message}`
+    });
+  }
 }
 
 async function handleExtend(interaction) {
