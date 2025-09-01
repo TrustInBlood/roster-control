@@ -131,10 +131,6 @@ class WhitelistService {
           }
         }
         
-        if (reason) {
-          line += ` | reason="${reason}"`;
-        }
-        
         content += line + '\n';
       });
     }
@@ -153,10 +149,6 @@ class WhitelistService {
           if (discordUsername) {
             line += ` ${discordUsername}`;
           }
-        }
-        
-        if (reason) {
-          line += ` | reason="${reason}"`;
         }
         
         content += line + '\n';
