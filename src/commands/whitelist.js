@@ -19,7 +19,7 @@ function isValidSteamId(steamid) {
   if (!/^[0-9]{17}$/.test(steamid)) return false;
   
   // Check if it starts with valid Steam ID64 prefixes
-  return steamid.startsWith('76561197') || steamid.startsWith('76561198');
+  return steamid.startsWith('76561197') || steamid.startsWith('76561198') || steamid.startsWith('76561199');
 }
 
 // Helper function to get role ID based on whitelist reason
