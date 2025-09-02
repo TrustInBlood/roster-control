@@ -11,18 +11,39 @@ const { looksLikeSteamId } = require('../utils/steamId');
  * @param {Message} message - Discord message object
  */
 async function handleLegacyCommands(message) {
-  // Ignore bot messages and DMs
-  if (message.author.bot || !message.guild) return;
+  try {
+    // Ignore bot messages and DMs
+    if (message.author.bot || !message.guild) return;
+    
+    // Check if we have message content access
+    if (!message.content || message.content.length === 0) {
+      // Message content intent might not be enabled
+      return;
+    }
+    
+    const content = message.content.trim();
   
-  const content = message.content.trim();
-  
-  // Check for !addsm command with potential Steam ID
-  if (content.startsWith('!addsm ')) {
-    await handleAddsmDeprecation(message, content);
+    // Check for !addsm command with potential Steam ID
+    if (content.startsWith('!addsm ')) {
+      await handleAddsmDeprecation(message, content);
+    }
+    
+    // Future: Add other legacy commands here
+    // if (content.startsWith('!addfr ')) { ... }
+    
+  } catch (error) {
+    // Don't let legacy command handling crash the bot
+    console.error('Error in legacy command handler:', error);
+    
+    if (message.client.logger) {
+      message.client.logger.error('Legacy command handler error', {
+        error: error.message,
+        stack: error.stack,
+        userId: message.author?.id,
+        guildId: message.guild?.id
+      });
+    }
   }
-  
-  // Future: Add other legacy commands here
-  // if (content.startsWith('!addfr ')) { ... }
 }
 
 /**

@@ -74,6 +74,9 @@ client.on('ready', async () => {
     const roleChangeHandler = setupRoleChangeHandler(client);
     console.log('🔧 Role change handler initialized');
     
+    // Log legacy command handler initialization
+    console.log('📜 Legacy command handler initialized (messageCreate event)');
+    
     // Initialize whitelist functionality
     await initializeWhitelist();
     
@@ -87,7 +90,19 @@ client.on('ready', async () => {
 client.on('voiceStateUpdate', handleVoiceStateUpdate);
 
 // Message handler for legacy commands
-client.on('messageCreate', handleLegacyCommands);
+client.on('messageCreate', async (message) => {
+  try {
+    await handleLegacyCommands(message);
+  } catch (error) {
+    console.error('Error in messageCreate handler:', error);
+    logger.error('messageCreate handler failed', {
+      error: error.message,
+      stack: error.stack,
+      userId: message.author?.id,
+      guildId: message.guild?.id
+    });
+  }
+});
 
 // Startup sync function
 async function performStartupSync(client) {
