@@ -122,13 +122,13 @@ module.exports = {
       subcommand
         .setName('grant')
         .setDescription('Grant whitelist access to a user')
-        .addUserOption(option =>
-          option.setName('user')
-            .setDescription('Discord user to grant whitelist')
-            .setRequired(true))
         .addStringOption(option =>
           option.setName('steamid')
-            .setDescription('Steam ID64 of the user (optional if account is linked)')
+            .setDescription('Steam ID64 of the user')
+            .setRequired(true))
+        .addUserOption(option =>
+          option.setName('user')
+            .setDescription('Discord user to link with the Steam ID (optional)')
             .setRequired(false)))
     
     // Info subcommand
@@ -213,17 +213,17 @@ module.exports = {
 };
 
 async function handleGrant(interaction) {
-  const discordUser = interaction.options.getUser('user');
   const steamid = interaction.options.getString('steamid');
+  const discordUser = interaction.options.getUser('user');
 
   try {
-    // Step 1: Resolve user information first
+    // Step 1: Resolve user information first (steamid is now required)
     const userInfo = await resolveUserInfo(steamid, discordUser, true);
 
     // Step 2: Show reason selection embed
     const reasonEmbed = createResponseEmbed({
       title: '🎯 Select Whitelist Type',
-      description: `**Granting whitelist for:** ${discordUser ? `<@${discordUser.id}>` : 'Unknown User'}\n**Steam ID:** ${userInfo.steamid64}\n\nPlease select the type of whitelist to grant:`,
+      description: `**Steam ID:** ${userInfo.steamid64}\n${discordUser ? `**Discord User:** <@${discordUser.id}>` : '**Discord User:** Not linked'}\n\nPlease select the type of whitelist to grant:`,
       color: 0x3498db
     });
 
@@ -350,7 +350,7 @@ async function showDonatorDurationSelection(interaction, grantData) {
   
   const durationEmbed = createResponseEmbed({
     title: '💎 Donator Duration Selection',
-    description: `**User:** ${discordUser ? `<@${discordUser.id}>` : 'Unknown User'}\n**Steam ID:** ${userInfo.steamid64}\n\nSelect the donator whitelist duration:`,
+    description: `**Steam ID:** ${userInfo.steamid64}\n${discordUser ? `**Discord User:** <@${discordUser.id}>` : '**Discord User:** Not linked'}\n\nSelect the donator whitelist duration:`,
     color: 0xe91e63
   });
 
@@ -404,7 +404,7 @@ async function showReportingDurationSelection(interaction, grantData) {
   
   const durationEmbed = createResponseEmbed({
     title: '📋 Reporting Duration Selection',
-    description: `**User:** ${discordUser ? `<@${discordUser.id}>` : 'Unknown User'}\n**Steam ID:** ${userInfo.steamid64}\n\nSelect the reporting whitelist duration:`,
+    description: `**Steam ID:** ${userInfo.steamid64}\n${discordUser ? `**Discord User:** <@${discordUser.id}>` : '**Discord User:** Not linked'}\n\nSelect the reporting whitelist duration:`,
     color: 0xff9800
   });
 
@@ -545,7 +545,7 @@ async function handleConfirmation(interaction, grantData) {
     title: '✅ Confirm Whitelist Grant',
     description: `Please confirm the whitelist details below:`,
     fields: [
-      { name: 'User', value: discordUser ? `<@${discordUser.id}>` : 'Unknown User', inline: true },
+      { name: 'Discord User', value: discordUser ? `<@${discordUser.id}>` : 'Not linked', inline: true },
       { name: 'Steam ID', value: userInfo.steamid64, inline: true },
       { name: 'Type', value: reason.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase()), inline: true },
       { name: 'Duration', value: durationText, inline: true },
@@ -653,7 +653,7 @@ async function processWhitelistGrant(interaction, grantData) {
       title: '✅ Whitelist Granted Successfully',
       description: `Whitelist access has been granted successfully${roleAssigned ? ' and Discord role assigned' : ''}!`,
       fields: [
-        { name: 'User', value: discordUser ? `<@${discordUser.id}>` : 'Unknown User', inline: true },
+        { name: 'Discord User', value: discordUser ? `<@${discordUser.id}>` : 'Not linked', inline: true },
         { name: 'Steam ID', value: userInfo.steamid64, inline: true },
         { name: 'Type', value: reason.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase()), inline: true },
         { name: 'Duration', value: durationText, inline: true },
@@ -686,7 +686,7 @@ async function processWhitelistGrant(interaction, grantData) {
     try {
       const publicEmbed = createResponseEmbed({
         title: '✅ Whitelist Granted',
-        description: `${discordUser ? `<@${discordUser.id}>` : userInfo.steamid64} has been granted **${reason.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}** whitelist access`,
+        description: `${discordUser ? `<@${discordUser.id}>` : `Steam ID \`${userInfo.steamid64}\``} has been granted **${reason.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}** whitelist access`,
         fields: [
           { name: 'Duration', value: durationText, inline: true },
           { name: 'Granted By', value: `<@${grantData.originalUser.id}>`, inline: true }

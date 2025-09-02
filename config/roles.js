@@ -22,9 +22,9 @@ const ON_DUTY_ROLE_ID = '1402396896257118258'; // Replace with actual role ID
 
 // Special roles that can award whitelist access - Update with your production server role IDs
 const WHITELIST_AWARD_ROLES = {
-    DONATOR: 'donator_role_id_here',         // Replace with actual donator role ID
-    FIRST_RESPONDER: 'first_responder_role_id_here', // Replace with actual first responder role ID
-    SERVICE_MEMBER: 'service_member_role_id_here'    // Replace with actual service member role ID
+    DONATOR: '1246536874059628645',         // Replace with actual donator role ID
+    FIRST_RESPONDER: '1251387335707459584', // Replace with actual first responder role ID
+    SERVICE_MEMBER: '1249133598255349840'    // Replace with actual service member role ID
 };
 
 module.exports = {
