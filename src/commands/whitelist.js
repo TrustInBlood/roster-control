@@ -9,18 +9,8 @@ const {
   resolveDiscordFromSteamId, 
   getUserInfo 
 } = require('../utils/accountLinking');
+const { isValidSteamId } = require('../utils/steamId');
 
-// Helper function to validate Steam ID format
-function isValidSteamId(steamid) {
-  // Steam ID64 validation - 17 digits, typically starting with 76561197 or 76561198
-  if (!steamid || typeof steamid !== 'string') return false;
-  
-  // Check if it's exactly 17 digits
-  if (!/^[0-9]{17}$/.test(steamid)) return false;
-  
-  // Check if it starts with valid Steam ID64 prefixes
-  return steamid.startsWith('76561197') || steamid.startsWith('76561198') || steamid.startsWith('76561199');
-}
 
 // Helper function to get role ID based on whitelist reason
 function getRoleForReason(reason) {

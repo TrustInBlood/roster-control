@@ -3,6 +3,7 @@ require('../config/config');
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const { handleVoiceStateUpdate } = require('./handlers/voiceStateHandler');
 const { setupRoleChangeHandler } = require('./handlers/roleChangeHandler');
+const { handleLegacyCommands } = require('./handlers/legacyCommandHandler');
 const DutyStatusSyncService = require('./services/DutyStatusSyncService');
 const { setupWhitelistRoutes } = require('./services/WhitelistIntegration');
 const { databaseManager } = require('./database/index');
@@ -17,6 +18,7 @@ const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildVoiceStates,
         GatewayIntentBits.GuildMembers
     ]
@@ -83,6 +85,9 @@ client.on('ready', async () => {
 
 // Voice state update handler
 client.on('voiceStateUpdate', handleVoiceStateUpdate);
+
+// Message handler for legacy commands
+client.on('messageCreate', handleLegacyCommands);
 
 // Startup sync function
 async function performStartupSync(client) {
