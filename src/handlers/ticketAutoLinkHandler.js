@@ -92,20 +92,27 @@ async function handleTicketAutoLink(message) {
     if (message.author.bot) {
       console.log('DEBUG: Message from bot:', message.author.tag);
       
-      // First try to extract user from embed mentions
-      const mentionedUsers = extractUserMentionsFromEmbeds(message);
-      if (mentionedUsers.length > 0) {
-        targetUser = mentionedUsers[0]; // Use first mentioned user
-        console.log('DEBUG: Found mentioned user in embed:', targetUser.tag);
+      // First try to extract user from message content mentions
+      const contentMentions = extractUserMentionsFromContent(message);
+      if (contentMentions.length > 0) {
+        targetUser = contentMentions[0]; // Use first mentioned user
+        console.log('DEBUG: Found mentioned user in message content:', targetUser.tag);
       } else {
-        // Look for human users in recent channel messages
-        const ticketCreator = await findTicketCreator(message);
-        if (ticketCreator) {
-          targetUser = ticketCreator;
-          console.log('DEBUG: Found ticket creator from channel messages:', targetUser.tag);
+        // Then try to extract user from embed mentions
+        const mentionedUsers = extractUserMentionsFromEmbeds(message);
+        if (mentionedUsers.length > 0) {
+          targetUser = mentionedUsers[0]; // Use first mentioned user
+          console.log('DEBUG: Found mentioned user in embed:', targetUser.tag);
         } else {
-          console.log('DEBUG: Could not determine target user for bot message, skipping');
-          return;
+          // Look for human users in recent channel messages
+          const ticketCreator = await findTicketCreator(message);
+          if (ticketCreator) {
+            targetUser = ticketCreator;
+            console.log('DEBUG: Found ticket creator from channel messages:', targetUser.tag);
+          } else {
+            console.log('DEBUG: Could not determine target user for bot message, skipping');
+            return;
+          }
         }
       }
     }
@@ -240,6 +247,30 @@ function extractUserMentionsFromEmbeds(message) {
               }
             }
           }
+        }
+      }
+    }
+  }
+  
+  return users;
+}
+
+/**
+ * Extract user mentions from message content
+ * @param {Message} message - Discord message object
+ * @returns {Array} - Array of mentioned users
+ */
+function extractUserMentionsFromContent(message) {
+  const users = [];
+  
+  if (message.content) {
+    const mentions = message.content.match(/<@!?(\d+)>/g);
+    if (mentions) {
+      for (const mention of mentions) {
+        const userId = mention.match(/\d+/)[0];
+        const user = message.guild.members.cache.get(userId)?.user;
+        if (user && !users.find(u => u.id === user.id)) {
+          users.push(user);
         }
       }
     }
