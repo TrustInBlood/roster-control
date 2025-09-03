@@ -14,8 +14,8 @@ const { logLegacyCommand } = require('../utils/discordLogger');
  */
 async function handleLegacyCommands(message) {
   try {
-    // Ignore bot messages and DMs
-    if (message.author.bot || !message.guild) return;
+    // Ignore DMs, but allow some bot messages for ticket processing
+    if (!message.guild) return;
     
     // Debug: Log that we received a message
     console.log('DEBUG: messageCreate event received:', {
