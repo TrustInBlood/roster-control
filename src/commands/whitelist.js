@@ -10,6 +10,7 @@ const {
   getUserInfo 
 } = require('../utils/accountLinking');
 const { isValidSteamId } = require('../utils/steamId');
+const { logWhitelistOperation, logCommand } = require('../utils/discordLogger');
 
 
 // Helper function to get role ID based on whitelist reason
@@ -616,6 +617,17 @@ async function processWhitelistGrant(interaction, grantData) {
       duration_value: durationValue,
       duration_type: durationType,
       granted_by: grantData.originalUser.id
+    });
+
+    // Log to Discord
+    await logWhitelistOperation(interaction.client, 'grant', {
+      id: discordUser?.id || 'unknown',
+      tag: discordUser?.tag || 'Unknown User'
+    }, userInfo.steamid64, {
+      whitelistType: reason.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase()),
+      duration: durationText,
+      grantedBy: `<@${grantData.originalUser.id}>`,
+      expiration: whitelistEntry.expiration ? whitelistEntry.expiration.toLocaleDateString() : 'Never'
     });
 
     // Assign Discord role based on whitelist reason

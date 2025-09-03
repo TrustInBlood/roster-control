@@ -5,6 +5,8 @@
 
 const { createResponseEmbed } = require('../utils/messageHandler');
 const { looksLikeSteamId } = require('../utils/steamId');
+const { handleTicketAutoLink } = require('./ticketAutoLinkHandler');
+const { logLegacyCommand } = require('../utils/discordLogger');
 
 /**
  * Handles messageCreate events to detect and warn about legacy commands
@@ -23,6 +25,10 @@ async function handleLegacyCommands(message) {
     
     const content = message.content.trim();
   
+    // First, handle ticket auto-linking (runs on all messages in ticket channels)
+    await handleTicketAutoLink(message);
+  
+    // Then check for legacy commands
     // Check for !addsm command with potential Steam ID
     if (content.startsWith('!addsm ')) {
       await handleAddsmDeprecation(message, content);
@@ -36,15 +42,6 @@ async function handleLegacyCommands(message) {
   } catch (error) {
     // Don't let legacy command handling crash the bot
     console.error('Error in legacy command handler:', error);
-    
-    if (message.client.logger) {
-      message.client.logger.error('Legacy command handler error', {
-        error: error.message,
-        stack: error.stack,
-        userId: message.author?.id,
-        guildId: message.guild?.id
-      });
-    }
   }
 }
 
@@ -112,30 +109,17 @@ async function handleAddsmDeprecation(message, content) {
       embeds: [warningEmbed]
     });
 
-    // Log the deprecation warning for monitoring
-    if (message.client.logger) {
-      message.client.logger.info('Legacy command deprecation warning sent', {
-        userId: message.author.id,
-        username: message.author.tag,
-        guildId: message.guild.id,
-        guildName: message.guild.name,
-        command: 'addsm',
-        steamId: steamIdValue,
-        originalMessage: content
-      });
-    }
+    // Log to Discord channel
+    await logLegacyCommand(
+      message.client,
+      { id: message.author.id, tag: message.author.tag },
+      `!addsm @user ${steamIdValue}`,
+      `/whitelist grant steamid:${steamIdValue} user:@user`,
+      message.channel
+    );
 
   } catch (error) {
     console.error('Error sending deprecation warning:', error);
-    
-    if (message.client.logger) {
-      message.client.logger.error('Failed to send legacy command warning', {
-        userId: message.author.id,
-        guildId: message.guild.id,
-        error: error.message,
-        command: 'addsm'
-      });
-    }
   }
 }
 
@@ -203,30 +187,17 @@ async function handleAddfrDeprecation(message, content) {
       embeds: [warningEmbed]
     });
 
-    // Log the deprecation warning for monitoring
-    if (message.client.logger) {
-      message.client.logger.info('Legacy command deprecation warning sent', {
-        userId: message.author.id,
-        username: message.author.tag,
-        guildId: message.guild.id,
-        guildName: message.guild.name,
-        command: 'addfr',
-        steamId: steamIdValue,
-        originalMessage: content
-      });
-    }
+    // Log to Discord channel
+    await logLegacyCommand(
+      message.client,
+      { id: message.author.id, tag: message.author.tag },
+      `!addfr @user ${steamIdValue}`,
+      `/whitelist grant steamid:${steamIdValue} user:@user → First Responder`,
+      message.channel
+    );
 
   } catch (error) {
     console.error('Error sending deprecation warning:', error);
-    
-    if (message.client.logger) {
-      message.client.logger.error('Failed to send legacy command warning', {
-        userId: message.author.id,
-        guildId: message.guild.id,
-        error: error.message,
-        command: 'addfr'
-      });
-    }
   }
 }
 

@@ -1,4 +1,4 @@
-const { DataTypes } = require('sequelize');
+const { DataTypes, Op } = require('sequelize');
 
 module.exports = (sequelize) => {
   const PlayerDiscordLink = sequelize.define('PlayerDiscordLink', {
@@ -9,8 +9,7 @@ module.exports = (sequelize) => {
     },
     discord_user_id: {
       type: DataTypes.STRING(50),
-      allowNull: false,
-      unique: true
+      allowNull: false
     },
     steamid64: {
       type: DataTypes.STRING(50),
@@ -24,10 +23,37 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING(255),
       allowNull: true
     },
+    link_source: {
+      type: DataTypes.ENUM('manual', 'ticket', 'squadjs', 'import'),
+      allowNull: false,
+      defaultValue: 'manual',
+      comment: 'Source of the account link'
+    },
+    confidence_score: {
+      type: DataTypes.DECIMAL(3, 2),
+      allowNull: false,
+      defaultValue: 1.00,
+      comment: 'Confidence score of the link (0.00-1.00)'
+    },
+    is_primary: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
+      comment: 'Whether this is the primary Steam ID for the user'
+    },
+    metadata: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      comment: 'Additional metadata about the link'
+    },
     created_at: {
       type: DataTypes.DATE,
       allowNull: false,
       defaultValue: DataTypes.NOW
+    },
+    updated_at: {
+      type: DataTypes.DATE,
+      allowNull: true
     }
   }, {
     tableName: 'player_discord_links',
@@ -37,6 +63,9 @@ module.exports = (sequelize) => {
     indexes: [
       {
         unique: true,
+        fields: ['discord_user_id', 'steamid64']  // Unique combination, but allow multiple steamids per discord user
+      },
+      {
         fields: ['discord_user_id']
       },
       {
@@ -44,13 +73,29 @@ module.exports = (sequelize) => {
       },
       {
         fields: ['eosID']
+      },
+      {
+        fields: ['link_source']
+      },
+      {
+        fields: ['confidence_score']
       }
     ]
   });
 
   PlayerDiscordLink.findByDiscordId = async function(discordUserId) {
+    // Returns the highest confidence link for this Discord user
     return await this.findOne({ 
-      where: { discord_user_id: discordUserId } 
+      where: { discord_user_id: discordUserId },
+      order: [['confidence_score', 'DESC'], ['created_at', 'DESC']]
+    });
+  };
+
+  PlayerDiscordLink.findAllByDiscordId = async function(discordUserId) {
+    // Returns all links for this Discord user
+    return await this.findAll({ 
+      where: { discord_user_id: discordUserId },
+      order: [['confidence_score', 'DESC'], ['created_at', 'DESC']]
     });
   };
 
@@ -66,18 +111,78 @@ module.exports = (sequelize) => {
     });
   };
 
-  PlayerDiscordLink.createOrUpdateLink = async function(discordUserId, steamid64, eosID, username) {
+  PlayerDiscordLink.createOrUpdateLink = async function(discordUserId, steamid64, eosID, username, options = {}) {
+    const {
+      linkSource = 'manual',
+      confidenceScore = 1.00,
+      isPrimary = true,
+      metadata = null
+    } = options;
+
     const [link, created] = await this.upsert({
       discord_user_id: discordUserId,
       steamid64,
       eosID,
       username,
-      created_at: new Date()
+      link_source: linkSource,
+      confidence_score: confidenceScore,
+      is_primary: isPrimary,
+      metadata,
+      created_at: new Date(),
+      updated_at: new Date()
     }, {
       returning: true
     });
 
     return { link, created };
+  };
+
+  PlayerDiscordLink.createTicketLink = async function(discordUserId, steamid64, ticketInfo) {
+    // Check if this exact combination already exists
+    const existingLink = await this.findOne({
+      where: { 
+        discord_user_id: discordUserId,
+        steamid64: steamid64 
+      }
+    });
+    
+    // If exact same record exists, skip
+    if (existingLink) {
+      return { link: existingLink, created: false, reason: 'duplicate_link' };
+    }
+
+    const metadata = {
+      ticketChannelId: ticketInfo.channelId,
+      ticketChannelName: ticketInfo.channelName,
+      messageId: ticketInfo.messageId,
+      extractedAt: new Date(),
+      originalMessage: ticketInfo.messageContent?.substring(0, 500) // Limit size
+    };
+
+    return await this.createOrUpdateLink(discordUserId, steamid64, null, ticketInfo.username, {
+      linkSource: 'ticket',
+      confidenceScore: 0.3, // Lower confidence for ticket text extraction
+      isPrimary: true,
+      metadata
+    });
+  };
+
+  PlayerDiscordLink.findHighConfidenceLinks = async function(minConfidence = 0.8) {
+    return await this.findAll({
+      where: {
+        confidence_score: {
+          [Op.gte]: minConfidence
+        }
+      },
+      order: [['confidence_score', 'DESC'], ['created_at', 'DESC']]
+    });
+  };
+
+  PlayerDiscordLink.findBySource = async function(linkSource) {
+    return await this.findAll({
+      where: { link_source: linkSource },
+      order: [['created_at', 'DESC']]
+    });
   };
 
   return PlayerDiscordLink;
