@@ -175,11 +175,17 @@ function extractSteamIds(content) {
     }
   }
   
-  // Also check for Steam IDs with labels (e.g., "Steam64 ID: 76561198354039964")
+  // Also check for Steam IDs with labels and code blocks
   const labelPatterns = [
     /steam\s*(?:64|id)\s*:?\s*([0-9]{17})/gi,
     /steamid\s*:?\s*([0-9]{17})/gi,
-    /id\s*:?\s*([0-9]{17})/gi
+    /id\s*:?\s*([0-9]{17})/gi,
+    // Handle code blocks: ```\n76561198100210646```
+    /```\s*([0-9]{17})\s*```/gi,
+    // Handle inline code: `76561198100210646`  
+    /`([0-9]{17})`/gi,
+    // Handle Steam ID in question format: "What is your Steam 64 ID?** ```\n76561198100210646```"
+    /steam\s*64\s*id\?\*\*\s*```[^`]*([0-9]{17})[^`]*```/gi
   ];
   
   for (const pattern of labelPatterns) {
