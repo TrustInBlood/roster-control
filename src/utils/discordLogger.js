@@ -32,8 +32,11 @@ const EVENT_TYPES = {
  */
 async function logToDiscord(client, eventType, eventData) {
   try {
+    console.log('DEBUG: Attempting to log to Discord:', { eventType, botLogsChannel: CHANNELS.BOT_LOGS });
+    
     // Check if bot logs channel is configured
     if (!CHANNELS.BOT_LOGS || CHANNELS.BOT_LOGS === '1234567890123456789') {
+      console.log('DEBUG: Bot logs channel not configured properly');
       return; // Skip if no valid channel configured
     }
 
@@ -44,11 +47,18 @@ async function logToDiscord(client, eventType, eventData) {
     }
 
     // Get the log channel
-    const logChannel = await client.channels.fetch(CHANNELS.BOT_LOGS).catch(() => null);
+    console.log('DEBUG: Fetching channel:', CHANNELS.BOT_LOGS);
+    const logChannel = await client.channels.fetch(CHANNELS.BOT_LOGS).catch(error => {
+      console.error('DEBUG: Failed to fetch channel:', error.message);
+      return null;
+    });
+    
     if (!logChannel) {
       console.warn(`Discord log channel not found: ${CHANNELS.BOT_LOGS}`);
       return;
     }
+    
+    console.log('DEBUG: Found log channel:', logChannel.name);
 
     // Build the embed
     const embed = createResponseEmbed({
@@ -112,7 +122,9 @@ async function logToDiscord(client, eventType, eventData) {
     });
 
     // Send the log message
+    console.log('DEBUG: Sending embed to channel');
     await logChannel.send({ embeds: [embed] });
+    console.log('DEBUG: Successfully sent log message to Discord');
 
   } catch (error) {
     console.error('Failed to log event to Discord:', error);

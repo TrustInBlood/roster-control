@@ -7,7 +7,7 @@
 const { looksLikeSteamId, isValidSteamId } = require('../utils/steamId');
 const { PlayerDiscordLink } = require('../database/models');
 const { TICKET_CONFIG } = require('../../config/channels');
-const { logAccountLink, logAltAccount } = require('../utils/discordLogger');
+const { logAccountLink } = require('../utils/discordLogger');
 
 /**
  * Handles message scanning in ticket channels for Steam ID auto-linking
@@ -25,18 +25,27 @@ async function handleTicketAutoLink(message) {
 
     // Check if this is a ticket channel
     if (!isTicketChannel(message.channel)) {
+      console.log('DEBUG: Not a ticket channel:', message.channel.name);
       return;
     }
+    
+    console.log('DEBUG: Processing ticket channel:', message.channel.name);
 
     // Check if we have message content access
     if (!message.content || message.content.length === 0) {
+      console.log('DEBUG: No message content access');
       return;
     }
+
+    console.log('DEBUG: Message content:', message.content.substring(0, 100) + '...');
 
     // Extract Steam IDs from the message content
     const steamIds = extractSteamIds(message.content);
     
+    console.log('DEBUG: Extracted Steam IDs:', steamIds);
+    
     if (steamIds.length === 0) {
+      console.log('DEBUG: No Steam IDs found in message');
       return; // No Steam IDs found
     }
 
@@ -57,16 +66,28 @@ async function handleTicketAutoLink(message) {
  * @returns {boolean} - True if this is a ticket channel
  */
 function isTicketChannel(channel) {
+  console.log('DEBUG: Checking channel:', {
+    name: channel.name,
+    pattern: TICKET_CONFIG.CHANNEL_NAME_PATTERN,
+    parentId: channel.parentId,
+    categoryId: TICKET_CONFIG.CATEGORY_ID
+  });
+  
   // Check by channel name pattern
   if (TICKET_CONFIG.CHANNEL_NAME_PATTERN) {
-    return channel.name && channel.name.startsWith(TICKET_CONFIG.CHANNEL_NAME_PATTERN);
+    const isMatch = channel.name && channel.name.startsWith(TICKET_CONFIG.CHANNEL_NAME_PATTERN);
+    console.log('DEBUG: Pattern match:', isMatch);
+    return isMatch;
   }
 
   // Check by category ID (if configured)
   if (TICKET_CONFIG.CATEGORY_ID) {
-    return channel.parentId === TICKET_CONFIG.CATEGORY_ID;
+    const isMatch = channel.parentId === TICKET_CONFIG.CATEGORY_ID;
+    console.log('DEBUG: Category match:', isMatch);
+    return isMatch;
   }
 
+  console.log('DEBUG: No match criteria configured');
   return false;
 }
 
@@ -118,6 +139,8 @@ function extractSteamIds(content) {
  */
 async function processTicketSteamId(message, steamId) {
   try {
+    console.log('DEBUG: Processing Steam ID:', steamId, 'for user:', message.author.tag);
+    
     const ticketInfo = {
       channelId: message.channel.id,
       channelName: message.channel.name,
@@ -127,11 +150,14 @@ async function processTicketSteamId(message, steamId) {
     };
 
     // Attempt to create the ticket link
+    console.log('DEBUG: Attempting to create ticket link');
     const linkResult = await PlayerDiscordLink.createTicketLink(
       message.author.id,
       steamId,
       ticketInfo
     );
+    
+    console.log('DEBUG: Link result:', linkResult);
 
     // Log important events to Discord channel
     if (TICKET_CONFIG.LOG_AUTO_LINKS) {
