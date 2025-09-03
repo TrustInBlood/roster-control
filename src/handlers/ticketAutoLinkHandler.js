@@ -38,11 +38,43 @@ async function handleTicketAutoLink(message) {
     }
 
     console.log('DEBUG: Message content:', message.content.substring(0, 100) + '...');
+    console.log('DEBUG: Message has embeds:', message.embeds.length);
 
-    // Extract Steam IDs from the message content
-    const steamIds = extractSteamIds(message.content);
+    // Extract Steam IDs from both message content and embeds
+    let steamIds = extractSteamIds(message.content);
     
-    console.log('DEBUG: Extracted Steam IDs:', steamIds);
+    // Also check embeds for Steam IDs
+    if (message.embeds && message.embeds.length > 0) {
+      for (const embed of message.embeds) {
+        console.log('DEBUG: Processing embed:', {
+          title: embed.title,
+          description: embed.description?.substring(0, 100),
+          fields: embed.fields?.length || 0
+        });
+        
+        // Check embed description
+        if (embed.description) {
+          const embedSteamIds = extractSteamIds(embed.description);
+          steamIds = steamIds.concat(embedSteamIds);
+        }
+        
+        // Check embed fields
+        if (embed.fields) {
+          for (const field of embed.fields) {
+            console.log('DEBUG: Checking field:', field.name, '=', field.value?.substring(0, 50));
+            if (field.value) {
+              const fieldSteamIds = extractSteamIds(field.value);
+              steamIds = steamIds.concat(fieldSteamIds);
+            }
+          }
+        }
+      }
+    }
+    
+    // Remove duplicates
+    steamIds = [...new Set(steamIds)];
+    
+    console.log('DEBUG: Extracted Steam IDs (content + embeds):', steamIds);
     
     if (steamIds.length === 0) {
       console.log('DEBUG: No Steam IDs found in message');
