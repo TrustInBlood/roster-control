@@ -34,9 +34,9 @@ async function handleTicketAutoLink(message) {
     
     console.log('DEBUG: Processing ticket channel:', message.channel.name);
 
-    // Check if we have message content access
-    if (!message.content || message.content.length === 0) {
-      console.log('DEBUG: No message content access');
+    // Check if we have message content access or embeds
+    if ((!message.content || message.content.length === 0) && (!message.embeds || message.embeds.length === 0)) {
+      console.log('DEBUG: No message content or embeds');
       return;
     }
 
@@ -52,7 +52,8 @@ async function handleTicketAutoLink(message) {
         console.log('DEBUG: Processing embed:', {
           title: embed.title,
           description: embed.description?.substring(0, 100),
-          fields: embed.fields?.length || 0
+          fields: embed.fields?.length || 0,
+          fullEmbed: JSON.stringify(embed, null, 2).substring(0, 1000) // Show more details
         });
         
         // Check embed description
