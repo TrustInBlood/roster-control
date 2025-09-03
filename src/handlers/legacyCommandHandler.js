@@ -17,13 +17,6 @@ async function handleLegacyCommands(message) {
     // Ignore DMs, but allow some bot messages for ticket processing
     if (!message.guild) return;
     
-    // Debug: Log that we received a message
-    console.log('DEBUG: messageCreate event received:', {
-      channel: message.channel.name,
-      author: message.author.tag,
-      contentLength: message.content?.length || 0
-    });
-    
     // Check if we have message content access
     if (!message.content || message.content.length === 0) {
       // Message content intent might not be enabled

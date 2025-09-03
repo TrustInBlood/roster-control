@@ -28,20 +28,13 @@ async function handleTicketAutoLink(message) {
 
     // Check if this is a ticket channel
     if (!isTicketChannel(message.channel)) {
-      console.log('DEBUG: Not a ticket channel:', message.channel.name);
       return;
     }
-    
-    console.log('DEBUG: Processing ticket channel:', message.channel.name);
 
     // Check if we have message content access or embeds
     if ((!message.content || message.content.length === 0) && (!message.embeds || message.embeds.length === 0)) {
-      console.log('DEBUG: No message content or embeds');
       return;
     }
-
-    console.log('DEBUG: Message content:', message.content.substring(0, 100) + '...');
-    console.log('DEBUG: Message has embeds:', message.embeds.length);
 
     // Extract Steam IDs from both message content and embeds
     let steamIds = extractSteamIds(message.content);
@@ -49,13 +42,6 @@ async function handleTicketAutoLink(message) {
     // Also check embeds for Steam IDs
     if (message.embeds && message.embeds.length > 0) {
       for (const embed of message.embeds) {
-        console.log('DEBUG: Processing embed:', {
-          title: embed.title,
-          description: embed.description?.substring(0, 100),
-          fields: embed.fields?.length || 0,
-          fullEmbed: JSON.stringify(embed, null, 2).substring(0, 1000) // Show more details
-        });
-        
         // Check embed description
         if (embed.description) {
           const embedSteamIds = extractSteamIds(embed.description);
@@ -65,7 +51,6 @@ async function handleTicketAutoLink(message) {
         // Check embed fields
         if (embed.fields) {
           for (const field of embed.fields) {
-            console.log('DEBUG: Checking field:', field.name, '=', field.value?.substring(0, 50));
             if (field.value) {
               const fieldSteamIds = extractSteamIds(field.value);
               steamIds = steamIds.concat(fieldSteamIds);
@@ -78,10 +63,7 @@ async function handleTicketAutoLink(message) {
     // Remove duplicates
     steamIds = [...new Set(steamIds)];
     
-    console.log('DEBUG: Extracted Steam IDs (content + embeds):', steamIds);
-    
     if (steamIds.length === 0) {
-      console.log('DEBUG: No Steam IDs found in message');
       return; // No Steam IDs found
     }
 
@@ -90,34 +72,26 @@ async function handleTicketAutoLink(message) {
     
     // If this is a bot message (like ticket tool), try to find the real user
     if (message.author.bot) {
-      console.log('DEBUG: Message from bot:', message.author.tag);
-      
       // First try to extract user from message content mentions
       const contentMentions = extractUserMentionsFromContent(message);
       if (contentMentions.length > 0) {
         targetUser = contentMentions[0]; // Use first mentioned user
-        console.log('DEBUG: Found mentioned user in message content:', targetUser.tag);
       } else {
         // Then try to extract user from embed mentions
         const mentionedUsers = extractUserMentionsFromEmbeds(message);
         if (mentionedUsers.length > 0) {
           targetUser = mentionedUsers[0]; // Use first mentioned user
-          console.log('DEBUG: Found mentioned user in embed:', targetUser.tag);
         } else {
           // Look for human users in recent channel messages
           const ticketCreator = await findTicketCreator(message);
           if (ticketCreator) {
             targetUser = ticketCreator;
-            console.log('DEBUG: Found ticket creator from channel messages:', targetUser.tag);
           } else {
-            console.log('DEBUG: Could not determine target user for bot message, skipping');
-            return;
+            return; // Could not determine target user
           }
         }
       }
     }
-
-    console.log('DEBUG: Target user for Steam ID association:', targetUser.tag);
 
     // Process each found Steam ID
     for (const steamId of steamIds) {
@@ -136,28 +110,16 @@ async function handleTicketAutoLink(message) {
  * @returns {boolean} - True if this is a ticket channel
  */
 function isTicketChannel(channel) {
-  console.log('DEBUG: Checking channel:', {
-    name: channel.name,
-    pattern: TICKET_CONFIG.CHANNEL_NAME_PATTERN,
-    parentId: channel.parentId,
-    categoryId: TICKET_CONFIG.CATEGORY_ID
-  });
-  
   // Check by channel name pattern
   if (TICKET_CONFIG.CHANNEL_NAME_PATTERN) {
-    const isMatch = channel.name && channel.name.startsWith(TICKET_CONFIG.CHANNEL_NAME_PATTERN);
-    console.log('DEBUG: Pattern match:', isMatch);
-    return isMatch;
+    return channel.name && channel.name.startsWith(TICKET_CONFIG.CHANNEL_NAME_PATTERN);
   }
 
   // Check by category ID (if configured)
   if (TICKET_CONFIG.CATEGORY_ID) {
-    const isMatch = channel.parentId === TICKET_CONFIG.CATEGORY_ID;
-    console.log('DEBUG: Category match:', isMatch);
-    return isMatch;
+    return channel.parentId === TICKET_CONFIG.CATEGORY_ID;
   }
 
-  console.log('DEBUG: No match criteria configured');
   return false;
 }
 
@@ -286,8 +248,6 @@ function extractUserMentionsFromContent(message) {
  */
 async function findTicketCreator(message) {
   try {
-    console.log('DEBUG: Looking for ticket creator in recent messages');
-    
     // Fetch recent messages from the channel
     const messages = await message.channel.messages.fetch({ limit: 20 });
     
@@ -296,7 +256,6 @@ async function findTicketCreator(message) {
     for (const [, msg] of messages) {
       if (!msg.author.bot && !humanUsers.find(u => u.id === msg.author.id)) {
         humanUsers.push(msg.author);
-        console.log('DEBUG: Found human user in channel:', msg.author.tag);
       }
     }
     
@@ -304,7 +263,7 @@ async function findTicketCreator(message) {
     return humanUsers.length > 0 ? humanUsers[0] : null;
     
   } catch (error) {
-    console.error('DEBUG: Error fetching channel messages:', error.message);
+    console.error('Error fetching channel messages for ticket creator lookup:', error.message);
     return null;
   }
 }
@@ -317,8 +276,6 @@ async function findTicketCreator(message) {
  */
 async function processTicketSteamId(message, steamId, targetUser) {
   try {
-    console.log('DEBUG: Processing Steam ID:', steamId, 'for user:', targetUser.tag);
-    
     const ticketInfo = {
       channelId: message.channel.id,
       channelName: message.channel.name,
@@ -328,14 +285,11 @@ async function processTicketSteamId(message, steamId, targetUser) {
     };
 
     // Attempt to create the ticket link
-    console.log('DEBUG: Attempting to create ticket link');
     const linkResult = await PlayerDiscordLink.createTicketLink(
       targetUser.id,
       steamId,
       ticketInfo
     );
-    
-    console.log('DEBUG: Link result:', linkResult);
 
     // Log important events to Discord channel
     if (TICKET_CONFIG.LOG_AUTO_LINKS) {
