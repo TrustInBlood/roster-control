@@ -33,19 +33,8 @@ module.exports = {
         { transaction }
       );
       
-      // Log the changes
-      const [adminResults] = await queryInterface.sequelize.query(
-        `SELECT COUNT(*) as count FROM player_discord_links WHERE link_source = 'admin'`,
-        { transaction }
-      );
-      
-      const [whitelistResults] = await queryInterface.sequelize.query(
-        `SELECT COUNT(*) as count FROM player_discord_links WHERE link_source = 'whitelist'`,
-        { transaction }
-      );
-      
-      console.log(`Updated ${adminResults[0].count} admin-created links to 0.7 confidence`);
-      console.log(`Updated ${whitelistResults[0].count} whitelist-created links to 0.5 confidence`);
+      console.log('✅ Updated admin-created links to 0.7 confidence');
+      console.log('✅ Updated whitelist-created links to 0.5 confidence');
       
       await transaction.commit();
       
