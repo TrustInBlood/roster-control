@@ -12,7 +12,7 @@ module.exports = {
       // Create the main updates embed
       const updatesEmbed = new EmbedBuilder()
         .setColor(0x5865f2)
-        .setTitle('🚀 What\'s New - Roster Control Bot')
+        .setTitle('What\'s New - Roster Control Bot')
         .setDescription('Recent updates, new features, and improvements')
         .setTimestamp()
         .setFooter({
@@ -23,7 +23,7 @@ module.exports = {
       // Add recent updates (most recent first)
       updatesEmbed.addFields(
         {
-          name: '🔗 Account Linking System (Latest)',
+          name: 'Account Linking System (Latest)',
           value: '• **`/link`** - Admins can manually link Steam IDs to Discord users\n' +
                  '• **Confidence-based security** - Only self-verified links can access staff whitelist\n' +
                  '• **Ticket auto-linking** - Automatically detects Steam IDs in ticket channels\n' +
@@ -31,7 +31,7 @@ module.exports = {
           inline: false
         },
         {
-          name: '📋 Enhanced Whitelist System',
+          name: 'Enhanced Whitelist System',
           value: '• **`/whitelist grant`** - Interactive whitelist granting with duration selection\n' +
                  '• **`/whitelist info`** - Check whitelist status and stacking\n' +
                  '• **`/whitelist extend`** - Extend existing whitelists\n' +
@@ -40,14 +40,14 @@ module.exports = {
           inline: false
         },
         {
-          name: '🎯 Legacy Command Detection',
+          name: 'Legacy Command Detection',
           value: '• **Smart deprecation warnings** - Detects old `!addsm` and `!addfr` commands\n' +
                  '• **Migration guidance** - Shows users how to use new slash commands\n' +
                  '• **Steam ID detection** - Only warns when Steam IDs are detected',
           inline: false
         },
         {
-          name: '👮 On-Duty System',
+          name: 'On-Duty System',
           value: '• **`/onduty` & `/offduty`** - Manage admin duty status\n' +
                  '• **Role-based tracking** - Discord roles determine duty status\n' +
                  '• **External change detection** - Tracks role changes made outside bot\n' +
@@ -55,14 +55,14 @@ module.exports = {
           inline: false
         },
         {
-          name: '🔍 Account Verification',
+          name: 'Account Verification',
           value: '• **`/linkid`** - Self-verify Steam ID with in-game code\n' +
                  '• **Secure verification** - Time-limited codes with in-game confirmation\n' +
                  '• **High confidence links** - Required for staff whitelist access',
           inline: false
         },
         {
-          name: '📊 Security & Confidence Scores',
+          name: 'Security & Confidence Scores',
           value: '• **1.0** - Self-verified (staff whitelist eligible)\n' +
                  '• **0.7** - Admin-created links\n' +
                  '• **0.5** - Whitelist-created links\n' +
@@ -75,11 +75,11 @@ module.exports = {
       // Add a second embed for additional info
       const infoEmbed = new EmbedBuilder()
         .setColor(0x57f287)
-        .setTitle('📋 Command Overview')
+        .setTitle('Command Overview')
         .setDescription('Available commands and their purposes')
         .addFields(
           {
-            name: '👨‍💼 Admin Commands',
+            name: 'Admin Commands',
             value: '`/link` - Link Steam ID to Discord user\n' +
                    '`/whitelist grant` - Grant whitelist access\n' +
                    '`/whitelist extend` - Extend whitelist duration\n' +
@@ -88,7 +88,7 @@ module.exports = {
             inline: true
           },
           {
-            name: '🔍 User Commands',
+            name: 'User Commands',
             value: '`/linkid` - Self-verify your Steam ID\n' +
                    '`/whitelist info` - Check whitelist status\n' +
                    '`/ping` - Test bot connectivity\n' +
@@ -97,7 +97,7 @@ module.exports = {
             inline: true
           },
           {
-            name: '🌐 Integration Features',
+            name: 'Integration Features',
             value: '• **HTTP Whitelist API** - External server access\n' +
                    '• **SquadJS Integration** - Real-time game events\n' +
                    '• **Discord Logging** - Comprehensive audit trail\n' +
@@ -118,7 +118,7 @@ module.exports = {
       
       // Simple fallback response
       await interaction.reply({
-        content: '❌ Failed to load updates. Please check with an administrator.',
+        content: 'Failed to load updates. Please check with an administrator.',
         ephemeral: true
       });
     }
