@@ -8,10 +8,11 @@ const COMMAND_PERMISSIONS = {
     'whitelist': ['1363025391366967386', '1256127324928213012', '1363025129814233190', '1363025129814233190', '1363017008039329972', '814554233377652736'],  // Same as duty commands
     'duty': ['1363025391366967386', '1256127324928213012', '1363025129814233190', '1363025129814233190', '1363017008039329972', '814554233377652736'],       // Roles that can use duty commands
     'link': ['1363025391366967386', '1256127324928213012', '1363025129814233190', '1363025129814233190', '1363017008039329972', '814554233377652736'],       // Same as duty commands - admin only
+    'whatsnew': ['1363025391366967386', '1256127324928213012', '1363025129814233190', '1363025129814233190', '1363017008039329972', '814554233377652736'],   // Same as duty commands - admin only
     
     // Public commands
-    'ping': [],  // Everyone can use
-    'help': []   // Everyone can use
+    'ping': [],      // Everyone can use
+    'help': []       // Everyone can use
 };
 
 // Both duty commands use the same permission list
