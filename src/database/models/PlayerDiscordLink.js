@@ -203,7 +203,7 @@ module.exports = (sequelize) => {
     }
 
     return await this.createOrUpdateLink(discordUserId, steamid64, eosId, username, {
-      linkSource: 'admin',
+      linkSource: 'manual',
       confidenceScore: 0.7, // Admin-created links get 0.7 confidence
       isPrimary: true,
       metadata
