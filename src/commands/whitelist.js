@@ -57,7 +57,8 @@ async function resolveUserInfo(steamid, discordUser, createLink = false) {
       discordUser.id, 
       resolvedSteamId, 
       null, // eosID
-      username
+      username,
+      0.5  // Whitelist operations create 0.5 confidence links
     );
     
     if (!linkResult.error) {
@@ -673,9 +674,16 @@ async function processWhitelistGrant(interaction, grantData) {
     if (userInfo.linkedAccount) {
       successEmbed.addFields({ 
         name: 'Account Link', 
-        value: `✅ Discord-Steam link ${userInfo.linkedAccount}`, 
+        value: `✅ Discord-Steam link ${userInfo.linkedAccount} (Confidence: 0.5)`, 
         inline: true 
       });
+      if (reason === 'service-member' || reason === 'first-responder') {
+        successEmbed.addFields({
+          name: '⚠️ Note',
+          value: 'This creates a 0.5 confidence link. User must self-verify with `/linkid` for staff whitelist access.',
+          inline: false
+        });
+      }
     }
 
     await interaction.editReply({

@@ -185,5 +185,30 @@ module.exports = (sequelize) => {
     });
   };
 
+  PlayerDiscordLink.createManualLink = async function(discordUserId, steamid64, eosId = null, username = null, adminInfo = {}) {
+    // Admin manual links get 0.7 confidence (not sufficient for staff whitelist)
+    const metadata = {
+      created_by: adminInfo.created_by,
+      created_by_tag: adminInfo.created_by_tag,
+      reason: adminInfo.reason || 'Manual admin link',
+      created_at: new Date()
+    };
+
+    // Mark any existing links for this Steam ID as non-primary
+    if (steamid64) {
+      await this.update(
+        { is_primary: false },
+        { where: { steamid64: steamid64 } }
+      );
+    }
+
+    return await this.createOrUpdateLink(discordUserId, steamid64, eosId, username, {
+      linkSource: 'admin',
+      confidenceScore: 0.7, // Admin-created links get 0.7 confidence
+      isPrimary: true,
+      metadata
+    });
+  };
+
   return PlayerDiscordLink;
 };

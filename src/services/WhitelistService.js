@@ -1,5 +1,5 @@
 const express = require('express');
-const { Group, Whitelist } = require('../database/models');
+const { Group, Whitelist, PlayerDiscordLink } = require('../database/models');
 
 class WhitelistService {
   constructor(logger, config) {
@@ -62,7 +62,18 @@ class WhitelistService {
     this.logger.info('Refreshing whitelist cache', { type });
     
     try {
-      const entries = await Whitelist.getActiveEntries(type);
+      let entries = await Whitelist.getActiveEntries(type);
+      
+      // For staff whitelist, filter by confidence score
+      if (type === 'staff') {
+        entries = await this.filterByConfidence(entries, 1.0);
+        this.logger.info('Filtered staff whitelist by confidence', { 
+          originalCount: (await Whitelist.getActiveEntries(type)).length,
+          filteredCount: entries.length,
+          requiredConfidence: 1.0
+        });
+      }
+      
       const formattedContent = await this.formatWhitelistContent(entries);
       
       this.cache.set(type, formattedContent);
@@ -85,6 +96,46 @@ class WhitelistService {
       
       throw error;
     }
+  }
+
+  async filterByConfidence(entries, minConfidence) {
+    // Filter whitelist entries by checking PlayerDiscordLink confidence scores
+    const filteredEntries = [];
+    
+    for (const entry of entries) {
+      // Check if this Steam ID has a linked Discord account with sufficient confidence
+      const links = await PlayerDiscordLink.findAll({
+        where: { 
+          steamid64: entry.steamid64,
+          is_primary: true
+        },
+        order: [['confidence_score', 'DESC']]
+      });
+      
+      // If there are any links with sufficient confidence, include this entry
+      if (links.length > 0 && links[0].confidence_score >= minConfidence) {
+        filteredEntries.push(entry);
+        this.logger.debug('Including staff whitelist entry', {
+          steamid64: entry.steamid64,
+          confidence: links[0].confidence_score,
+          linkSource: links[0].link_source
+        });
+      } else if (links.length > 0) {
+        this.logger.warn('Excluding staff whitelist entry due to insufficient confidence', {
+          steamid64: entry.steamid64,
+          highestConfidence: links[0].confidence_score,
+          requiredConfidence: minConfidence,
+          linkSource: links[0].link_source
+        });
+      } else {
+        // No Discord link at all - exclude from staff whitelist
+        this.logger.debug('Excluding staff whitelist entry - no Discord link', {
+          steamid64: entry.steamid64
+        });
+      }
+    }
+    
+    return filteredEntries;
   }
 
   async formatWhitelistContent(entries) {

@@ -11,15 +11,21 @@ const { PlayerDiscordLink, Whitelist } = require('../database/models');
  * @param {string} steamid64 - Steam ID64
  * @param {string} eosID - Optional EOS ID
  * @param {string} username - Optional username
+ * @param {number} confidenceScore - Confidence score for the link (default 0.5 for whitelist operations)
  * @returns {Object} The created or updated link
  */
-async function createOrUpdateLink(discordUserId, steamid64, eosID = null, username = null) {
+async function createOrUpdateLink(discordUserId, steamid64, eosID = null, username = null, confidenceScore = 0.5) {
   try {
     const { link, created } = await PlayerDiscordLink.createOrUpdateLink(
       discordUserId, 
       steamid64, 
       eosID, 
-      username
+      username,
+      {
+        linkSource: 'whitelist',
+        confidenceScore: confidenceScore,
+        isPrimary: true
+      }
     );
     
     console.log(`Account link ${created ? 'created' : 'updated'}: Discord ${discordUserId} <-> Steam ${steamid64}`);
