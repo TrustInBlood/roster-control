@@ -41,7 +41,7 @@ module.exports = {
         // Check if this Steam ID is already linked to someone else
         const existingLink = await PlayerDiscordLink.findOne({
           where: { 
-            steam_id: steamId,
+            steamid64: steamId,
             is_primary: true
           }
         });
