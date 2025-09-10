@@ -155,6 +155,25 @@
 - [ ] Restrict whitelist commands to on-duty admins
 - [x] Log all admin actions in audit log
 
+### Tutor System Commands ✅ COMPLETED
+- [x] Implement `/ondutytutor` command
+  - [x] Check for tutor role requirement
+  - [x] Separate tutor duty status tracking
+  - [x] Database logging with "tutor" duty type
+  - [x] Notification system with tutor-specific colors
+- [x] Implement `/offdutytutor` command
+  - [x] Companion command to remove tutor duty status
+  - [x] Same permission checks as ondutytutor
+- [x] Implement `/addspecialty` command (Tutor Lead only)
+  - [x] Subcommands for helicopter, armor, infantry, and expert specialties
+  - [x] Role assignment for each specialty type
+  - [x] Audit logging for specialty assignments
+  - [x] Public announcements for specialty recognition
+- [x] Update DutyStatusFactory for tutor support
+  - [x] Add tutor-specific duty methods
+  - [x] Support dutyType parameter throughout
+  - [x] Differentiate admin vs tutor in logs and notifications
+
 ### Roster Management Commands
 - [ ] Implement `/whitelist add <player_id> type:<source>` command
   - [ ] Support BattleMetrics and manual input sources
@@ -255,14 +274,15 @@
 - Comprehensive README and documentation
 - Gitignore configuration
 - Discord bot framework (commands, handlers, permissions, logging)
-- Core bot commands (/ping, /help, /onduty, /offduty, /linkid, /unlink)
+- Core bot commands (/ping, /help, /onduty, /offduty, /linkid, /unlink, /ondutytutor, /offdutytutor, /addspecialty)
 - Error handling and permission system
 - Winston logging setup
 - Complete database schema with all models (Player, Admin, Server, AuditLog, DutyStatusChange, VerificationCode, PlayerDiscordLink, Whitelist, Group, UnlinkHistory)
 - Database migrations and connection management
 - Role-based on-duty admin system with Discord role integration
+- Tutor duty system with separate role tracking and specialty management
 - External role change detection and logging prevention for bot-initiated changes
-- Duty status change logging and audit trails
+- Duty status change logging and audit trails for both admin and tutor roles
 - Voice channel monitoring for admin notifications
 - SquadJS integration for 5 servers with connection management and event processing
 - Discord account linking system with verification codes and chat monitoring

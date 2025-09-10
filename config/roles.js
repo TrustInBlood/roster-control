@@ -22,6 +22,19 @@ COMMAND_PERMISSIONS.offduty = COMMAND_PERMISSIONS.duty;
 // The role ID that represents an admin being on duty
 const ON_DUTY_ROLE_ID = '1402396896257118258'; // Replace with actual role ID
 
+// Tutor system roles
+const TUTOR_ROLE_ID = '1414863956597801030'; // Role that identifies tutors
+const TUTOR_ON_DUTY_ROLE_ID = '1414869998870200401'; // Role for on-duty tutors
+const TUTOR_LEAD_ROLE_ID = '1415128641628541080'; // Role for tutor program lead
+
+// Specialty roles that can be assigned by tutor lead
+const SPECIALTY_ROLES = {
+    HELICOPTER: '1414865731304296448',
+    ARMOR: '1414865809922068570',
+    INFANTRY: '1414865731304296448',
+    EXPERT: '1414867846214848512' // Squad expert - knowledgeable about all
+};
+
 // Special roles that can award whitelist access - Update with your production server role IDs
 const WHITELIST_AWARD_ROLES = {
     DONATOR: '1246536874059628645',         // Replace with actual donator role ID
@@ -32,5 +45,9 @@ const WHITELIST_AWARD_ROLES = {
 module.exports = {
     COMMAND_PERMISSIONS,
     ON_DUTY_ROLE_ID,
+    TUTOR_ROLE_ID,
+    TUTOR_ON_DUTY_ROLE_ID,
+    TUTOR_LEAD_ROLE_ID,
+    SPECIALTY_ROLES,
     WHITELIST_AWARD_ROLES
 };

@@ -23,7 +23,16 @@ module.exports = {
       // Add recent updates (most recent first)
       updatesEmbed.addFields(
         {
-          name: 'Account Linking System (Latest)',
+          name: 'Tutor System & Specialties (Latest)',
+          value: '• **`/ondutytutor` & `/offdutytutor`** - Separate duty tracking for tutors\n' +
+                 '• **`/addspecialty`** - Tutor Lead can assign specialty roles\n' +
+                 '• **Specialty Types** - Helicopter, Armor, Infantry, Squad Expert\n' +
+                 '• **Separate duty logging** - Tutors tracked independently from admins\n' +
+                 '• **Light blue notifications** - Visual distinction for tutor duty status',
+          inline: false
+        },
+        {
+          name: 'Account Linking System',
           value: '• **`/link`** - Admins can manually link Steam IDs to Discord users\n' +
                  '• **Confidence-based security** - Only self-verified links can access staff whitelist\n' +
                  '• **Ticket auto-linking** - Automatically detects Steam IDs in ticket channels\n' +
@@ -84,7 +93,9 @@ module.exports = {
                    '`/whitelist grant` - Grant whitelist access\n' +
                    '`/whitelist extend` - Extend whitelist duration\n' +
                    '`/whitelist revoke` - Remove whitelist access\n' +
-                   '`/onduty` & `/offduty` - Manage duty status',
+                   '`/onduty` & `/offduty` - Manage admin duty status\n' +
+                   '`/ondutytutor` & `/offdutytutor` - Manage tutor duty\n' +
+                   '`/addspecialty` - Assign specialty roles (Lead only)',
             inline: true
           },
           {

@@ -1,4 +1,4 @@
-const { ON_DUTY_ROLE_ID } = require('../../config/discord');
+const { ON_DUTY_ROLE_ID, TUTOR_ON_DUTY_ROLE_ID } = require('../../config/discord');
 const { sendDutyNotification } = require('../utils/dutyNotifications');
 const { DutyStatusChange } = require('../database/models');
 const { CHANNELS } = require('../../config/discord');
@@ -7,6 +7,7 @@ const { EmbedBuilder } = require('discord.js');
 class DutyStatusFactory {
     constructor() {
         this.onDutyRoleId = ON_DUTY_ROLE_ID;
+        this.tutorOnDutyRoleId = TUTOR_ON_DUTY_ROLE_ID;
         this.roleChangeHandler = null; // Will be set by the handler
     }
     
@@ -26,6 +27,24 @@ class DutyStatusFactory {
         return await this._handleDutyStatusChange(interaction, false, {
             source: 'command',
             reason: 'User deactivated duty status',
+            ...options
+        });
+    }
+
+    async setTutorOnDuty(interaction, options = {}) {
+        return await this._handleDutyStatusChange(interaction, true, {
+            source: 'command',
+            reason: 'User activated tutor duty status',
+            dutyType: 'tutor',
+            ...options
+        });
+    }
+
+    async setTutorOffDuty(interaction, options = {}) {
+        return await this._handleDutyStatusChange(interaction, false, {
+            source: 'command',
+            reason: 'User deactivated tutor duty status',
+            dutyType: 'tutor',
             ...options
         });
     }
@@ -57,16 +76,18 @@ class DutyStatusFactory {
         try {
             const member = options.member || interaction.member;
             const guild = member.guild;
+            const dutyType = options.dutyType || 'admin'; // Default to admin duty
             
-            // Get the on-duty role
-            const onDutyRole = guild.roles.cache.get(this.onDutyRoleId);
+            // Get the appropriate on-duty role based on duty type
+            const roleId = dutyType === 'tutor' ? this.tutorOnDutyRoleId : this.onDutyRoleId;
+            const onDutyRole = guild.roles.cache.get(roleId);
             if (!onDutyRole) {
-                result.error = 'The on-duty role could not be found. Please contact a server administrator.';
+                result.error = `The ${dutyType} on-duty role could not be found. Please contact a server administrator.`;
                 return result;
             }
 
             // Check current Discord role status (this is the source of truth)
-            const currentlyOnDuty = member.roles.cache.has(this.onDutyRoleId);
+            const currentlyOnDuty = member.roles.cache.has(roleId);
             result.data.wasOnDuty = currentlyOnDuty;
 
             // Only validate state change for command-based changes
@@ -87,7 +108,7 @@ class DutyStatusFactory {
                 }
             }
 
-            console.log(`🔄 Processing duty status change: ${member.user.tag} -> ${isOnDuty ? 'ON' : 'OFF'} duty`);
+            console.log(`🔄 Processing ${dutyType} duty status change: ${member.user.tag} -> ${isOnDuty ? 'ON' : 'OFF'} duty`);
 
             // Handle role change (skip for external changes since role already changed)
             if (options.source !== 'external') {
@@ -110,7 +131,7 @@ class DutyStatusFactory {
 
             // Send notification (unless explicitly skipped)
             if (!options.skipNotification) {
-                const notificationResult = await this._handleNotification(interaction, member, isOnDuty);
+                const notificationResult = await this._handleNotification(interaction, member, isOnDuty, dutyType);
                 result.data.notificationSent = notificationResult.success;
                 if (!notificationResult.success && notificationResult.warning) {
                     result.warning = notificationResult.warning;
@@ -178,15 +199,15 @@ class DutyStatusFactory {
         }
     }
 
-    async _handleNotification(interaction, member, isOnDuty) {
+    async _handleNotification(interaction, member, isOnDuty, dutyType = 'admin') {
         try {
             if (interaction) {
                 // For command-based changes, use the interaction-based notification
-                return await sendDutyNotification(interaction, isOnDuty);
+                return await sendDutyNotification(interaction, isOnDuty, dutyType);
             } else {
                 // For external role changes, send direct notification to duty logs
                 console.log(`📢 Sending notification for ${member.user.tag} (external change)`);
-                return await this._sendDirectNotification(member, isOnDuty);
+                return await this._sendDirectNotification(member, isOnDuty, dutyType);
             }
         } catch (error) {
             return {
@@ -196,7 +217,7 @@ class DutyStatusFactory {
         }
     }
 
-    async _sendDirectNotification(member, isOnDuty) {
+    async _sendDirectNotification(member, isOnDuty, dutyType = 'admin') {
         try {
             const guild = member.guild;
             const channel = guild.channels.cache.get(CHANNELS.DUTY_LOGS);
@@ -209,10 +230,13 @@ class DutyStatusFactory {
             }
 
             // Use the same embed style as command notifications for consistency
+            const dutyTitle = dutyType === 'tutor' ? 'Tutor' : 'Admin';
+            const embedColor = dutyType === 'tutor' ? (isOnDuty ? 0x00BFFF : 0x808080) : (isOnDuty ? 0x00FF00 : 0xFF0000);
+            
             const embed = new EmbedBuilder()
-                .setColor(isOnDuty ? 0x00FF00 : 0xFF0000)
-                .setTitle('Admin Duty Status Update')
-                .setDescription(`${member} is now ${isOnDuty ? 'on' : 'off'} duty`)
+                .setColor(embedColor)
+                .setTitle(`${dutyTitle} Duty Status Update`)
+                .setDescription(`${member} is now ${isOnDuty ? 'on' : 'off'} duty as a ${dutyType}`)
                 .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
                 .setTimestamp();
 
@@ -230,7 +254,8 @@ class DutyStatusFactory {
 
     async _logStatusChange(member, isOnDuty, options) {
         try {
-            console.log(`📝 Logging duty status change: ${member.user.tag} -> ${isOnDuty ? 'ON' : 'OFF'} duty (${options.source || 'command'})`);
+            const dutyType = options.dutyType || 'admin';
+            console.log(`📝 Logging ${dutyType} duty status change: ${member.user.tag} -> ${isOnDuty ? 'ON' : 'OFF'} duty (${options.source || 'command'})`);
             
             const changeRecord = await DutyStatusChange.create({
                 discordUserId: member.user.id,
@@ -238,13 +263,14 @@ class DutyStatusFactory {
                 status: isOnDuty,
                 previousStatus: !isOnDuty, // Since we validated the change is valid
                 source: options.source || 'command',
-                reason: options.reason || (isOnDuty ? 'User activated duty status' : 'User deactivated duty status'),
+                reason: options.reason || (isOnDuty ? `User activated ${dutyType} duty status` : `User deactivated ${dutyType} duty status`),
                 guildId: member.guild.id,
                 channelId: options.channelId || null,
                 metadata: {
                     userTag: member.user.tag,
                     userDisplayName: member.displayName,
                     roleChangeSuccessful: true,
+                    dutyType: dutyType,
                     timestamp: new Date().toISOString(),
                     botVersion: process.env.npm_package_version || 'unknown',
                     ...options.metadata
