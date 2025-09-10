@@ -25,8 +25,10 @@ module.exports = {
         {
           name: 'Tutor System & Specialties (Latest)',
           value: '• **`/ondutytutor` & `/offdutytutor`** - Separate duty tracking for tutors\n' +
-                 '• **`/addspecialty`** - Tutor Lead can assign specialty roles\n' +
+                 '• **`/addspecialty` & `/removespecialty`** - Tutor Lead can manage specialty roles\n' +
+                 '• **`/removetutor`** - Complete tutor status removal (all roles)\n' +
                  '• **Specialty Types** - Helicopter, Armor, Infantry, Squad Expert\n' +
+                 '• **Protection system** - Prevents removing other tutor leads\n' +
                  '• **Separate duty logging** - Tutors tracked independently from admins\n' +
                  '• **Light blue notifications** - Visual distinction for tutor duty status',
           inline: false
@@ -95,7 +97,8 @@ module.exports = {
                    '`/whitelist revoke` - Remove whitelist access\n' +
                    '`/onduty` & `/offduty` - Manage admin duty status\n' +
                    '`/ondutytutor` & `/offdutytutor` - Manage tutor duty\n' +
-                   '`/addspecialty` - Assign specialty roles (Lead only)',
+                   '`/addspecialty` & `/removespecialty` - Manage specialty roles (Lead only)\n' +
+                   '`/removetutor` - Remove all tutor roles (Lead only)',
             inline: true
           },
           {

@@ -169,6 +169,16 @@
   - [x] Role assignment for each specialty type
   - [x] Audit logging for specialty assignments
   - [x] Public announcements for specialty recognition
+- [x] Implement `/removespecialty` command (Tutor Lead only)
+  - [x] Individual specialty removal subcommands
+  - [x] "Remove all" option for clearing all specialties
+  - [x] Audit logging for specialty removals
+  - [x] Public announcements for specialty changes
+- [x] Implement `/removetutor` command (Tutor Lead only)
+  - [x] Remove all tutor-related roles (tutor, on-duty, specialties)
+  - [x] Protection against removing other tutor leads
+  - [x] Reason tracking and audit logging
+  - [x] Public announcements for tutor status changes
 - [x] Update DutyStatusFactory for tutor support
   - [x] Add tutor-specific duty methods
   - [x] Support dutyType parameter throughout
@@ -274,7 +284,7 @@
 - Comprehensive README and documentation
 - Gitignore configuration
 - Discord bot framework (commands, handlers, permissions, logging)
-- Core bot commands (/ping, /help, /onduty, /offduty, /linkid, /unlink, /ondutytutor, /offdutytutor, /addspecialty)
+- Core bot commands (/ping, /help, /onduty, /offduty, /linkid, /unlink, /ondutytutor, /offdutytutor, /addspecialty, /removespecialty, /removetutor)
 - Error handling and permission system
 - Winston logging setup
 - Complete database schema with all models (Player, Admin, Server, AuditLog, DutyStatusChange, VerificationCode, PlayerDiscordLink, Whitelist, Group, UnlinkHistory)
