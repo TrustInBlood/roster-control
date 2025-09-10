@@ -91,17 +91,19 @@ module.exports = {
             try {
                 await AuditLog.create({
                     actionType: 'SPECIALTY_ASSIGNED',
+                    actorType: 'user',
                     actorId: interaction.user.id,
-                    actorUsername: interaction.user.username,
+                    actorName: interaction.user.username,
+                    targetType: 'user',
                     targetId: targetUser.id,
-                    targetUsername: targetUser.username,
-                    reason: `${specialty.name} role assigned`,
+                    targetName: targetUser.username,
+                    description: `${specialty.name} role assigned to ${targetUser.username} by ${interaction.user.username}`,
+                    guildId: interaction.guild.id,
+                    channelId: interaction.channelId,
                     metadata: {
                         specialty: subcommand,
                         roleId: specialty.role,
-                        roleName: specialty.name,
-                        guildId: interaction.guild.id,
-                        channelId: interaction.channelId
+                        roleName: specialty.name
                     }
                 });
             } catch (dbError) {

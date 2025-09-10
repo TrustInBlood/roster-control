@@ -82,17 +82,19 @@ module.exports = {
             try {
                 await AuditLog.create({
                     actionType: 'TUTOR_STATUS_REMOVED',
+                    actorType: 'user',
                     actorId: interaction.user.id,
-                    actorUsername: interaction.user.username,
+                    actorName: interaction.user.username,
+                    targetType: 'user',
                     targetId: targetUser.id,
-                    targetUsername: targetUser.username,
-                    reason: `All tutor roles removed: ${reason}`,
+                    targetName: targetUser.username,
+                    description: `All tutor roles removed from ${targetUser.username} by ${interaction.user.username}: ${reason}`,
+                    guildId: interaction.guild.id,
+                    channelId: interaction.channelId,
                     metadata: {
                         removedRoles: removedRoles,
                         failedRoles: failedRoles,
-                        reason: reason,
-                        guildId: interaction.guild.id,
-                        channelId: interaction.channelId
+                        reason: reason
                     }
                 });
             } catch (dbError) {

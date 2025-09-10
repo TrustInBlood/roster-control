@@ -104,17 +104,19 @@ module.exports = {
             try {
                 await AuditLog.create({
                     actionType: 'SPECIALTY_REMOVED',
+                    actorType: 'user',
                     actorId: interaction.user.id,
-                    actorUsername: interaction.user.username,
+                    actorName: interaction.user.username,
+                    targetType: 'user',
                     targetId: targetUser.id,
-                    targetUsername: targetUser.username,
-                    reason: `${specialty.name} role removed`,
+                    targetName: targetUser.username,
+                    description: `${specialty.name} role removed from ${targetUser.username} by ${interaction.user.username}`,
+                    guildId: interaction.guild.id,
+                    channelId: interaction.channelId,
                     metadata: {
                         specialty: subcommand,
                         roleId: specialty.role,
-                        roleName: specialty.name,
-                        guildId: interaction.guild.id,
-                        channelId: interaction.channelId
+                        roleName: specialty.name
                     }
                 });
             } catch (dbError) {
@@ -187,16 +189,18 @@ async function handleRemoveAll(interaction, targetMember, targetUser) {
     try {
         await AuditLog.create({
             actionType: 'ALL_SPECIALTIES_REMOVED',
+            actorType: 'user',
             actorId: interaction.user.id,
-            actorUsername: interaction.user.username,
+            actorName: interaction.user.username,
+            targetType: 'user',
             targetId: targetUser.id,
-            targetUsername: targetUser.username,
-            reason: 'All specialty roles removed',
+            targetName: targetUser.username,
+            description: `All specialty roles removed from ${targetUser.username} by ${interaction.user.username}`,
+            guildId: interaction.guild.id,
+            channelId: interaction.channelId,
             metadata: {
                 removedRoles: removedRoles,
-                failedRoles: failedRoles,
-                guildId: interaction.guild.id,
-                channelId: interaction.channelId
+                failedRoles: failedRoles
             }
         });
     } catch (dbError) {
