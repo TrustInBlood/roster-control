@@ -181,20 +181,20 @@ module.exports = {
 
       try {
         switch (subcommand) {
-          case 'grant':
-            await handleGrant(interaction);
-            break;
-          case 'info':
-            await handleInfo(interaction);
-            break;
-          case 'extend':
-            await handleExtend(interaction);
-            break;
-          case 'revoke':
-            await handleRevoke(interaction);
-            break;
-          default:
-            await sendError(interaction, 'Unknown subcommand.');
+        case 'grant':
+          await handleGrant(interaction);
+          break;
+        case 'info':
+          await handleInfo(interaction);
+          break;
+        case 'extend':
+          await handleExtend(interaction);
+          break;
+        case 'revoke':
+          await handleRevoke(interaction);
+          break;
+        default:
+          await sendError(interaction, 'Unknown subcommand.');
         }
       } catch (error) {
         console.error('Whitelist command error:', error);
@@ -309,31 +309,31 @@ async function handleDurationSelection(interaction, grantData) {
 
   // Show different duration selection based on reason
   switch (reason) {
-    case 'service-member':
-    case 'first-responder':
-      // Skip duration selection, go straight to confirmation (auto 6 months)
-      await handleConfirmation(interaction, {
-        ...grantData,
-        durationValue: 6,
-        durationType: 'months',
-        durationText: '6 months'
-      });
-      break;
+  case 'service-member':
+  case 'first-responder':
+    // Skip duration selection, go straight to confirmation (auto 6 months)
+    await handleConfirmation(interaction, {
+      ...grantData,
+      durationValue: 6,
+      durationType: 'months',
+      durationText: '6 months'
+    });
+    break;
       
-    case 'donator':
-      await showDonatorDurationSelection(interaction, grantData);
-      break;
+  case 'donator':
+    await showDonatorDurationSelection(interaction, grantData);
+    break;
       
-    case 'reporting':
-      await showReportingDurationSelection(interaction, grantData);
-      break;
+  case 'reporting':
+    await showReportingDurationSelection(interaction, grantData);
+    break;
       
-    default:
-      await interaction.update({
-        content: '❌ Invalid whitelist type selected.',
-        embeds: [],
-        components: []
-      });
+  default:
+    await interaction.update({
+      content: '❌ Invalid whitelist type selected.',
+      embeds: [],
+      components: []
+    });
   }
 }
 
@@ -535,7 +535,7 @@ async function handleConfirmation(interaction, grantData) {
   
   const confirmEmbed = createResponseEmbed({
     title: '✅ Confirm Whitelist Grant',
-    description: `Please confirm the whitelist details below:`,
+    description: 'Please confirm the whitelist details below:',
     fields: [
       { name: 'Discord User', value: discordUser ? `<@${discordUser.id}>` : 'Not linked', inline: true },
       { name: 'Steam ID', value: userInfo.steamid64, inline: true },
@@ -806,7 +806,7 @@ async function handleExtend(interaction) {
 
     const embed = createResponseEmbed({
       title: '⏰ Whitelist Extended',
-      description: `Successfully extended whitelist access`,
+      description: 'Successfully extended whitelist access',
       fields: [
         { name: 'User', value: resolvedDiscordUser ? `<@${resolvedDiscordUser.id}>` : 'Unknown Discord User', inline: true },
         { name: 'Steam ID', value: resolvedSteamId, inline: true },

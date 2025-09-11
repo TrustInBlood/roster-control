@@ -145,7 +145,7 @@ async function logAccountLink(client, user, steamId, linkType = 'manual', detail
  */
 async function logPotentialAccount(client, user, steamId, discoveredIn = {}) {
   await logToDiscord(client, 'ACCOUNT_LINK', {
-    description: `Potential Steam ID association discovered`,
+    description: 'Potential Steam ID association discovered',
     user: user,
     steamId: steamId,
     channel: discoveredIn.channel,
@@ -163,8 +163,8 @@ async function logPotentialAccount(client, user, steamId, discoveredIn = {}) {
  */
 async function logWhitelistOperation(client, operation, user, steamId, details = {}) {
   const eventType = operation === 'grant' ? 'WHITELIST_GRANT' : 
-                   operation === 'revoke' ? 'WHITELIST_REVOKE' : 
-                   'WHITELIST_EXTEND';
+    operation === 'revoke' ? 'WHITELIST_REVOKE' : 
+      'WHITELIST_EXTEND';
   
   await logToDiscord(client, eventType, {
     description: `Whitelist ${operation}ed`,
@@ -202,7 +202,7 @@ async function logCommand(client, user, command, channel, success = true, detail
  */
 async function logLegacyCommand(client, user, oldCommand, newCommand, channel) {
   await logToDiscord(client, 'LEGACY_COMMAND', {
-    description: `Deprecated command detected`,
+    description: 'Deprecated command detected',
     user: user,
     channel: channel,
     details: {

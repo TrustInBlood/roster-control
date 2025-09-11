@@ -10,19 +10,19 @@ const { EmbedBuilder, MessageFlags } = require('discord.js');
  * @returns {Promise} - The interaction reply
  */
 async function sendEphemeralResponse(interaction, { content, success = true, embed = null }) {
-    const response = {
-        content: `${success ? '✅' : '❌'} ${content}`,
-        flags: MessageFlags.Ephemeral
-    };
+  const response = {
+    content: `${success ? '✅' : '❌'} ${content}`,
+    flags: MessageFlags.Ephemeral
+  };
 
-    if (embed) {
-        response.embeds = [embed];
-    }
+  if (embed) {
+    response.embeds = [embed];
+  }
 
-    if (interaction.replied || interaction.deferred) {
-        return await interaction.followUp(response);
-    }
-    return await interaction.reply(response);
+  if (interaction.replied || interaction.deferred) {
+    return await interaction.followUp(response);
+  }
+  return await interaction.reply(response);
 }
 
 /**
@@ -35,17 +35,17 @@ async function sendEphemeralResponse(interaction, { content, success = true, emb
  * @returns {EmbedBuilder} - The created embed
  */
 function createResponseEmbed({ title, description, fields = [], color = 0x0099FF }) {
-    const embed = new EmbedBuilder()
-        .setColor(color)
-        .setTitle(title)
-        .setDescription(description)
-        .setTimestamp();
+  const embed = new EmbedBuilder()
+    .setColor(color)
+    .setTitle(title)
+    .setDescription(description)
+    .setTimestamp();
 
-    if (fields.length > 0) {
-        embed.addFields(fields);
-    }
+  if (fields.length > 0) {
+    embed.addFields(fields);
+  }
 
-    return embed;
+  return embed;
 }
 
 /**
@@ -55,7 +55,7 @@ function createResponseEmbed({ title, description, fields = [], color = 0x0099FF
  * @param {Object} [embed] - Optional embed to include
  */
 async function sendSuccess(interaction, content, embed = null) {
-    return sendEphemeralResponse(interaction, { content, success: true, embed });
+  return sendEphemeralResponse(interaction, { content, success: true, embed });
 }
 
 /**
@@ -65,7 +65,7 @@ async function sendSuccess(interaction, content, embed = null) {
  * @param {Object} [embed] - Optional embed to include
  */
 async function sendError(interaction, content, embed = null) {
-    return sendEphemeralResponse(interaction, { content, success: false, embed });
+  return sendEphemeralResponse(interaction, { content, success: false, embed });
 }
 
 /**
@@ -75,21 +75,21 @@ async function sendError(interaction, content, embed = null) {
  * @param {Function} operation - Async operation to execute
  */
 async function withLoadingMessage(interaction, loadingMessage, operation) {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    try {
-        const result = await operation();
-        return result;
-    } finally {
-        if (!interaction.replied) {
-            await interaction.deleteReply();
-        }
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  try {
+    const result = await operation();
+    return result;
+  } finally {
+    if (!interaction.replied) {
+      await interaction.deleteReply();
     }
+  }
 }
 
 module.exports = {
-    sendEphemeralResponse,
-    createResponseEmbed,
-    sendSuccess,
-    sendError,
-    withLoadingMessage
+  sendEphemeralResponse,
+  createResponseEmbed,
+  sendSuccess,
+  sendError,
+  withLoadingMessage
 };

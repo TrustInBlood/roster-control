@@ -3,49 +3,49 @@ const { sendSuccess, sendError } = require('../utils/messageHandler');
 const DutyStatusFactory = require('../services/DutyStatusFactory');
 
 module.exports = {
-    data: new SlashCommandBuilder()
-        .setName('onduty')
-        .setDescription('Set yourself as an on-duty admin'),
+  data: new SlashCommandBuilder()
+    .setName('onduty')
+    .setDescription('Set yourself as an on-duty admin'),
     
-    async execute(interaction) {
-        try {
-            const dutyFactory = new DutyStatusFactory();
+  async execute(interaction) {
+    try {
+      const dutyFactory = new DutyStatusFactory();
             
-            // Attempt to set user on duty using the factory
-            const result = await dutyFactory.setOnDuty(interaction, {
-                channelId: interaction.channelId,
-                skipNotification: true, // Let the role change handler send the notification
-                metadata: {
-                    commandName: 'onduty',
-                    triggeredAt: new Date().toISOString()
-                }
-            });
-
-            // Handle the result
-            if (!result.success) {
-                return sendError(interaction, result.error);
-            }
-
-            // Create success embed
-            const embed = {
-                title: 'Admin Status Updated',
-                description: `${interaction.user} is now on duty.`,
-                color: 0x00FF00 // Green color
-            };
-
-            // Add warning if notification failed
-            if (result.warning) {
-                embed.description += `\n\n⚠️ ${result.warning}`;
-            }
-
-            return sendSuccess(
-                interaction,
-                'You are now on duty!',
-                embed
-            );
-        } catch (error) {
-            console.error('Error in onduty command:', error);
-            return sendError(interaction, 'Failed to set you as on duty. Please try again or contact a server administrator.');
+      // Attempt to set user on duty using the factory
+      const result = await dutyFactory.setOnDuty(interaction, {
+        channelId: interaction.channelId,
+        skipNotification: true, // Let the role change handler send the notification
+        metadata: {
+          commandName: 'onduty',
+          triggeredAt: new Date().toISOString()
         }
-    },
+      });
+
+      // Handle the result
+      if (!result.success) {
+        return sendError(interaction, result.error);
+      }
+
+      // Create success embed
+      const embed = {
+        title: 'Admin Status Updated',
+        description: `${interaction.user} is now on duty.`,
+        color: 0x00FF00 // Green color
+      };
+
+      // Add warning if notification failed
+      if (result.warning) {
+        embed.description += `\n\n⚠️ ${result.warning}`;
+      }
+
+      return sendSuccess(
+        interaction,
+        'You are now on duty!',
+        embed
+      );
+    } catch (error) {
+      console.error('Error in onduty command:', error);
+      return sendError(interaction, 'Failed to set you as on duty. Please try again or contact a server administrator.');
+    }
+  },
 };
