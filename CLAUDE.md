@@ -78,6 +78,7 @@ Configuration is managed through `.env` file (see `.env.example`):
 ### Role and Channel Configuration
 - **Roles**: Configured in `config/roles.js` with specific Discord role IDs for command permissions
 - **Channels**: Configured in `config/channels.js` for duty logs and voice monitoring
+- **Notification Routing**: Configured in `config/channels.js` via `NOTIFICATION_ROUTES` - maps notification types to target channels
 - **Validation**: Built-in config validation in `config/config.js`
 
 ## Development Patterns

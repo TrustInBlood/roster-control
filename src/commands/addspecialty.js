@@ -1,8 +1,8 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const { sendSuccess, sendError, createResponseEmbed } = require('../utils/messageHandler');
 const { TUTOR_LEAD_ROLE_ID, SPECIALTY_ROLES } = require('../../config/discord');
 const { AuditLog } = require('../database/models');
-const { CHANNELS } = require('../../config/channels');
+const notificationService = require('../services/NotificationService');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -112,26 +112,19 @@ module.exports = {
         // Continue - role was assigned successfully
       }
 
-      // Send notification to bot logs channel
+      // Send notification using NotificationService
       try {
-        const botLogsChannel = interaction.guild.channels.cache.get(CHANNELS.BOT_LOGS);
-        if (botLogsChannel) {
-          const notificationEmbed = new EmbedBuilder()
-            .setColor(0x00BFFF)
-            .setTitle('🎓 Tutor Specialty Assigned')
-            .setDescription(`${targetUser} has been assigned the **${specialty.name}** role`)
-            .addFields(
-              { name: 'Assigned To', value: `${targetUser}`, inline: true },
-              { name: 'Specialty', value: specialty.name, inline: true },
-              { name: 'Assigned By', value: `${interaction.user}`, inline: true }
-            )
-            .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
-            .setTimestamp();
-                    
-          await botLogsChannel.send({ embeds: [notificationEmbed] });
-        }
+        await notificationService.sendTutorNotification('specialty_assigned', {
+          description: `${targetUser} has been assigned the **${specialty.name}** role`,
+          fields: [
+            { name: 'Assigned To', value: `${targetUser}`, inline: true },
+            { name: 'Specialty', value: specialty.name, inline: true },
+            { name: 'Assigned By', value: `${interaction.user}`, inline: true }
+          ],
+          thumbnail: targetUser.displayAvatarURL({ dynamic: true })
+        });
       } catch (notifyError) {
-        console.error('Failed to send notification to bot logs:', notifyError);
+        console.error('Failed to send tutor specialty notification:', notifyError);
         // Non-critical error - continue
       }
 

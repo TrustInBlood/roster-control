@@ -12,6 +12,26 @@ const CHANNELS = {
 };
 
 /**
+ * Notification routing configuration
+ * Maps notification types to their target channels
+ */
+const NOTIFICATION_ROUTES = {
+  // Duty-related notifications
+  duty_status: 'DUTY_LOGS',
+  duty_change: 'DUTY_LOGS',
+  
+  // Bot operation logs
+  tutor_management: 'BOT_LOGS',
+  account_link: 'BOT_LOGS',
+  whitelist: 'BOT_LOGS',
+  command_usage: 'BOT_LOGS',
+  error: 'BOT_LOGS',
+  warning: 'BOT_LOGS',
+  info: 'BOT_LOGS',
+  audit: 'BOT_LOGS'
+};
+
+/**
  * Ticket system configuration
  */
 const TICKET_CONFIG = {
@@ -30,5 +50,6 @@ const TICKET_CONFIG = {
 
 module.exports = {
   CHANNELS,
+  NOTIFICATION_ROUTES,
   TICKET_CONFIG
 };

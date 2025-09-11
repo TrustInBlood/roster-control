@@ -1,8 +1,7 @@
 const { ON_DUTY_ROLE_ID, TUTOR_ON_DUTY_ROLE_ID } = require('../../config/discord');
 const { sendDutyNotification } = require('../utils/dutyNotifications');
 const { DutyStatusChange } = require('../database/models');
-const { CHANNELS } = require('../../config/discord');
-const { EmbedBuilder } = require('discord.js');
+const notificationService = require('./NotificationService');
 
 class DutyStatusFactory {
   constructor() {
@@ -219,30 +218,13 @@ class DutyStatusFactory {
 
   async _sendDirectNotification(member, isOnDuty, dutyType = 'admin') {
     try {
-      const guild = member.guild;
-      const channel = guild.channels.cache.get(CHANNELS.DUTY_LOGS);
-            
-      if (!channel) {
-        return {
-          success: false,
-          warning: 'Duty logs channel not found'
-        };
-      }
-
-      // Use the same embed style as command notifications for consistency
-      const dutyTitle = dutyType === 'tutor' ? 'Tutor' : 'Admin';
-      const embedColor = dutyType === 'tutor' ? (isOnDuty ? 0x00BFFF : 0x808080) : (isOnDuty ? 0x00FF00 : 0xFF0000);
-            
-      const embed = new EmbedBuilder()
-        .setColor(embedColor)
-        .setTitle(`${dutyTitle} Duty Status Update`)
-        .setDescription(`${member} is now ${isOnDuty ? 'on' : 'off'} duty`)
-        .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
-        .setTimestamp();
-
-      await channel.send({ embeds: [embed] });
-            
-      return { success: true };
+      // Use NotificationService for duty notifications
+      const success = await notificationService.sendDutyNotification(member, isOnDuty, dutyType);
+      
+      return { 
+        success,
+        warning: success ? null : 'Failed to send notification via NotificationService'
+      };
     } catch (error) {
       console.error('Failed to send direct notification:', error);
       return {

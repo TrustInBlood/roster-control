@@ -1,8 +1,8 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const { sendSuccess, sendError, createResponseEmbed } = require('../utils/messageHandler');
 const { TUTOR_LEAD_ROLE_ID, TUTOR_ROLE_ID, TUTOR_ON_DUTY_ROLE_ID, SPECIALTY_ROLES } = require('../../config/discord');
 const { AuditLog } = require('../database/models');
-const { CHANNELS } = require('../../config/channels');
+const notificationService = require('../services/NotificationService');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -103,27 +103,20 @@ module.exports = {
         // Continue - roles were removed successfully
       }
 
-      // Send notification to bot logs channel
+      // Send notification using NotificationService
       try {
-        const botLogsChannel = interaction.guild.channels.cache.get(CHANNELS.BOT_LOGS);
-        if (botLogsChannel) {
-          const notificationEmbed = new EmbedBuilder()
-            .setColor(0xFF1744)
-            .setTitle('🚫 Tutor Status Removed')
-            .setDescription(`${targetUser} has been removed from the tutor program`)
-            .addFields(
-              { name: 'Removed From', value: `${targetUser}`, inline: true },
-              { name: 'Removed By', value: `${interaction.user}`, inline: true },
-              { name: 'Reason', value: reason, inline: true },
-              { name: 'Roles Removed', value: removedRoles.join(', ') || 'None', inline: false }
-            )
-            .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
-            .setTimestamp();
-                    
-          await botLogsChannel.send({ embeds: [notificationEmbed] });
-        }
+        await notificationService.sendTutorNotification('tutor_removed', {
+          description: `${targetUser} has been removed from the tutor program`,
+          fields: [
+            { name: 'Removed From', value: `${targetUser}`, inline: true },
+            { name: 'Removed By', value: `${interaction.user}`, inline: true },
+            { name: 'Reason', value: reason, inline: true },
+            { name: 'Roles Removed', value: removedRoles.join(', ') || 'None', inline: false }
+          ],
+          thumbnail: targetUser.displayAvatarURL({ dynamic: true })
+        });
       } catch (notifyError) {
-        console.error('Failed to send notification to bot logs:', notifyError);
+        console.error('Failed to send tutor removal notification:', notifyError);
         // Non-critical error - continue
       }
 

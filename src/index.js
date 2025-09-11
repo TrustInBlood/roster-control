@@ -8,6 +8,7 @@ const DutyStatusSyncService = require('./services/DutyStatusSyncService');
 const { setupWhitelistRoutes } = require('./services/WhitelistIntegration');
 const { databaseManager } = require('./database/index');
 const { migrationManager } = require('./database/migrator');
+const notificationService = require('./services/NotificationService');
 const fs = require('fs');
 const path = require('path');
 const winston = require('winston');
@@ -69,6 +70,10 @@ client.logger = logger;
 client.on('ready', async () => {
   logger.info(`Logged in as ${client.user.tag}`);
   console.log(`🤖 Bot logged in as ${client.user.tag}`);
+    
+  // Initialize NotificationService
+  notificationService.initialize(client);
+  console.log('📢 Notification service initialized');
     
   // Set up role change handler
   const roleChangeHandler = setupRoleChangeHandler(client);
