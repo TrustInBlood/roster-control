@@ -1,8 +1,9 @@
-const { SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle, ComponentType, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+const { SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle, ComponentType, ModalBuilder, TextInputBuilder, TextInputStyle, EmbedBuilder } = require('discord.js');
 const { permissionMiddleware } = require('../handlers/permissionHandler');
 const { withLoadingMessage, createResponseEmbed, sendSuccess, sendError } = require('../utils/messageHandler');
 const { Whitelist } = require('../database/models');
 const { WHITELIST_AWARD_ROLES } = require('../../config/discord');
+const { CHANNELS } = require('../../config/channels');
 const { 
   createOrUpdateLink, 
   resolveSteamIdFromDiscord, 
@@ -63,6 +64,36 @@ async function resolveUserInfo(steamid, discordUser, createLink = false) {
     
     if (!linkResult.error) {
       linkedAccount = linkResult.created ? 'created' : 'updated';
+    } else {
+      // Log the error but don't fail the whitelist operation
+      console.error(`Failed to create/update account link for ${discordUser.id} <-> ${resolvedSteamId}:`, linkResult.error);
+      
+      // Send error notification to bot logs channel
+      try {
+        const guild = discordUser.client.guilds.cache.first();
+        if (guild) {
+          const botLogsChannel = guild.channels.cache.get(CHANNELS.BOT_LOGS);
+          if (botLogsChannel) {
+            const errorEmbed = new EmbedBuilder()
+              .setColor(0xFF0000)
+              .setTitle('⚠️ Account Link Failed')
+              .setDescription('Failed to create Discord-Steam account link during whitelist operation')
+              .addFields(
+                { name: 'Discord User', value: `<@${discordUser.id}> (${discordUser.id})`, inline: true },
+                { name: 'Steam ID', value: resolvedSteamId, inline: true },
+                { name: 'Error', value: linkResult.error || 'Unknown error', inline: false }
+              )
+              .setTimestamp();
+            
+            await botLogsChannel.send({ embeds: [errorEmbed] });
+          }
+        }
+      } catch (logError) {
+        console.error('Failed to send error to bot logs:', logError);
+      }
+      
+      // Still continue with the whitelist, just note that linking failed
+      linkedAccount = 'failed';
     }
   }
 
@@ -672,11 +703,19 @@ async function processWhitelistGrant(interaction, grantData) {
     }
 
     if (userInfo.linkedAccount) {
-      successEmbed.addFields({ 
-        name: 'Account Link', 
-        value: `✅ Discord-Steam link ${userInfo.linkedAccount} (Confidence: 0.5)`, 
-        inline: true 
-      });
+      if (userInfo.linkedAccount === 'failed') {
+        successEmbed.addFields({ 
+          name: 'Account Link', 
+          value: `⚠️ Failed to create Discord-Steam link (check logs)`, 
+          inline: true 
+        });
+      } else {
+        successEmbed.addFields({ 
+          name: 'Account Link', 
+          value: `✅ Discord-Steam link ${userInfo.linkedAccount} (Confidence: 0.5)`, 
+          inline: true 
+        });
+      }
       if (reason === 'service-member' || reason === 'first-responder') {
         successEmbed.addFields({
           name: '⚠️ Note',

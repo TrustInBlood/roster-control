@@ -22,7 +22,7 @@ async function createOrUpdateLink(discordUserId, steamid64, eosID = null, userna
       eosID, 
       username,
       {
-        linkSource: 'whitelist',
+        linkSource: 'manual',
         confidenceScore: confidenceScore,
         isPrimary: true
       }

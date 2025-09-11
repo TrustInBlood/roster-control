@@ -96,6 +96,7 @@ Configuration is managed through `.env` file (see `.env.example`):
 - Admin model: `findByDiscordId()`, `getActiveAdmins()`, `getAdminsByLevel()`
 - Always use database connection manager for health checks
 - Database schema uses flexible TEXT fields instead of ENUMs for future-proofing
+- **IMPORTANT**: `PlayerDiscordLink.link_source` is an ENUM with only these values: `'manual'`, `'ticket'`, `'squadjs'`, `'import'`. Use `'manual'` for admin-initiated links (including whitelist operations). Do NOT use `'whitelist'` or `'admin'` as these will cause database errors.
 
 ### Error Handling
 - Use `sendError()` and `sendSuccess()` from `src/utils/messageHandler.js`
