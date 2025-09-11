@@ -32,7 +32,9 @@ This is a **Discord bot for Squad server roster management** with the following 
 
 **Integration Layer**: Designed for BattleMetrics API integration and SquadJS real-time event processing (planned), with proper rate limiting and reconnection logic.
 
-**On-Duty System**: Discord role-based admin management where roles are the source of truth for duty status. Includes duty change logging, external role change detection, automatic notifications, and voice channel monitoring.
+**On-Duty System**: Discord role-based admin and tutor management where roles are the source of truth for duty status. Includes separate duty tracking for admins and tutors, duty change logging, external role change detection, automatic notifications, and voice channel monitoring.
+
+**Tutor System**: Comprehensive tutor management with specialty role assignments (helicopter, armor, infantry, squad expert) restricted to tutor program leads. Includes separate on-duty tracking with visual distinction and complete lifecycle management.
 
 ### Key Components
 
@@ -55,7 +57,7 @@ This is a **Discord bot for Squad server roster management** with the following 
 #### Command System (`src/commands/`)
 - **Modular Structure**: Each command is a separate file with `data` (SlashCommandBuilder) and `execute` properties
 - **Error Handling**: Centralized error handling with user-friendly messages
-- **Current Commands**: `/ping`, `/help`, `/onduty`, `/offduty`
+- **Current Commands**: `/ping`, `/help`, `/onduty`, `/offduty`, `/ondutytutor`, `/offdutytutor`, `/addspecialty`, `/removespecialty`, `/removetutor`, `/whatsnew`
 
 #### Event Handling (`src/handlers/`)
 - **Voice State Monitoring**: Automatic notifications when users join monitored voice channels
@@ -108,7 +110,7 @@ Configuration is managed through `.env` file (see `.env.example`):
 ## Project Structure Context
 
 ### Current Implementation Status
-- ✅ **Complete**: Discord bot framework, all database models with migrations, role-based on-duty system, external role change detection, duty status logging, permission system, error handling
+- ✅ **Complete**: Discord bot framework, all database models with migrations, role-based on-duty system, tutor system with specialty management, external role change detection, duty status logging, permission system, error handling
 - 🔄 **In Progress**: SquadJS integration, BattleMetrics API
 - 📋 **Planned**: Whitelist management commands, player activity tracking, RCON integration
 
@@ -144,7 +146,11 @@ Configuration is managed through `.env` file (see `.env.example`):
 2. Deploy commands to development environment first
 3. Use ESLint for code consistency
 4. Follow existing permission middleware patterns for new commands
-5. Update TASKS.md when implementing new features
+5. Update documentation when implementing new features:
+   - Update `/whatsnew` command with latest features
+   - Update `TASKS.md` with implementation status
+   - Update `PLANNING.md` if architecture changes
+   - Update `README.md` if user-facing changes occur
 
 ### Multi-Server Architecture
 The system is designed to support 5 Squad servers through SquadJS instances, with centralized Discord bot management and per-server data tracking.

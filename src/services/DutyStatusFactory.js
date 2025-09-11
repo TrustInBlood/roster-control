@@ -236,7 +236,7 @@ class DutyStatusFactory {
             const embed = new EmbedBuilder()
                 .setColor(embedColor)
                 .setTitle(`${dutyTitle} Duty Status Update`)
-                .setDescription(`${member} is now ${isOnDuty ? 'on' : 'off'} duty as a ${dutyType}`)
+                .setDescription(`${member} is now ${isOnDuty ? 'on' : 'off'} duty`)
                 .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
                 .setTimestamp();
 
