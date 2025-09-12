@@ -211,15 +211,61 @@ module.exports = (sequelize) => {
       return { hasWhitelist: true, status: 'Active (permanent)', expiration: null };
     }
 
-    // Calculate stacked expiration by adding all durations from earliest grant date
-    const earliestEntry = activeEntries[0]; // Already sorted by granted_at ASC
+    // Filter out entries that have already expired individually, then stack the rest
+    const now = new Date();
+    const validEntries = [];
+
+    // First, determine which entries are still individually valid
+    activeEntries.forEach(entry => {
+      // Skip entries with 0 duration (these are expired)
+      if (entry.duration_value === 0) return;
+      
+      // Calculate individual expiration date
+      const grantedDate = new Date(entry.granted_at);
+      const entryExpiration = new Date(grantedDate);
+      
+      if (entry.duration_type === 'days') {
+        entryExpiration.setDate(entryExpiration.getDate() + entry.duration_value);
+      } else if (entry.duration_type === 'months') {
+        entryExpiration.setMonth(entryExpiration.getMonth() + entry.duration_value);
+      }
+      
+      // Only include entries that haven't expired yet
+      if (entryExpiration > now) {
+        validEntries.push(entry);
+      }
+    });
+
+    if (validEntries.length === 0) {
+      // All entries have expired - find most recent expiration for display
+      let mostRecentExpiration = null;
+      activeEntries.forEach(entry => {
+        const grantedDate = new Date(entry.granted_at);
+        const entryExpiration = new Date(grantedDate);
+        
+        if (entry.duration_type === 'days') {
+          entryExpiration.setDate(entryExpiration.getDate() + entry.duration_value);
+        } else if (entry.duration_type === 'months') {
+          entryExpiration.setMonth(entryExpiration.getMonth() + entry.duration_value);
+        }
+        
+        if (!mostRecentExpiration || entryExpiration > mostRecentExpiration) {
+          mostRecentExpiration = entryExpiration;
+        }
+      });
+      
+      return { hasWhitelist: false, status: 'Expired', expiration: mostRecentExpiration };
+    }
+
+    // Stack durations from valid entries only
+    const earliestEntry = validEntries.sort((a, b) => new Date(a.granted_at) - new Date(b.granted_at))[0];
     let stackedExpiration = new Date(earliestEntry.granted_at);
 
-    // Add up all the durations
+    // Add up all valid durations
     let totalMonths = 0;
     let totalDays = 0;
 
-    activeEntries.forEach(entry => {
+    validEntries.forEach(entry => {
       if (entry.duration_type === 'months') {
         totalMonths += entry.duration_value;
       } else if (entry.duration_type === 'days') {
@@ -235,13 +281,7 @@ module.exports = (sequelize) => {
       stackedExpiration.setDate(stackedExpiration.getDate() + totalDays);
     }
 
-    const now = new Date();
-    
-    if (stackedExpiration > now) {
-      return { hasWhitelist: true, status: 'Active', expiration: stackedExpiration };
-    } else {
-      return { hasWhitelist: false, status: 'Expired', expiration: stackedExpiration };
-    }
+    return { hasWhitelist: true, status: 'Active', expiration: stackedExpiration };
   };
 
   // Get all whitelist history for a user
