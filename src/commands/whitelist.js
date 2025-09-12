@@ -770,7 +770,28 @@ async function handleInfo(interaction) {
       where: { steamid64: resolvedSteamId },
       order: [['granted_at', 'DESC']]
     });
-    const activeEntries = history.filter(entry => !entry.revoked);
+    // Filter for truly active entries (not revoked AND not expired)
+    const now = new Date();
+    const activeEntries = history.filter(entry => {
+      if (entry.revoked) return false;
+      
+      // If no duration specified, it's permanent
+      if (!entry.duration_value || !entry.duration_type) {
+        return entry.duration_value !== 0; // Exclude entries with 0 duration (expired)
+      }
+      
+      // Calculate actual expiration date
+      const grantedDate = new Date(entry.granted_at);
+      const expirationDate = new Date(grantedDate);
+      
+      if (entry.duration_type === 'days') {
+        expirationDate.setDate(expirationDate.getDate() + entry.duration_value);
+      } else if (entry.duration_type === 'months') {
+        expirationDate.setMonth(expirationDate.getMonth() + entry.duration_value);
+      }
+      
+      return expirationDate > now; // Only include if not expired
+    });
 
     const embed = createResponseEmbed({
       title: '📋 Whitelist Status',
@@ -791,12 +812,31 @@ async function handleInfo(interaction) {
       });
     }
 
-    // Show stacking info if there are multiple active entries
-    if (activeEntries.length > 1) {
+    // Show stacking info if there are active entries
+    if (activeEntries.length > 0) {
       const stackingInfo = activeEntries.map(entry => {
-        const duration = `${entry.duration_value} ${entry.duration_type}`;
         const reason = entry.reason || 'Unknown';
-        return `• ${reason}: ${duration}`;
+        const note = entry.note ? `: ${entry.note}` : '';
+        
+        // Calculate remaining time for this entry
+        if (!entry.duration_value || !entry.duration_type || entry.duration_value === 0) {
+          return `• ${reason}${note}: permanent`;
+        }
+        
+        const grantedDate = new Date(entry.granted_at);
+        const expirationDate = new Date(grantedDate);
+        
+        if (entry.duration_type === 'days') {
+          expirationDate.setDate(expirationDate.getDate() + entry.duration_value);
+        } else if (entry.duration_type === 'months') {
+          expirationDate.setMonth(expirationDate.getMonth() + entry.duration_value);
+        }
+        
+        const now = new Date();
+        const remainingMs = expirationDate - now;
+        const remainingDays = Math.ceil(remainingMs / (1000 * 60 * 60 * 24));
+        
+        return `• ${reason}${note}: ${remainingDays} days`;
       }).join('\n');
       
       embed.addFields({ 

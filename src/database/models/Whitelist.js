@@ -204,8 +204,9 @@ module.exports = (sequelize) => {
       return { hasWhitelist: false, status: 'No whitelist', expiration: null };
     }
 
-    // Check for permanent whitelist (any entry without duration)
-    const hasPermanent = activeEntries.some(entry => !entry.duration_value || !entry.duration_type);
+    // Check for permanent whitelist (any entry with null duration, but not 0 duration which means expired)
+    const hasPermanent = activeEntries.some(entry => 
+      (entry.duration_value === null && entry.duration_type === null));
     if (hasPermanent) {
       return { hasWhitelist: true, status: 'Active (permanent)', expiration: null };
     }
