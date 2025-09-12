@@ -18,9 +18,10 @@ class BattleMetricsService {
   /**
    * Fetch active whitelists from BattleMetrics with pagination
    * @param {string} nextUrl - Next page URL from previous response (null for first page)
+   * @param {string} searchFilter - Optional search term to filter results server-side
    * @returns {Promise<Object>} Whitelist data with pagination info
    */
-  async fetchActiveWhitelists(nextUrl = null) {
+  async fetchActiveWhitelists(nextUrl = null, searchFilter = null) {
     try {
       let url = '/bans';
       let params = {
@@ -28,6 +29,11 @@ class BattleMetricsService {
         'include': 'user,server',
         'page[size]': 100  // Request 100 entries per page instead of default 10
       };
+
+      // Add search filter if provided (searches reason and note fields)
+      if (searchFilter && !nextUrl) {
+        params['filter[search]'] = searchFilter;
+      }
 
       // If we have a next URL, use it directly (it contains all necessary params)
       if (nextUrl) {
@@ -70,15 +76,16 @@ class BattleMetricsService {
   /**
    * Fetch all active whitelists with automatic pagination
    * @param {Function} onProgress - Progress callback function
+   * @param {string} searchFilter - Optional search term to filter results server-side
    * @returns {Promise<Array>} All whitelist entries
    */
-  async fetchAllActiveWhitelists(onProgress = null) {
+  async fetchAllActiveWhitelists(onProgress = null, searchFilter = null) {
     const allWhitelists = [];
     let nextUrl = null;
     let pageCount = 0;
 
     do {
-      const batch = await this.fetchActiveWhitelists(nextUrl);
+      const batch = await this.fetchActiveWhitelists(nextUrl, searchFilter);
       
       // Process and combine the data with user info
       const processedBatch = this.processWhitelistBatch(batch.data, batch.included);

@@ -22,6 +22,10 @@ module.exports = {
     .addBooleanOption(option =>
       option.setName('skipduplicates')
         .setDescription('Skip entries that already exist in database')
+        .setRequired(false))
+    .addStringOption(option =>
+      option.setName('targetfilter')
+        .setDescription('Only migrate entries containing this text (e.g., "service member")')
         .setRequired(false)),
 
   async execute(interaction) {
@@ -32,6 +36,7 @@ module.exports = {
         const dryRun = interaction.options.getBoolean('dryrun') ?? false;
         const limit = interaction.options.getInteger('limit') ?? null;
         const skipDuplicates = interaction.options.getBoolean('skipduplicates') ?? true;
+        const targetFilter = interaction.options.getString('targetfilter')?.toLowerCase() || null;
 
         // Test BattleMetrics connection first
         const connectionOk = await BattleMetricsService.testConnection();
@@ -42,7 +47,7 @@ module.exports = {
 
         // Create progress embed
         const progressEmbed = new EmbedBuilder()
-          .setTitle('🔄 Migrating BattleMetrics Whitelists')
+          .setTitle(targetFilter ? `Targeted Migration: ${targetFilter}` : 'Migrating BattleMetrics Whitelists')
           .setDescription(dryRun ? '**DRY RUN MODE** - No database changes will be made' : 'Fetching whitelist data from BattleMetrics...')
           .setColor(0x5865f2)
           .addFields([
@@ -54,8 +59,9 @@ module.exports = {
 
         await interaction.editReply({ embeds: [progressEmbed] });
 
-        // Fetch whitelists with progress updates
+        // Fetch whitelists with progress updates (use server-side search if targetFilter specified)
         let totalFetched = 0;
+        const searchFilter = targetFilter; // Use targetFilter as server-side search
         const whitelists = await BattleMetricsService.fetchAllActiveWhitelists(async (progress) => {
           totalFetched = progress.totalFetched;
           
@@ -76,7 +82,12 @@ module.exports = {
           } catch (editError) {
             console.error('Failed to update progress:', editError.message);
           }
-        });
+        }, searchFilter);
+
+        // Server-side filtering already applied via search parameter
+        if (targetFilter) {
+          console.log(`Server-side search for "${targetFilter}" returned ${whitelists.length} entries`);
+        }
 
         // Apply limit if specified (as a safety net)
         const finalWhitelists = limit ? whitelists.slice(0, limit) : whitelists;
@@ -130,9 +141,13 @@ module.exports = {
               // Filter out membership whitelists (permanent role-based whitelists)
               const reason = (entry.reason || '').toLowerCase();
               const note = (entry.note || '').toLowerCase();
-              const membershipKeywords = ['membership', 'member', 'role', 'permanent', 'perm', 'discord role'];
+              const membershipKeywords = ['membership', 'discord role', 'permanent', 'perm'];
+              // More specific patterns to avoid false positives like "Service Member"
+              const membershipPatterns = ['via membership', 'membership whitelist', 'role member', 'discord member'];
               
-              if (membershipKeywords.some(keyword => reason.includes(keyword) || note.includes(keyword))) {
+              const combined = `${reason} ${note}`;
+              if (membershipKeywords.some(keyword => combined.includes(keyword)) || 
+                  membershipPatterns.some(pattern => combined.includes(pattern))) {
                 console.log(`SKIP (Membership): ${entry.id} - ${entry.player.name} - "${entry.reason || entry.note}"`);
                 skippedEntries.membership++;
                 skippedCount++;
