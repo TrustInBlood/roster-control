@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle, ComponentType, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+const { SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle, ComponentType, ModalBuilder, TextInputBuilder, TextInputStyle, MessageFlags } = require('discord.js');
 const { permissionMiddleware } = require('../handlers/permissionHandler');
 const { withLoadingMessage, createResponseEmbed, sendSuccess, sendError } = require('../utils/messageHandler');
 const { Whitelist } = require('../database/models');
@@ -272,7 +272,7 @@ async function handleGrant(interaction) {
     await interaction.reply({
       embeds: [reasonEmbed],
       components: [reasonRow],
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
 
     // Step 3: Handle reason selection and show duration options
@@ -301,7 +301,7 @@ async function handleGrant(interaction) {
           try {
             await reasonInteraction.reply({
               content: '❌ An error occurred while processing your selection. Please try again.',
-              ephemeral: true
+              flags: MessageFlags.Ephemeral
             });
           } catch (replyError) {
             console.error('Failed to send error reply:', replyError);
@@ -503,7 +503,7 @@ async function showReportingDurationSelection(interaction, grantData) {
         if (isNaN(customDays) || customDays < 1 || customDays > 365) {
           await modalResponse.reply({
             content: '❌ Please enter a valid number of days between 1 and 365.',
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
           });
           return;
         }
@@ -606,7 +606,8 @@ async function handleConfirmation(interaction, grantData) {
       }
 
       // Process the actual grant
-      if (!buttonInteraction.deferred && !buttonInteraction.replied) {
+      // Don't defer if we've already updated the interaction above
+      if (!buttonInteraction.deferred && !buttonInteraction.replied && buttonInteraction.customId !== 'whitelist_cancel') {
         await buttonInteraction.deferUpdate();
       }
       await processWhitelistGrant(buttonInteraction, {

@@ -24,8 +24,7 @@ module.exports = {
       await queryInterface.sequelize.query(
         `UPDATE player_discord_links pdl
          INNER JOIN whitelists w ON pdl.steamid64 = w.steamid64
-         SET pdl.confidence_score = 0.5,
-             pdl.link_source = 'whitelist'
+         SET pdl.confidence_score = 0.5
          WHERE w.approved = true 
          AND w.revoked = false
          AND pdl.link_source IN ('manual', '')
@@ -41,8 +40,7 @@ module.exports = {
       await queryInterface.sequelize.query(
         `UPDATE player_discord_links pdl
          INNER JOIN whitelists w ON pdl.steamid64 = w.steamid64
-         SET pdl.confidence_score = 0.5,
-             pdl.link_source = 'whitelist'
+         SET pdl.confidence_score = 0.5
          WHERE w.approved = true 
          AND w.revoked = false
          AND pdl.confidence_score = 1.0
@@ -72,16 +70,15 @@ module.exports = {
       console.log('🔄 Reverting whitelist-linked confidence score changes...');
       
       // This is a conservative rollback - we'll set all whitelist-associated links back to 1.0
-      // if they were modified by this migration (confidence 0.5 and link_source 'whitelist')
+      // if they were modified by this migration (confidence 0.5)
       await queryInterface.sequelize.query(
         `UPDATE player_discord_links pdl
          INNER JOIN whitelists w ON pdl.steamid64 = w.steamid64
-         SET pdl.confidence_score = 1.0,
-             pdl.link_source = 'manual'
+         SET pdl.confidence_score = 1.0
          WHERE w.approved = true 
          AND w.revoked = false
          AND pdl.confidence_score = 0.5
-         AND pdl.link_source = 'whitelist'`,
+         AND pdl.link_source = 'manual'`,
         { transaction }
       );
       

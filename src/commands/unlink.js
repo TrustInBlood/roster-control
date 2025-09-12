@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { PlayerDiscordLink, UnlinkHistory } = require('../database/models');
 
 module.exports = {
@@ -15,7 +15,7 @@ module.exports = {
       if (!existingLink) {
         await interaction.reply({
           content: 'No linked game account found for your Discord account.',
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         });
         return;
       }
@@ -53,7 +53,7 @@ module.exports = {
 
       await interaction.reply({ 
         embeds: [embed], 
-        ephemeral: true 
+        flags: MessageFlags.Ephemeral 
       });
 
       interaction.client.logger?.info('Account unlinked', {
@@ -71,7 +71,7 @@ module.exports = {
 
       await interaction.reply({
         content: 'Failed to unlink your account. Please try again later.',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
     }
   }

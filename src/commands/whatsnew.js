@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 const { permissionMiddleware } = require('../handlers/permissionHandler');
 
 module.exports = {
@@ -124,7 +124,7 @@ module.exports = {
         // Send both embeds (public but admin-only command)
         await interaction.reply({
           embeds: [updatesEmbed, infoEmbed],
-          ephemeral: false // Public response so others can see the updates
+          flags: 0 // Public response so others can see the updates
         });
 
       } catch (error) {
@@ -133,7 +133,7 @@ module.exports = {
         // Simple fallback response
         await interaction.reply({
           content: 'Failed to load updates. Please check with an administrator.',
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         });
       }
     });

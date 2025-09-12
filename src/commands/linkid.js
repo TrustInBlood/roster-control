@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { VerificationCode } = require('../database/models');
 const { config: whitelistConfig } = require('../../config/whitelist');
 
@@ -46,7 +46,7 @@ module.exports = {
 
       await interaction.reply({ 
         embeds: [embed], 
-        ephemeral: true 
+        flags: MessageFlags.Ephemeral 
       });
 
       // Store the interaction for later update
@@ -115,7 +115,7 @@ module.exports = {
 
       await interaction.reply({
         content: 'Failed to generate verification code. Please try again later.',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
     }
   }

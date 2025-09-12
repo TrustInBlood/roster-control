@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { permissionMiddleware } = require('../handlers/permissionHandler');
 const { sendSuccess, sendError, createResponseEmbed } = require('../utils/messageHandler');
 const { PlayerDiscordLink } = require('../database/models');
@@ -26,7 +26,7 @@ module.exports = {
     // Use permission middleware - will use the 'duty' permission group
     await permissionMiddleware(interaction, async () => {
       try {
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
         const targetUser = interaction.options.getUser('user');
         const steamId = interaction.options.getString('steamid');
