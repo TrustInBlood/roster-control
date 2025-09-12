@@ -23,7 +23,7 @@ const dbConfig = {
   },
   
   // Logging configuration
-  logging: process.env.NODE_ENV === 'development' ? console.log : false,
+  logging: (process.env.NODE_ENV === 'development' && process.env.DB_LOGGING !== 'false') ? console.log : false,
   
   // Additional MariaDB-specific options
   dialectOptions: {

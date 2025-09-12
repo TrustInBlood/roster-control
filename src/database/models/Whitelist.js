@@ -91,6 +91,11 @@ module.exports = (sequelize) => {
       type: DataTypes.DATE,
       allowNull: true,
       comment: 'When this whitelist entry was revoked'
+    },
+    metadata: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      comment: 'Additional metadata (e.g., BattleMetrics import data, migration info)'
     }
   }, {
     tableName: 'whitelists',
@@ -261,7 +266,8 @@ module.exports = (sequelize) => {
     duration_value,
     duration_type,
     granted_by,
-    note = null
+    note = null,
+    metadata = null
   }) {
     const granted_at = new Date();
     let expiration = null;
@@ -294,7 +300,8 @@ module.exports = (sequelize) => {
       expiration,
       approved: true,
       revoked: false,
-      group_id: whitelistGroup.id
+      group_id: whitelistGroup.id,
+      metadata
     });
   };
 
