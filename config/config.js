@@ -79,8 +79,7 @@ const config = {
       'discord.clientId',
       'database.user',
       'database.password',
-      'battlemetrics.token',
-      'battlemetrics.serverId'
+      'battlemetrics.token'
     ];
 
     const missing = required.filter(key => {
