@@ -49,16 +49,39 @@ module.exports = {
           color: 0xFF9800
         });
         
-        // Add fields for each group
+        // Add fields for each group, splitting if necessary
         for (const [groupName, staffList] of Object.entries(groupedStaff)) {
-          const staffText = staffList.map(staff => {
-            return `<@${staff.discordId}> (${staff.username})`;
-          }).join('\n');
-          
-          embed.addFields({
-            name: `${groupName} (${staffList.length})`,
-            value: staffText,
-            inline: false
+          const staffTexts = [];
+          let currentText = '';
+
+          for (const staff of staffList) {
+            const staffLine = `<@${staff.discordId}> (${staff.username})\n`;
+
+            // Check if adding this line would exceed the limit (with some buffer)
+            if (currentText.length + staffLine.length > 1000) {
+              staffTexts.push(currentText.trim());
+              currentText = staffLine;
+            } else {
+              currentText += staffLine;
+            }
+          }
+
+          // Add any remaining text
+          if (currentText) {
+            staffTexts.push(currentText.trim());
+          }
+
+          // Add fields for this group
+          staffTexts.forEach((text, index) => {
+            const fieldName = staffTexts.length > 1
+              ? `${groupName} (${staffList.length}) - Part ${index + 1}`
+              : `${groupName} (${staffList.length})`;
+
+            embed.addFields({
+              name: fieldName,
+              value: text,
+              inline: false
+            });
           });
         }
         
