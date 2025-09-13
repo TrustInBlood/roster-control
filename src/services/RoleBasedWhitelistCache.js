@@ -275,9 +275,17 @@ class RoleBasedWhitelistCache {
         let line = `Admin=${steamId}:${groupName}`;
         
         // Add comment with username info
+        // Format: // in-game-name discord-display-name
         if (userData.username || userData.discord_username) {
-          line += ` // ${userData.username || ''}`;
-          if (userData.discord_username) {
+          line += ' //';
+
+          // If we have in-game name, show it first
+          if (userData.username) {
+            line += ` ${userData.username}`;
+          }
+
+          // If we have Discord name and it's different from in-game name (or no in-game name), show it
+          if (userData.discord_username && (!userData.username || userData.discord_username !== userData.username)) {
             line += ` ${userData.discord_username}`;
           }
         }
@@ -316,9 +324,17 @@ class RoleBasedWhitelistCache {
         let line = `Admin=${steamId}:${groupName}`;
         
         // Add comment with username info
+        // Format: // in-game-name discord-display-name
         if (userData.username || userData.discord_username) {
-          line += ` // ${userData.username || ''}`;
-          if (userData.discord_username) {
+          line += ' //';
+
+          // If we have in-game name, show it first
+          if (userData.username) {
+            line += ` ${userData.username}`;
+          }
+
+          // If we have Discord name and it's different from in-game name (or no in-game name), show it
+          if (userData.discord_username && (!userData.username || userData.discord_username !== userData.username)) {
             line += ` ${userData.discord_username}`;
           }
         }
@@ -349,9 +365,17 @@ class RoleBasedWhitelistCache {
       let line = `Admin=${steamId}:Member`;
       
       // Add comment with username info
+      // Format: // in-game-name discord-display-name
       if (userData.username || userData.discord_username) {
-        line += ` // ${userData.username || ''}`;
-        if (userData.discord_username) {
+        line += ' //';
+
+        // If we have in-game name, show it first
+        if (userData.username) {
+          line += ` ${userData.username}`;
+        }
+
+        // If we have Discord name and it's different from in-game name (or no in-game name), show it
+        if (userData.discord_username && (!userData.username || userData.discord_username !== userData.username)) {
           line += ` ${userData.discord_username}`;
         }
       }
@@ -378,9 +402,17 @@ class RoleBasedWhitelistCache {
       let line = `Admin=${steamId}:Member`;
       
       // Add comment with username info
+      // Format: // in-game-name discord-display-name
       if (userData.username || userData.discord_username) {
-        line += ` // ${userData.username || ''}`;
-        if (userData.discord_username) {
+        line += ' //';
+
+        // If we have in-game name, show it first
+        if (userData.username) {
+          line += ` ${userData.username}`;
+        }
+
+        // If we have Discord name and it's different from in-game name (or no in-game name), show it
+        if (userData.discord_username && (!userData.username || userData.discord_username !== userData.username)) {
           line += ` ${userData.discord_username}`;
         }
       }

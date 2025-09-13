@@ -37,13 +37,22 @@ const DISCORD_ROLES_DEV = {
 
 // Helper functions (same as production)
 function getAllAdminRoles() {
-  return [
+  const adminRoles = [
     DISCORD_ROLES_DEV.EXECUTIVE_ADMIN,
     DISCORD_ROLES_DEV.HEAD_ADMIN,
     DISCORD_ROLES_DEV.SENIOR_ADMIN,
     DISCORD_ROLES_DEV.OG_ADMIN,
     DISCORD_ROLES_DEV.SQUAD_ADMIN
   ].filter(Boolean);
+
+  // SECURITY: If no admin roles are configured, return a special marker
+  // This prevents accidentally allowing everyone to use admin commands
+  if (adminRoles.length === 0) {
+    console.error('CRITICAL: No admin roles configured! Admin commands will be disabled.');
+    return ['NO_ADMIN_ROLES_CONFIGURED']; // This ID will never match a real role
+  }
+
+  return adminRoles;
 }
 
 function getAllTutorRoles() {

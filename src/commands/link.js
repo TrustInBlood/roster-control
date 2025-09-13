@@ -23,7 +23,7 @@ module.exports = {
         .setRequired(false)),
 
   async execute(interaction) {
-    // Use permission middleware - will use the 'duty' permission group
+    // Use permission middleware - restricted to admin roles via 'link' permission group
     await permissionMiddleware(interaction, async () => {
       try {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });

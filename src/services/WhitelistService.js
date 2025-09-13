@@ -10,6 +10,8 @@ class WhitelistService {
     this.discordClient = discordClient; // Optional Discord client for role checking
     this.cache = new Map();
     this.lastUpdate = new Map();
+    this.combinedCache = null; // Cache for combined whitelist
+    this.combinedCacheTime = 0;
     
     this.cacheRefreshSeconds = config.cache.refreshSeconds;
     this.preferEosID = config.identifiers.preferEosID;
@@ -23,12 +25,49 @@ class WhitelistService {
     });
 
     this.setupCleanupInterval();
+
+    // Pre-warm the cache after a short delay to allow system initialization
+    setTimeout(() => {
+      this.prewarmCache();
+    }, 5000);
   }
 
   setupCleanupInterval() {
+    // Clean up expired cache entries
     setInterval(() => {
       this.cleanupExpiredCache();
     }, this.cacheRefreshSeconds * 1000);
+
+    // Periodically refresh the combined cache to keep it warm
+    setInterval(() => {
+      this.refreshCombinedCache();
+    }, (this.cacheRefreshSeconds - 5) * 1000); // Refresh 5 seconds before expiry
+  }
+
+  async prewarmCache() {
+    this.logger.info('Pre-warming whitelist cache...');
+    try {
+      // Pre-warm the combined cache which is the slowest
+      await this.getCombinedWhitelist();
+      this.logger.info('Cache pre-warming completed successfully');
+    } catch (error) {
+      this.logger.error('Failed to pre-warm cache', { error: error.message });
+    }
+  }
+
+  async refreshCombinedCache() {
+    // Silently refresh the combined cache in the background
+    try {
+      // Force a cache refresh by temporarily clearing it
+      this.combinedCache = null;
+      this.combinedCacheTime = 0;
+
+      await this.getCombinedWhitelist();
+      this.logger.debug('Background cache refresh completed');
+    } catch (error) {
+      // Log error but don't crash - cache will refresh on next request
+      this.logger.error('Background cache refresh failed', { error: error.message });
+    }
   }
 
   cleanupExpiredCache() {
@@ -154,8 +193,7 @@ class WhitelistService {
     
     for (const entry of entries) {
       let shouldInclude = true;
-      let exclusionReason = null;
-      
+
       try {
         // Check if this Steam ID has a Discord link and current role-based access
         const links = await PlayerDiscordLink.findAll({
@@ -178,7 +216,6 @@ class WhitelistService {
               if (currentGroup) {
                 // User currently has Discord roles and should be handled by role-based system
                 shouldInclude = false;
-                exclusionReason = 'discord_role';
                 this.logger.debug('Excluding from database whitelist - user has Discord role', {
                   steamid64: entry.steamid64,
                   discordId: link.discord_user_id,
@@ -257,14 +294,22 @@ class WhitelistService {
         const discordUsername = entry.discord_username || '';
 
         let line = `Admin=${identifier}:${groupName}`;
-        
+
+        // Format: // in-game-name discord-display-name
         if (username || discordUsername) {
-          line += ` // ${username}`;
-          if (discordUsername) {
+          line += ' //';
+
+          // If we have in-game name, show it first
+          if (username) {
+            line += ` ${username}`;
+          }
+
+          // If we have Discord name and it's different from in-game name (or no in-game name), show it
+          if (discordUsername && (!username || discordUsername !== username)) {
             line += ` ${discordUsername}`;
           }
         }
-        
+
         content += line + '\n';
       });
     }
@@ -276,14 +321,22 @@ class WhitelistService {
         const discordUsername = entry.discord_username || '';
 
         let line = `Admin=${identifier}:`;
-        
+
+        // Format: // in-game-name discord-display-name
         if (username || discordUsername) {
-          line += ` // ${username}`;
-          if (discordUsername) {
+          line += ' //';
+
+          // If we have in-game name, show it first
+          if (username) {
+            line += ` ${username}`;
+          }
+
+          // If we have Discord name and it's different from in-game name (or no in-game name), show it
+          if (discordUsername && (!username || discordUsername !== username)) {
             line += ` ${discordUsername}`;
           }
         }
-        
+
         content += line + '\n';
       });
     }
@@ -299,6 +352,18 @@ class WhitelistService {
   }
 
   async getCombinedWhitelist() {
+    // Check if we have a valid cached version
+    const now = Date.now();
+    if (this.combinedCache && (now - this.combinedCacheTime) < (this.cacheRefreshSeconds * 1000)) {
+      if (this.logCacheHits) {
+        this.logger.debug('Serving cached combined whitelist', { age: now - this.combinedCacheTime });
+      }
+      return this.combinedCache;
+    }
+
+    // Generate new combined whitelist
+    this.logger.info('Refreshing combined whitelist cache');
+
     try {
       // Get all whitelist data sources (without group definitions to avoid duplication)
       const [staffContent, membersContent, generalContent] = await Promise.all([
@@ -351,10 +416,25 @@ class WhitelistService {
       combinedContent += '// End of Whitelist\n';
       combinedContent += '//////////////////////////////////\n';
 
+      // Update cache
+      this.combinedCache = combinedContent;
+      this.combinedCacheTime = now;
+
+      this.logger.info('Combined whitelist cache updated', {
+        contentLength: combinedContent.length
+      });
+
       return combinedContent;
 
     } catch (error) {
       this.logger.error('Failed to generate combined whitelist', { error: error.message });
+
+      // If we have stale cache, use it
+      if (this.combinedCache) {
+        this.logger.warn('Serving stale combined cache due to error');
+        return this.combinedCache;
+      }
+
       return '//////////////////////////////////\n// Error generating whitelist\n//////////////////////////////////\n';
     }
   }
@@ -502,6 +582,11 @@ class WhitelistService {
       this.lastUpdate.clear();
       this.logger.info('All cache invalidated');
     }
+
+    // Always invalidate combined cache when any component changes
+    this.combinedCache = null;
+    this.combinedCacheTime = 0;
+    this.logger.debug('Combined cache invalidated');
   }
 }
 

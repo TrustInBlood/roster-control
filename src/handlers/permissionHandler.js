@@ -8,10 +8,27 @@ const { sendError } = require('../utils/messageHandler');
  * @returns {boolean} - Whether the user has permission to use the command
  */
 function checkPermissions(interaction, commandName) {
-  const allowedRoles = COMMAND_PERMISSIONS[commandName] || [];
-    
-  // If no roles are specified, everyone can use the command
-  if (allowedRoles.length === 0) {
+  const allowedRoles = COMMAND_PERMISSIONS[commandName];
+
+  // If command is not in permissions config, deny by default for safety
+  if (allowedRoles === undefined) {
+    console.error(`WARNING: Command '${commandName}' has no permission configuration. Denying access by default.`);
+    return false;
+  }
+
+  // Check for disabled commands
+  if (Array.isArray(allowedRoles) && allowedRoles.includes('DISABLED')) {
+    return false;
+  }
+
+  // If explicitly set to empty array, it means everyone can use the command
+  // This should only be used for public commands like 'ping' and 'help'
+  if (Array.isArray(allowedRoles) && allowedRoles.length === 0) {
+    // Log a warning for admin-like command names with empty permissions
+    const adminCommands = ['link', 'unlink', 'whitelist', 'duty', 'onduty', 'offduty', 'admin', 'mod', 'ban', 'kick'];
+    if (adminCommands.some(cmd => commandName.toLowerCase().includes(cmd))) {
+      console.error(`SECURITY WARNING: Admin command '${commandName}' has empty permission array! This allows everyone access!`);
+    }
     return true;
   }
 

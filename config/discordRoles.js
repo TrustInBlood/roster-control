@@ -37,13 +37,22 @@ const DISCORD_ROLES = {
 
 // Helper function to get all admin role IDs
 function getAllAdminRoles() {
-  return [
+  const adminRoles = [
     DISCORD_ROLES.EXECUTIVE_ADMIN,
     DISCORD_ROLES.HEAD_ADMIN,
     DISCORD_ROLES.SENIOR_ADMIN,
     DISCORD_ROLES.OG_ADMIN,
     DISCORD_ROLES.SQUAD_ADMIN
   ].filter(Boolean); // Remove null values
+
+  // SECURITY: If no admin roles are configured, return a special marker
+  // This prevents accidentally allowing everyone to use admin commands
+  if (adminRoles.length === 0) {
+    console.error('CRITICAL: No admin roles configured! Admin commands will be disabled.');
+    return ['NO_ADMIN_ROLES_CONFIGURED']; // This ID will never match a real role
+  }
+
+  return adminRoles;
 }
 
 // Helper function to get all tutor role IDs  
@@ -77,8 +86,7 @@ function getAllWhitelistAwardRoles() {
 // Helper function to get all member role IDs
 function getAllMemberRoles() {
   return [
-    DISCORD_ROLES.MEMBER,
-    DISCORD_ROLES.VERIFIED_MEMBER
+    DISCORD_ROLES.MEMBER
   ].filter(Boolean);
 }
 
