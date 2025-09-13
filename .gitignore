@@ -10,10 +10,6 @@ node_modules
 .env.production
 .env.dev
 
-# Development-specific Discord configurations
-config/roles.development.js
-config/channels.development.js
-
 # Logs
 logs/
 *.log

@@ -1,11 +1,17 @@
 const { ON_DUTY_ROLE_ID } = require('../../config/discord');
 const DutyStatusFactory = require('../services/DutyStatusFactory');
+const { squadGroups } = require('../utils/environment');
+const { getAllTrackedRoles, getHighestPriorityGroup } = squadGroups;
+const NotificationService = require('../services/NotificationService');
+const { AuditLog } = require('../database/models');
 
 class RoleChangeHandler {
-  constructor() {
+  constructor(roleBasedCache = null) {
     this.onDutyRoleId = ON_DUTY_ROLE_ID;
     this.dutyFactory = new DutyStatusFactory();
     this.processingUsers = new Set(); // Prevent duplicate processing
+    this.roleBasedCache = roleBasedCache; // Optional role-based whitelist cache
+    this.trackedRoles = getAllTrackedRoles(); // Get all staff/member roles
         
     // Set up cross-reference
     this.dutyFactory.setRoleChangeHandler(this);
@@ -21,56 +27,115 @@ class RoleChangeHandler {
 
   async handleGuildMemberUpdate(oldMember, newMember) {
     try {
-      // Check if the on-duty role changed
-      const oldHasRole = oldMember.roles.cache.has(this.onDutyRoleId);
-      const newHasRole = newMember.roles.cache.has(this.onDutyRoleId);
+      // Handle on-duty role changes
+      const oldHasDutyRole = oldMember.roles.cache.has(this.onDutyRoleId);
+      const newHasDutyRole = newMember.roles.cache.has(this.onDutyRoleId);
 
-      if (oldHasRole === newHasRole) {
-        // No change in on-duty role status
-        return;
-      }
-
-      // Prevent duplicate processing if this user is already being processed
-      const userId = newMember.user.id;
-      if (this.processingUsers.has(userId)) {
-        console.log(`⏭️ Skipping duplicate role change processing for ${newMember.user.tag} (bot-initiated change)`);
-        return;
-      }
-
-      this.processingUsers.add(userId);
-
-      try {
-        console.log(`🔔 External role change detected: ${newMember.user.tag} -> ${newHasRole ? 'ON' : 'OFF'} duty`);
-
-        // Use the factory to handle the role change
-        const result = await this.dutyFactory._handleDutyStatusChange(null, newHasRole, {
-          member: newMember,
-          source: 'external',
-          reason: `Role ${newHasRole ? 'added' : 'removed'} externally (not via bot commands)`,
-          skipNotification: false, // Send notifications for external changes
-          metadata: {
-            externalChange: true,
-            oldRoleStatus: oldHasRole,
-            newRoleStatus: newHasRole,
-            changeDetectedAt: new Date().toISOString()
-          }
-        });
-
-        if (result.success) {
-          console.log(`✅ External role change processed successfully for ${newMember.user.tag}`);
+      if (oldHasDutyRole !== newHasDutyRole) {
+        // Prevent duplicate processing if this user is already being processed
+        const userId = newMember.user.id;
+        if (this.processingUsers.has(userId)) {
+          console.log(`⏭️ Skipping duplicate duty role change processing for ${newMember.user.tag} (bot-initiated change)`);
         } else {
-          console.error(`❌ Failed to process external role change for ${newMember.user.tag}:`, result.error);
-        }
+          this.processingUsers.add(userId);
 
-      } finally {
-        // Always remove from processing set
-        setTimeout(() => {
-          this.processingUsers.delete(userId);
-        }, 10000); // Remove after 10 seconds to prevent permanent blocking
+          try {
+            console.log(`🔔 External duty role change detected: ${newMember.user.tag} -> ${newHasDutyRole ? 'ON' : 'OFF'} duty`);
+
+            // Use the factory to handle the duty role change
+            const result = await this.dutyFactory._handleDutyStatusChange(null, newHasDutyRole, {
+              member: newMember,
+              source: 'external',
+              reason: `Role ${newHasDutyRole ? 'added' : 'removed'} externally (not via bot commands)`,
+              skipNotification: false, // Send notifications for external changes
+              metadata: {
+                externalChange: true,
+                oldRoleStatus: oldHasDutyRole,
+                newRoleStatus: newHasDutyRole,
+                changeDetectedAt: new Date().toISOString()
+              }
+            });
+
+            if (result && result.embed) {
+              // Notification handled by factory
+            }
+          } finally {
+            // Remove from processing set after delay
+            setTimeout(() => {
+              this.processingUsers.delete(userId);
+            }, 5000);
+          }
+        }
       }
 
+      // Handle staff/member whitelist role changes
+      if (this.roleBasedCache && this.trackedRoles.length > 0) {
+        const oldTrackedRoles = oldMember.roles.cache.filter(r => this.trackedRoles.includes(r.id));
+        const newTrackedRoles = newMember.roles.cache.filter(r => this.trackedRoles.includes(r.id));
+
+        // Check if any tracked roles changed
+        const oldRoleIds = new Set(oldTrackedRoles.map(r => r.id));
+        const newRoleIds = new Set(newTrackedRoles.map(r => r.id));
+        
+        const rolesChanged = oldRoleIds.size !== newRoleIds.size || 
+                           ![...oldRoleIds].every(id => newRoleIds.has(id));
+
+        if (rolesChanged) {
+          const oldGroup = getHighestPriorityGroup(oldMember.roles.cache);
+          const newGroup = getHighestPriorityGroup(newMember.roles.cache);
+
+          console.log(`🔍 Role change analysis for ${newMember.user.tag}:`);
+          console.log(`  Old roles: ${[...oldTrackedRoles.values()].map(r => r.name).join(', ') || 'none'}`);
+          console.log(`  New roles: ${[...newTrackedRoles.values()].map(r => r.name).join(', ') || 'none'}`);
+          console.log(`  Old group: ${oldGroup || 'none'}`);
+          console.log(`  New group: ${newGroup || 'none'}`);
+
+          if (oldGroup !== newGroup) {
+            console.log(`📋 Whitelist role change detected: ${newMember.user.tag} -> ${oldGroup || 'none'} to ${newGroup || 'none'}`);
+
+            // Update role-based cache
+            await this.roleBasedCache.updateUserRole(newMember.user.id, newGroup, newMember);
+
+            // Log to audit
+            try {
+              await AuditLog.create({
+                actionType: 'ROLE_CHANGE',
+                actorType: 'system',
+                actorId: 'SYSTEM',
+                actorName: 'Role Change Monitor',
+                targetType: 'user',
+                targetId: newMember.user.id,
+                targetName: newMember.user.tag,
+                guildId: newMember.guild.id,
+                description: `User ${newMember.user.tag} whitelist role changed from ${oldGroup || 'none'} to ${newGroup || 'none'} via external role change`,
+                beforeState: { group: oldGroup || 'none' },
+                afterState: { group: newGroup || 'none' },
+                metadata: {
+                  source: 'external_role_change',
+                  discordUserId: newMember.user.id
+                },
+                severity: 'info'
+              });
+            } catch (error) {
+              console.error('Failed to log role whitelist change:', error);
+            }
+
+            // Send notification
+            await NotificationService.send('roleWhitelist', {
+              title: 'Role-Based Whitelist Update',
+              description: `${newMember.user.tag} whitelist changed`,
+              fields: [
+                { name: 'Previous Group', value: oldGroup || 'None', inline: true },
+                { name: 'New Group', value: newGroup || 'None', inline: true },
+                { name: 'Change Type', value: newGroup ? (oldGroup ? 'Updated' : 'Granted') : 'Revoked', inline: true }
+              ],
+              color: newGroup ? 0x00ff00 : 0xff0000
+            });
+          }
+        }
+      }
     } catch (error) {
-      console.error('❌ Error in role change handler:', error);
+      console.error('Error handling role change:', error);
     }
   }
 
@@ -100,92 +165,46 @@ class RoleChangeHandler {
           reason: 'Manual role sync requested',
           skipNotification: false,
           metadata: {
-            syncReason: 'manual',
-            previousDbStatus: dbStatus,
-            currentRoleStatus: hasRole
+            syncRequired: true,
+            discordHasRole: hasRole,
+            databaseStatus: dbStatus,
+            syncedAt: new Date().toISOString()
           }
         });
 
         return result;
+      } else {
+        console.log(`✅ ${member.user.tag} is already in sync`);
+        return { success: true, message: 'Already in sync' };
       }
-
-      return { success: true, message: 'Roles already in sync' };
-
     } catch (error) {
-      console.error('❌ Error syncing member roles:', error);
+      console.error(`❌ Failed to sync ${member.user.tag}:`, error);
       return { success: false, error: error.message };
-    }
-  }
-
-  // Method to check if a specific role change should be processed
-  shouldProcessRoleChange(oldMember, newMember, roleId) {
-    const oldHasRole = oldMember.roles.cache.has(roleId);
-    const newHasRole = newMember.roles.cache.has(roleId);
-    return oldHasRole !== newHasRole;
-  }
-
-  // Utility method to get role change details
-  getRoleChangeDetails(oldMember, newMember) {
-    const changes = {
-      added: [],
-      removed: []
-    };
-
-    // Find added roles
-    for (const [roleId, role] of newMember.roles.cache) {
-      if (!oldMember.roles.cache.has(roleId)) {
-        changes.added.push(role);
-      }
-    }
-
-    // Find removed roles
-    for (const [roleId, role] of oldMember.roles.cache) {
-      if (!newMember.roles.cache.has(roleId)) {
-        changes.removed.push(role);
-      }
-    }
-
-    return changes;
-  }
-
-  // Method to log all role changes for debugging
-  async logAllRoleChanges(oldMember, newMember) {
-    const changes = this.getRoleChangeDetails(oldMember, newMember);
-        
-    if (changes.added.length > 0 || changes.removed.length > 0) {
-      console.log(`👤 Role changes for ${newMember.user.tag}:`);
-            
-      if (changes.added.length > 0) {
-        console.log(`  ➕ Added: ${changes.added.map(r => r.name).join(', ')}`);
-      }
-            
-      if (changes.removed.length > 0) {
-        console.log(`  ➖ Removed: ${changes.removed.map(r => r.name).join(', ')}`);
-      }
-
-      // Check if on-duty role was involved
-      const onDutyRoleInvolved = changes.added.some(r => r.id === this.onDutyRoleId) || 
-                                     changes.removed.some(r => r.id === this.onDutyRoleId);
-            
-      if (onDutyRoleInvolved) {
-        console.log('  🚨 ON-DUTY ROLE CHANGE DETECTED');
-      }
     }
   }
 }
 
-// Export the class and a function to set up the event listener
+// Global instance to share with setup function
+let globalRoleChangeHandler = null;
+
+function setupRoleChangeHandler(client, roleBasedCache = null) {
+  // Create role change handler instance
+  globalRoleChangeHandler = new RoleChangeHandler(roleBasedCache);
+  
+  // Set up Discord event listeners
+  client.on('guildMemberUpdate', async (oldMember, newMember) => {
+    try {
+      await globalRoleChangeHandler.handleGuildMemberUpdate(oldMember, newMember);
+    } catch (error) {
+      console.error('Error in guildMemberUpdate handler:', error);
+    }
+  });
+  
+  return globalRoleChangeHandler;
+}
+
 module.exports = {
   RoleChangeHandler,
-    
-  setupRoleChangeHandler: (client) => {
-    const handler = new RoleChangeHandler();
-        
-    client.on('guildMemberUpdate', async (oldMember, newMember) => {
-      await handler.handleGuildMemberUpdate(oldMember, newMember);
-    });
-
-    console.log('🔧 Role change handler registered');
-    return handler;
-  }
+  setupRoleChangeHandler,
+  getRoleChangeHandler: () => globalRoleChangeHandler
 };

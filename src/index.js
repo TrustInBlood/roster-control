@@ -75,15 +75,15 @@ client.on('ready', async () => {
   notificationService.initialize(client);
   console.log('📢 Notification service initialized');
     
-  // Set up role change handler
-  const roleChangeHandler = setupRoleChangeHandler(client);
-  console.log('🔧 Role change handler initialized');
-    
   // Log legacy command handler initialization
   console.log('📜 Legacy command handler initialized (messageCreate event)');
     
-  // Initialize whitelist functionality
-  await initializeWhitelist();
+  // Initialize whitelist functionality first (includes role-based cache)
+  const whitelistServices = await initializeWhitelist();
+    
+  // Set up role change handler with role-based cache
+  const roleChangeHandler = setupRoleChangeHandler(client, whitelistServices?.roleBasedCache);
+  console.log('🔧 Role change handler initialized with role-based cache');
     
   // Wait a moment for all guilds to be loaded
   setTimeout(async () => {
@@ -281,12 +281,16 @@ async function initializeWhitelist() {
     logger.info('Whitelist integration initialized successfully', {
       squadJSServers: whitelistServices.config.squadjs.servers.length,
       squadJSConnected: whitelistServices.connectionManager.isConnected(),
-      connectionStatus: whitelistServices.connectionManager.getConnectionStatus()
+      connectionStatus: whitelistServices.connectionManager.getConnectionStatus(),
+      roleBasedCacheEnabled: !!whitelistServices.roleBasedCache
     });
+    
+    return whitelistServices;
         
   } catch (error) {
     console.error('❌ Failed to initialize whitelist integration:', error);
     logger.error('Failed to initialize whitelist integration', { error: error.message });
+    return null;
   }
 }
 

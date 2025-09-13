@@ -3,12 +3,21 @@
  * Specify which Discord role IDs are allowed to use each command
  * Empty array means everyone can use the command
  */
+
+// Import centralized role definitions and squad groups (environment-specific)
+const isDevelopment = process.env.NODE_ENV === 'development';
+const { DISCORD_ROLES, getAllAdminRoles } = require(isDevelopment ? './discordRoles.development' : './discordRoles');
+const { SQUAD_GROUPS, getAllTrackedRoles } = require(isDevelopment ? './squadGroups.development' : './squadGroups');
 const COMMAND_PERMISSIONS = {
   // Admin commands
-  'whitelist': ['1363025391366967386', '1256127324928213012', '1363025129814233190', '1363025129814233190', '1363017008039329972', '814554233377652736'],  // Same as duty commands
-  'duty': ['1363025391366967386', '1256127324928213012', '1363025129814233190', '1363025129814233190', '1363017008039329972', '814554233377652736'],       // Roles that can use duty commands
-  'link': ['1363025391366967386', '1256127324928213012', '1363025129814233190', '1363025129814233190', '1363017008039329972', '814554233377652736'],       // Same as duty commands - admin only
-  'whatsnew': ['1363025391366967386', '1256127324928213012', '1363025129814233190', '1363025129814233190', '1363017008039329972', '814554233377652736'],   // Same as duty commands - admin only
+  'whitelist': getAllAdminRoles(),  // All admin roles can use whitelist commands
+  'duty': getAllAdminRoles(),       // All admin roles can use duty commands
+  'link': getAllAdminRoles(),       // All admin roles can use link commands
+  'whatsnew': getAllAdminRoles(),   // All admin roles can use whatsnew command
+  'unlinkedstaff': getAllAdminRoles(), // All admin roles can view unlinked staff
+  
+  // Shelved commands (restricted to no one for now)
+  'migratewhitelists': ['DISABLED'],  // SHELVED - Set to invalid role ID to disable
     
   // Public commands
   'ping': [],      // Everyone can use
@@ -20,26 +29,26 @@ COMMAND_PERMISSIONS.onduty = COMMAND_PERMISSIONS.duty;
 COMMAND_PERMISSIONS.offduty = COMMAND_PERMISSIONS.duty;
 
 // The role ID that represents an admin being on duty
-const ON_DUTY_ROLE_ID = '1402396896257118258'; // Replace with actual role ID
+const ON_DUTY_ROLE_ID = DISCORD_ROLES.ON_DUTY;
 
 // Tutor system roles
-const TUTOR_ROLE_ID = '1414863956597801030'; // Role that identifies tutors
-const TUTOR_ON_DUTY_ROLE_ID = '1414869998870200401'; // Role for on-duty tutors
-const TUTOR_LEAD_ROLE_ID = '1415128641628541080'; // Role for tutor program lead
+const TUTOR_ROLE_ID = DISCORD_ROLES.TUTOR;
+const TUTOR_ON_DUTY_ROLE_ID = DISCORD_ROLES.TUTOR_ON_DUTY;
+const TUTOR_LEAD_ROLE_ID = DISCORD_ROLES.TUTOR_LEAD;
 
 // Specialty roles that can be assigned by tutor lead
 const SPECIALTY_ROLES = {
-  HELICOPTER: '1414865731304296448',
-  ARMOR: '1414865809922068570',
-  INFANTRY: '1414865603021242409',
-  EXPERT: '1414867846214848512' // Squad expert - knowledgeable about all
+  HELICOPTER: DISCORD_ROLES.TUTOR_HELICOPTER,
+  ARMOR: DISCORD_ROLES.TUTOR_ARMOR,
+  INFANTRY: DISCORD_ROLES.TUTOR_INFANTRY,
+  EXPERT: DISCORD_ROLES.TUTOR_EXPERT
 };
 
-// Special roles that can award whitelist access - Update with your production server role IDs
+// Special roles that can award whitelist access
 const WHITELIST_AWARD_ROLES = {
-  DONATOR: '1246536874059628645',         // Replace with actual donator role ID
-  FIRST_RESPONDER: '1251387335707459584', // Replace with actual first responder role ID
-  SERVICE_MEMBER: '1249133598255349840'    // Replace with actual service member role ID
+  DONATOR: DISCORD_ROLES.DONATOR,
+  FIRST_RESPONDER: DISCORD_ROLES.FIRST_RESPONDER,
+  SERVICE_MEMBER: DISCORD_ROLES.SERVICE_MEMBER
 };
 
 module.exports = {
@@ -49,5 +58,9 @@ module.exports = {
   TUTOR_ON_DUTY_ROLE_ID,
   TUTOR_LEAD_ROLE_ID,
   SPECIALTY_ROLES,
-  WHITELIST_AWARD_ROLES
+  WHITELIST_AWARD_ROLES,
+  
+  // Re-export squad groups for convenience
+  SQUAD_GROUPS,
+  getAllTrackedRoles
 };

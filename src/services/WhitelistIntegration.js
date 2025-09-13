@@ -1,11 +1,11 @@
-const express = require('express');
 const WhitelistService = require('./WhitelistService');
+const RoleBasedWhitelistCache = require('./RoleBasedWhitelistCache');
 const SquadJSConnectionManager = require('./SquadJSConnectionManager');
 const SquadJSLinkingService = require('./SquadJSLinkingService');
 const { VerificationCode } = require('../database/models');
 const { config: whitelistConfig, validateConfig } = require('../../config/whitelist');
 
-async function setupWhitelistRoutes(app, sequelize, logger, discordClient) {
+async function setupWhitelistRoutes(app, _sequelize, logger, discordClient) {
   logger.info('Setting up whitelist integration');
 
   // Validate configuration
@@ -17,7 +17,28 @@ async function setupWhitelistRoutes(app, sequelize, logger, discordClient) {
     throw error;
   }
 
-  const whitelistService = new WhitelistService(logger, whitelistConfig);
+  // Initialize role-based whitelist cache
+  const roleBasedCache = new RoleBasedWhitelistCache(logger, whitelistConfig);
+  logger.info('Role-based whitelist cache created');
+  
+  // Delay cache initialization to ensure guild members are loaded
+  setTimeout(async () => {
+    try {
+      const primaryGuild = discordClient.guilds.cache.first();
+      if (primaryGuild) {
+        logger.info('Initializing role-based cache from Discord guild');
+        await roleBasedCache.initializeFromGuild(primaryGuild);
+        const counts = roleBasedCache.getTotalCount();
+        logger.info('Role-based cache initialization completed', counts);
+      } else {
+        logger.warn('No Discord guild found for role-based cache initialization');
+      }
+    } catch (error) {
+      logger.error('Failed to initialize role-based cache', { error: error.message });
+    }
+  }, 7000); // 7 seconds delay to ensure guild members are loaded
+
+  const whitelistService = new WhitelistService(logger, whitelistConfig, roleBasedCache, discordClient);
   
   whitelistService.setupRoutes(app);
 
@@ -63,6 +84,7 @@ async function setupWhitelistRoutes(app, sequelize, logger, discordClient) {
 
   return {
     whitelistService,
+    roleBasedCache,
     connectionManager,
     squadJSService,
     gracefulShutdown,

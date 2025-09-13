@@ -1,10 +1,13 @@
-const express = require('express');
-const { Group, Whitelist, PlayerDiscordLink } = require('../database/models');
+const { Whitelist, PlayerDiscordLink } = require('../database/models');
+
+const { getHighestPriorityGroup } = require('../utils/environment');
 
 class WhitelistService {
-  constructor(logger, config) {
+  constructor(logger, config, roleBasedCache = null, discordClient = null) {
     this.logger = logger;
     this.config = config;
+    this.roleBasedCache = roleBasedCache; // Optional role-based cache
+    this.discordClient = discordClient; // Optional Discord client for role checking
     this.cache = new Map();
     this.lastUpdate = new Map();
     
@@ -73,6 +76,9 @@ class WhitelistService {
           requiredConfidence: 1.0
         });
       }
+
+      // Filter out users who should be handled by role-based system
+      entries = await this.filterRoleBasedUsers(entries, this.discordClient);
       
       const formattedContent = await this.formatWhitelistContent(entries);
       
@@ -138,6 +144,84 @@ class WhitelistService {
     return filteredEntries;
   }
 
+  async filterRoleBasedUsers(entries, client) {
+    if (!this.roleBasedCache || !client) {
+      // No role-based system available, return all entries
+      return entries;
+    }
+
+    const filteredEntries = [];
+    
+    for (const entry of entries) {
+      let shouldInclude = true;
+      let exclusionReason = null;
+      
+      try {
+        // Check if this Steam ID has a Discord link and current role-based access
+        const links = await PlayerDiscordLink.findAll({
+          where: { 
+            steamid64: entry.steamid64,
+            is_primary: true
+          }
+        });
+
+        if (links.length > 0) {
+          const link = links[0];
+          
+          // Try to get Discord guild member to check current roles
+          const guild = client.guilds.cache.first();
+          if (guild) {
+            try {
+              const member = await guild.members.fetch(link.discord_user_id);
+              const currentGroup = getHighestPriorityGroup(member.roles.cache);
+              
+              if (currentGroup) {
+                // User currently has Discord roles and should be handled by role-based system
+                shouldInclude = false;
+                exclusionReason = 'discord_role';
+                this.logger.debug('Excluding from database whitelist - user has Discord role', {
+                  steamid64: entry.steamid64,
+                  discordId: link.discord_user_id,
+                  discordUsername: member.user.username,
+                  currentGroup: currentGroup
+                });
+              }
+            } catch (discordError) {
+              // User may have left server or other Discord error
+              // Include in database whitelist as fallback
+              this.logger.debug('Discord lookup failed, including in database whitelist', {
+                steamid64: entry.steamid64,
+                discordId: link.discord_user_id,
+                error: discordError.message
+              });
+            }
+          }
+        }
+      } catch (error) {
+        this.logger.error('Error checking role-based status', {
+          steamid64: entry.steamid64,
+          error: error.message
+        });
+        // Include entry on error as fallback
+      }
+
+      if (shouldInclude) {
+        filteredEntries.push(entry);
+      }
+    }
+
+    const excludedCount = entries.length - filteredEntries.length;
+    if (excludedCount > 0) {
+      this.logger.info('Filtered whitelist entries with Discord roles', {
+        originalCount: entries.length,
+        filteredCount: filteredEntries.length,
+        excludedCount: excludedCount
+      });
+    }
+
+    return filteredEntries;
+  }
+
   async formatWhitelistContent(entries) {
     // Return default message if no entries
     if (!entries || entries.length === 0) {
@@ -171,7 +255,6 @@ class WhitelistService {
         const identifier = this.getIdentifier(entry);
         const username = entry.username || '';
         const discordUsername = entry.discord_username || '';
-        const reason = entry.reason || '';
 
         let line = `Admin=${identifier}:${groupName}`;
         
@@ -191,7 +274,6 @@ class WhitelistService {
         const identifier = this.getIdentifier(entry);
         const username = entry.username || '';
         const discordUsername = entry.discord_username || '';
-        const reason = entry.reason || '';
 
         let line = `Admin=${identifier}:`;
         
@@ -216,12 +298,110 @@ class WhitelistService {
     return entry.steamid64;
   }
 
+  async getCombinedWhitelist() {
+    try {
+      // Get all whitelist data sources (without group definitions to avoid duplication)
+      const [staffContent, membersContent, generalContent] = await Promise.all([
+        this.roleBasedCache ? this.roleBasedCache.getCachedStaffWithoutGroups() : this.getCachedWhitelist('staff'),
+        this.roleBasedCache ? this.roleBasedCache.getCachedMembersWithoutGroups() : '',
+        this.getCachedWhitelist('whitelist')
+      ]);
+
+      // Build comprehensive whitelist with group definitions first
+      let combinedContent = '';
+
+      // Header comment
+      combinedContent += '//////////////////////////////////\n';
+      combinedContent += '// Comprehensive Squad Whitelist\n';
+      combinedContent += '// Generated: ' + new Date().toISOString() + '\n';
+      combinedContent += '//////////////////////////////////\n\n';
+
+      // Group definitions (order by priority: highest to lowest)
+      combinedContent += '// Group Definitions\n';
+      combinedContent += 'Group=HeadAdmin:ban,cameraman,canseeadminchat,changemap,chat,forceteamchange,immune,kick,reserve,startvote,teamchange,balance,manageserver,config\n';
+      combinedContent += 'Group=SquadAdmin:balance,ban,cameraman,canseeadminchat,changemap,chat,forceteamchange,immune,kick,startvote,reserve,teamchange\n';
+      combinedContent += 'Group=Moderator:canseeadminchat,chat,reserve\n';
+      combinedContent += 'Group=Member:reserve\n\n';
+
+      // Staff Section (role-based and database staff)
+      combinedContent += '// Staff (Role-based + Database)\n';
+      if (staffContent && !staffContent.includes('No entries')) {
+        combinedContent += staffContent;
+        if (!staffContent.endsWith('\n')) combinedContent += '\n';
+      }
+      combinedContent += '\n';
+
+      // Members Section (role-based members)
+      combinedContent += '// Members (Role-based)\n';
+      if (membersContent && !membersContent.includes('No entries')) {
+        combinedContent += membersContent;
+        if (!membersContent.endsWith('\n')) combinedContent += '\n';
+      }
+      combinedContent += '\n';
+
+      // General Whitelist Section (database-only whitelist entries)
+      combinedContent += '// General Whitelist (Database)\n';
+      if (generalContent && !generalContent.includes('No entries')) {
+        combinedContent += generalContent;
+        if (!generalContent.endsWith('\n')) combinedContent += '\n';
+      }
+
+      // Footer
+      combinedContent += '\n//////////////////////////////////\n';
+      combinedContent += '// End of Whitelist\n';
+      combinedContent += '//////////////////////////////////\n';
+
+      return combinedContent;
+
+    } catch (error) {
+      this.logger.error('Failed to generate combined whitelist', { error: error.message });
+      return '//////////////////////////////////\n// Error generating whitelist\n//////////////////////////////////\n';
+    }
+  }
+
   setupRoutes(app) {
     const whitelistPaths = this.config.paths;
 
+    // Combined comprehensive whitelist endpoint - all groups and users in one file
+    app.get('/combined', async (req, res) => {
+      try {
+        const content = await this.getCombinedWhitelist();
+        
+        res.set({
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Cache-Control': `public, max-age=${this.cacheRefreshSeconds}`,
+          'X-Content-Length': content.length
+        });
+        res.send(content);
+        
+        if (this.logConnections) {
+          this.logger.info('Served combined whitelist', { 
+            ip: req.ip,
+            userAgent: req.get('User-Agent'),
+            contentLength: content.length
+          });
+        }
+      } catch (error) {
+        this.logger.error('Failed to serve combined whitelist', { 
+          error: error.message,
+          ip: req.ip 
+        });
+        res.status(500).send('Internal Server Error');
+      }
+    });
+
+    // Staff endpoint - now uses role-based cache if available
     app.get(whitelistPaths.staff, async (req, res) => {
       try {
-        const content = await this.getCachedWhitelist('staff');
+        let content;
+        
+        // Use role-based cache if available, otherwise fall back to database
+        if (this.roleBasedCache) {
+          content = await this.roleBasedCache.getCachedStaff();
+        } else {
+          content = await this.getCachedWhitelist('staff');
+        }
+        
         res.set({
           'Content-Type': 'text/plain; charset=utf-8',
           'Cache-Control': `public, max-age=${this.cacheRefreshSeconds}`,
@@ -233,7 +413,8 @@ class WhitelistService {
           this.logger.info('Served staff whitelist', { 
             ip: req.ip,
             userAgent: req.get('User-Agent'),
-            contentLength: content.length
+            contentLength: content.length,
+            source: this.roleBasedCache ? 'role-based' : 'database'
           });
         }
       } catch (error) {
@@ -271,7 +452,44 @@ class WhitelistService {
       }
     });
 
-    this.logger.info('Whitelist routes configured', { paths: whitelistPaths });
+    // Members endpoint - serves role-based member whitelist
+    app.get('/members', async (req, res) => {
+      try {
+        let content;
+        
+        if (this.roleBasedCache) {
+          content = await this.roleBasedCache.getCachedMembers();
+        } else {
+          // If no role cache, return empty list
+          content = '/////////////////////////////////\n////// No entries \n/////////////////////////////////\n';
+        }
+        
+        res.set({
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Cache-Control': `public, max-age=${this.cacheRefreshSeconds}`,
+          'X-Content-Length': content.length
+        });
+        res.send(content);
+        
+        if (this.logConnections) {
+          this.logger.info('Served members whitelist', { 
+            ip: req.ip,
+            userAgent: req.get('User-Agent'),
+            contentLength: content.length
+          });
+        }
+      } catch (error) {
+        this.logger.error('Failed to serve members whitelist', { 
+          error: error.message,
+          ip: req.ip 
+        });
+        res.status(500).send('Internal Server Error');
+      }
+    });
+
+    this.logger.info('Whitelist routes configured', { 
+      paths: { ...whitelistPaths, members: '/members', combined: '/combined' } 
+    });
   }
 
   async invalidateCache(type = null) {

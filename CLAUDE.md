@@ -81,6 +81,30 @@ Configuration is managed through `.env` file (see `.env.example`):
 - **Notification Routing**: Configured in `config/channels.js` via `NOTIFICATION_ROUTES` - maps notification types to target channels
 - **Validation**: Built-in config validation in `config/config.js`
 
+### Environment-Specific Configuration
+The system automatically loads environment-specific configurations based on `NODE_ENV`:
+
+- **Production**: Uses `config/squadGroups.js`, `config/channels.js`, `config/discordRoles.js`
+- **Development**: Uses `config/squadGroups.development.js`, `config/channels.development.js`, `config/discordRoles.development.js`
+
+**IMPORTANT**: Always use the centralized environment utility for environment detection and config loading:
+
+```javascript
+// ✅ CORRECT - Use centralized utility
+const { getHighestPriorityGroup, isDevelopment } = require('../utils/environment');
+
+// ❌ WRONG - Don't manually check environment
+const isDevelopment = process.env.NODE_ENV === 'development';
+const { getHighestPriorityGroup } = require(isDevelopment ? '../../config/squadGroups.development' : '../../config/squadGroups');
+```
+
+**Available exports from `src/utils/environment.js`**:
+- `isDevelopment`, `isProduction` - Environment flags
+- `getConfigPath(configName)` - Get environment-specific config path
+- `loadConfig(configName)` - Load environment-specific configuration
+- `squadGroups`, `channels`, `discordRoles` - Pre-loaded configurations
+- `getHighestPriorityGroup`, `CHANNELS`, `DISCORD_ROLES` - Common exports
+
 ## Development Patterns
 
 ### Command Creation
@@ -121,6 +145,7 @@ Configuration is managed through `.env` file (see `.env.example`):
 - `src/database/models/` - All database models (Player, Admin, Server, AuditLog, DutyStatusChange)
 - `src/handlers/roleChangeHandler.js` - Discord role change detection and processing
 - `src/services/DutyStatusFactory.js` - Duty status management and logging
+- `src/utils/environment.js` - **Centralized environment detection and config loading utility**
 - `config/roles.js` - Permission configuration (contains actual Discord role IDs)
 - `config/channels.js` - Channel configuration (contains actual Discord channel IDs)
 - `migrations/` - Database migration files managed by Umzug

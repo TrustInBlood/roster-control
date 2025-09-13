@@ -86,7 +86,8 @@ const config = {
   logging: {
     level: 'info',
     logConnections: true,
-    logCacheHits: false
+    logCacheHits: false,
+    logSquadJSEvents: process.env.NODE_ENV !== 'development' // Disable in development by default
   }
 };
 

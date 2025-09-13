@@ -1,5 +1,6 @@
 const { EmbedBuilder } = require('discord.js');
 const { CHANNELS, NOTIFICATION_ROUTES } = require('../../config/channels');
+const { isDevelopment } = require('../utils/environment');
 
 /**
  * Default colors for different notification types
@@ -100,7 +101,7 @@ class NotificationService {
       await channel.send({ embeds: [embed] });
       
       // Log success for debugging
-      if (process.env.NODE_ENV === 'development') {
+      if (isDevelopment) {
         console.log(`Notification sent: ${type} to ${channelKey}`);
       }
       

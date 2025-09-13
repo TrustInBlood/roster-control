@@ -23,7 +23,18 @@ module.exports = {
         // Add recent updates (most recent first)
         updatesEmbed.addFields(
           {
-            name: 'Tutor System & Specialties (Latest)',
+            name: 'Environment & Configuration Improvements (Latest)',
+            value: '• **Unified Whitelist Endpoint** - New `/combined` endpoint with all groups and users\n' +
+                 '• **Centralized Environment Detection** - Single source of truth for dev/prod configs\n' +
+                 '• **Enhanced Role Detection** - Fixed environment-specific role mapping issues\n' +
+                 '• **Improved `/whitelist info`** - Better role-based vs database entry display\n' +
+                 '• **Real-time Role Updates** - Role changes immediately update whitelist cache\n' +
+                 '• **Better Error Handling** - Resolved database field constraints and logging\n' +
+                 '• **Cleaner User Experience** - Removed debug noise, improved command responses',
+            inline: false
+          },
+          {
+            name: 'Tutor System & Specialties',
             value: '• **`/ondutytutor` & `/offdutytutor`** - Separate duty tracking for tutors\n' +
                  '• **`/addspecialty` & `/removespecialty`** - Tutor Lead can manage specialty roles\n' +
                  '• **`/removetutor`** - Complete tutor status removal (all roles)\n' +
@@ -112,7 +123,9 @@ module.exports = {
             },
             {
               name: 'Integration Features',
-              value: '• **HTTP Whitelist API** - External server access\n' +
+              value: '• **HTTP Whitelist API** - External server access with multiple endpoints\n' +
+                   '• **Unified `/combined` Endpoint** - Complete whitelist with group definitions\n' +
+                   '• **Individual Endpoints** - `/staff`, `/members`, `/whitelist` for debugging\n' +
                    '• **SquadJS Integration** - Real-time game events\n' +
                    '• **Discord Logging** - Comprehensive audit trail\n' +
                    '• **Automatic Migrations** - Database updates\n' +

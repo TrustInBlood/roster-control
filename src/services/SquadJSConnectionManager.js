@@ -140,12 +140,15 @@ class SquadJSConnectionManager {
       ];
       
       if (!knownEvents.includes(eventName)) {
-        this.logger.debug('Unknown SquadJS event received', {
-          serverId: server.id,
-          serverName: server.name,
-          eventName
-          // Removed args to reduce noise
-        });
+        // Only log unknown events if enabled in config (disabled in development by default)
+        if (this.config.logging && this.config.logging.logSquadJSEvents) {
+          this.logger.debug('Unknown SquadJS event received', {
+            serverId: server.id,
+            serverName: server.name,
+            eventName
+            // Removed args to reduce noise
+          });
+        }
       }
     });
   }

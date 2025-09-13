@@ -299,9 +299,55 @@
 - HTTP whitelist server with configurable ports and JSON endpoints
 - Basic Jest configuration (tests removed due to complexity issues)
 - WhitelistService with caching and multi-server support
+- Centralized environment detection and configuration loading utility
+- Role-based whitelist system with proper environment-specific configuration handling
+- Enhanced `/whitelist info` command with role-based and database entry display
+- Resolved role detection issues and improved whitelist filtering logic
+- Unified HTTP whitelist endpoint (`/combined`) with comprehensive group definitions and organized content sections
 
 ### 🔄 In Progress
 - BattleMetrics API integration
+
+## Phase 3.6: Environment & Configuration Management ✅ COMPLETED
+
+### Centralized Environment Detection ✅ COMPLETED
+- [x] Create centralized environment utility (`src/utils/environment.js`)
+  - [x] Automatic environment detection (`isDevelopment`, `isProduction`)
+  - [x] Environment-specific configuration loading
+  - [x] Pre-loaded common configurations (squadGroups, channels, discordRoles)
+  - [x] Helper functions for config path resolution and loading
+- [x] Update all files to use centralized environment utility
+  - [x] `src/commands/whitelist.js` - Role detection and configuration loading
+  - [x] `src/services/WhitelistService.js` - Squad groups configuration
+  - [x] `src/services/RoleBasedWhitelistCache.js` - Squad groups configuration
+  - [x] `src/handlers/roleChangeHandler.js` - Role tracking and configuration
+  - [x] `src/services/NotificationService.js` - Development logging flags
+- [x] Remove manual environment detection patterns throughout codebase
+- [x] Update documentation (CLAUDE.md) with centralized approach
+  - [x] Add usage examples and best practices
+  - [x] Document available exports and functions
+  - [x] Emphasize single source of truth approach
+
+### Whitelist System Improvements ✅ COMPLETED
+- [x] Fix role-based whitelist detection issues
+  - [x] Resolve environment-specific config import problems
+  - [x] Fix role detection not working due to config mismatches
+- [x] Improve `/whitelist info` command logic
+  - [x] Show role-based access when user has Discord roles
+  - [x] Display database whitelist entries appropriately
+  - [x] Handle both permanent and temporary whitelist entries
+- [x] Fix database entry filtering for role-based vs database whitelists
+  - [x] Exclude users with active Discord roles from database endpoints
+  - [x] Allow users to have both role-based and database whitelist access
+- [x] Resolve AuditLog field truncation issues
+  - [x] Shorten action type names to fit database constraints
+- [x] Clean up debug logging and improve user experience
+- [x] Create unified HTTP whitelist endpoint (`/combined`)
+  - [x] Combine all whitelist sources (role-based staff, role-based members, database whitelist)
+  - [x] Include proper Squad group definitions at the top of the file
+  - [x] Organize content with clear section headers and comments
+  - [x] Maintain existing individual endpoints for debugging purposes
+  - [x] Generate comprehensive whitelist suitable for Squad server consumption
 
 ## Phase 3.5: Account Linking & Whitelist Integration ✅ COMPLETED
 

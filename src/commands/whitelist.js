@@ -3,6 +3,7 @@ const { permissionMiddleware } = require('../handlers/permissionHandler');
 const { withLoadingMessage, createResponseEmbed, sendSuccess, sendError } = require('../utils/messageHandler');
 const { Whitelist } = require('../database/models');
 const { WHITELIST_AWARD_ROLES } = require('../../config/discord');
+const { getHighestPriorityGroup } = require('../utils/environment');
 const { 
   createOrUpdateLink, 
   resolveSteamIdFromDiscord, 
@@ -762,6 +763,26 @@ async function handleInfo(interaction) {
     // Use the new helper that works with either user OR steamid
     const { steamid64: resolvedSteamId, discordUser: resolvedDiscordUser, hasLink, hasWhitelistHistory } = await resolveUserForInfo(steamid, discordUser);
 
+    // Check role-based whitelist status first if we have a Discord user
+    let roleBasedStatus = null;
+    if (resolvedDiscordUser) {
+      try {
+        const member = await interaction.guild.members.fetch(resolvedDiscordUser.id);
+        const group = getHighestPriorityGroup(member.roles.cache);
+        
+        
+        if (group) {
+          roleBasedStatus = {
+            group: group,
+            isStaff: group !== 'Member',
+            isPermanent: true
+          };
+        }
+      } catch (error) {
+        console.log('Could not fetch member for role-based status check:', error.message);
+      }
+    }
+
     // Get whitelist status with proper stacking calculation
     const whitelistStatus = await Whitelist.getActiveWhitelistForUser(resolvedSteamId);
 
@@ -793,18 +814,45 @@ async function handleInfo(interaction) {
       return expirationDate > now; // Only include if not expired
     });
 
+    // Determine final status (role-based takes precedence)
+    let finalStatus, finalColor, hasActiveWhitelist;
+    
+    if (roleBasedStatus) {
+      finalStatus = `Active (permanent - ${roleBasedStatus.group})`;
+      finalColor = roleBasedStatus.isStaff ? 0x9C27B0 : 0x2196F3; // Purple for staff, blue for members
+      hasActiveWhitelist = true;
+    } else if (whitelistStatus.hasWhitelist) {
+      finalStatus = whitelistStatus.status;
+      finalColor = 0x00FF00;
+      hasActiveWhitelist = true;
+    } else {
+      finalStatus = whitelistStatus.status;
+      finalColor = 0xFF0000;
+      hasActiveWhitelist = false;
+    }
+
     const embed = createResponseEmbed({
       title: '📋 Whitelist Status',
       description: `Whitelist information for ${resolvedDiscordUser ? `<@${resolvedDiscordUser.id}>` : 'user'}`,
       fields: [
         { name: 'Steam ID', value: resolvedSteamId, inline: true },
-        { name: 'Status', value: whitelistStatus.status, inline: true },
+        { name: 'Status', value: finalStatus, inline: true },
         { name: 'Account Link', value: hasLink ? '✅ Linked' : '❌ Not linked', inline: true }
       ],
-      color: whitelistStatus.hasWhitelist ? 0x00FF00 : 0xFF0000
+      color: finalColor
     });
 
-    if (whitelistStatus.expiration) {
+    // Add role-based status info if applicable
+    if (roleBasedStatus) {
+      embed.addFields({ 
+        name: 'Whitelist Source', 
+        value: `Discord Role (${roleBasedStatus.group})`, 
+        inline: true 
+      });
+    }
+
+    // Only show database whitelist expiration if no role-based status
+    if (!roleBasedStatus && whitelistStatus.expiration) {
       embed.addFields({ 
         name: whitelistStatus.hasWhitelist ? 'Expires' : 'Expired', 
         value: whitelistStatus.expiration.toLocaleDateString(), 
@@ -812,36 +860,58 @@ async function handleInfo(interaction) {
       });
     }
 
-    // Show stacking info if there are active entries
+    // Show whitelist details
+    let whitelistEntries = [];
+    
+    // Add role-based entry if present
+    if (roleBasedStatus) {
+      whitelistEntries.push(`• ${roleBasedStatus.group} Role: permanent`);
+    }
+    
+    // Add database entries - show both permanent and active entries for full visibility
     if (activeEntries.length > 0) {
-      const stackingInfo = activeEntries.map(entry => {
-        const reason = entry.reason || 'Unknown';
-        const note = entry.note ? `: ${entry.note}` : '';
-        
-        // Calculate remaining time for this entry
-        if (!entry.duration_value || !entry.duration_type || entry.duration_value === 0) {
-          return `• ${reason}${note}: permanent`;
-        }
-        
-        const grantedDate = new Date(entry.granted_at);
-        const expirationDate = new Date(grantedDate);
-        
-        if (entry.duration_type === 'days') {
-          expirationDate.setDate(expirationDate.getDate() + entry.duration_value);
-        } else if (entry.duration_type === 'months') {
-          expirationDate.setMonth(expirationDate.getMonth() + entry.duration_value);
-        }
-        
-        const now = new Date();
-        const remainingMs = expirationDate - now;
-        const remainingDays = Math.ceil(remainingMs / (1000 * 60 * 60 * 24));
-        
-        return `• ${reason}${note}: ${remainingDays} days`;
-      }).join('\n');
+      // If user has role-based status, only show permanent database entries as "backup"
+      // If no role-based status, show all active entries
+      const entriesToShow = roleBasedStatus 
+        ? activeEntries.filter(entry => !entry.duration_value || !entry.duration_type || entry.duration_value === null)
+        : activeEntries;
+      
+      if (entriesToShow.length > 0) {
+        const stackingInfo = entriesToShow.map(entry => {
+          const reason = entry.reason || 'Unknown';
+          const note = entry.note ? `: ${entry.note}` : '';
+          
+          // Calculate remaining time for this entry
+          if (!entry.duration_value || !entry.duration_type || entry.duration_value === 0) {
+            return `• ${reason}${note}: permanent`;
+          }
+          
+          const grantedDate = new Date(entry.granted_at);
+          const expirationDate = new Date(grantedDate);
+          
+          if (entry.duration_type === 'days') {
+            expirationDate.setDate(expirationDate.getDate() + entry.duration_value);
+          } else if (entry.duration_type === 'months') {
+            expirationDate.setMonth(expirationDate.getMonth() + entry.duration_value);
+          }
+          
+          const now = new Date();
+          const remainingMs = expirationDate - now;
+          const remainingDays = Math.ceil(remainingMs / (1000 * 60 * 60 * 24));
+          
+          return `• ${reason}${note}: ${remainingDays} days`;
+        });
+        whitelistEntries.push(...stackingInfo);
+      }
+    }
+    
+    if (whitelistEntries.length > 0) {
+      const totalEntries = whitelistEntries.length;
+      const entryLabel = roleBasedStatus ? 'Whitelist Sources' : 'Active Whitelist Entries';
       
       embed.addFields({ 
-        name: `Active Entries (${activeEntries.length})`, 
-        value: stackingInfo, 
+        name: `${entryLabel} (${totalEntries})`, 
+        value: whitelistEntries.join('\n'), 
         inline: false 
       });
     }
