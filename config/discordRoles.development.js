@@ -45,9 +45,6 @@ function getAllAdminRoles() {
     DISCORD_ROLES_DEV.SQUAD_ADMIN
   ].filter(Boolean);
 
-  // DEBUG: Log what we're returning
-  console.log('DEBUG: getAllAdminRoles() (development) returning:', adminRoles);
-
   // SECURITY: If no admin roles are configured, return a special marker
   // This prevents accidentally allowing everyone to use admin commands
   if (adminRoles.length === 0) {

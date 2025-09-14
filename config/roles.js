@@ -6,11 +6,6 @@
 
 // Import centralized role definitions and squad groups (environment-specific)
 const isDevelopment = process.env.NODE_ENV === 'development';
-console.log('DEBUG: roles.js environment check:', {
-  NODE_ENV: process.env.NODE_ENV,
-  isDevelopment,
-  loadingFile: isDevelopment ? './discordRoles.development' : './discordRoles'
-});
 const { DISCORD_ROLES, getAllAdminRoles } = require(isDevelopment ? './discordRoles.development' : './discordRoles');
 const { SQUAD_GROUPS, getAllTrackedRoles } = require(isDevelopment ? './squadGroups.development' : './squadGroups');
 const COMMAND_PERMISSIONS = {

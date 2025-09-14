@@ -10,14 +10,6 @@ const { sendError } = require('../utils/messageHandler');
 function checkPermissions(interaction, commandName) {
   const allowedRoles = COMMAND_PERMISSIONS[commandName];
 
-  // DEBUG: Log permission check details
-  console.log(`DEBUG: Permission check for '${commandName}':`, {
-    allowedRoles: allowedRoles,
-    type: typeof allowedRoles,
-    isArray: Array.isArray(allowedRoles),
-    length: Array.isArray(allowedRoles) ? allowedRoles.length : 'N/A'
-  });
-
   // If command is not in permissions config, deny by default for safety
   if (allowedRoles === undefined) {
     console.error(`WARNING: Command '${commandName}' has no permission configuration. Denying access by default.`);
