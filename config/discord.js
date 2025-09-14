@@ -14,12 +14,12 @@ if (env === 'development') {
   try {
     // Try development-specific config first
     roles = require(path.join(__dirname, 'roles.development.js'));
-    console.log('✅ Loaded development roles configuration');
+    console.log('Loaded development roles configuration');
   } catch (error) {
     // Fallback to standard roles.js
     try {
       roles = require(path.join(__dirname, 'roles.js'));
-      console.log('✅ Loaded standard roles configuration (development fallback)');
+      console.log('Loaded standard roles configuration (development fallback)');
     } catch (fallbackError) {
       console.error('❌ Failed to load roles configuration:', fallbackError.message);
       console.error('Please create config/roles.development.js or config/roles.js');
@@ -30,7 +30,7 @@ if (env === 'development') {
   try {
     // Production: use standard roles.js
     roles = require(path.join(__dirname, 'roles.js'));
-    console.log('✅ Loaded standard roles configuration');
+    console.log('Loaded standard roles configuration');
   } catch (error) {
     console.error('❌ Failed to load roles configuration:', error.message);
     console.error('Please create config/roles.js');
