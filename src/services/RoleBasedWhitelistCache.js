@@ -34,7 +34,8 @@ class RoleBasedWhitelistCache {
     };
     
     this.cacheRefreshSeconds = config.cache.refreshSeconds || 60;
-    
+    this.isInitialized = false; // Track if cache has been populated from Discord
+
     this.logger.info('RoleBasedWhitelistCache initialized');
   }
   
@@ -559,16 +560,25 @@ class RoleBasedWhitelistCache {
       }
       
       const counts = this.getTotalCount();
+      this.isInitialized = true; // Mark cache as ready
       this.logger.info('Role-based whitelist cache initialized', {
         processed: processedCount,
         ...counts
       });
-      
+
     } catch (error) {
       this.logger.error('Failed to initialize role-based cache', {
         error: error.message
       });
     }
+  }
+
+  /**
+   * Check if cache has been initialized from Discord guild
+   * @returns {boolean} True if cache is ready
+   */
+  isReady() {
+    return this.isInitialized;
   }
 }
 

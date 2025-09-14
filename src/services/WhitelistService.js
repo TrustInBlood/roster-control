@@ -366,9 +366,11 @@ class WhitelistService {
 
     try {
       // Get all whitelist data sources (without group definitions to avoid duplication)
+      // Only use role-based cache if it's been initialized, otherwise fall back to database
+      const useRoleBasedCache = this.roleBasedCache && this.roleBasedCache.isReady();
       const [staffContent, membersContent, generalContent] = await Promise.all([
-        this.roleBasedCache ? this.roleBasedCache.getCachedStaffWithoutGroups() : this.getCachedWhitelist('staff'),
-        this.roleBasedCache ? this.roleBasedCache.getCachedMembersWithoutGroups() : '',
+        useRoleBasedCache ? this.roleBasedCache.getCachedStaffWithoutGroups() : this.getCachedWhitelist('staff'),
+        useRoleBasedCache ? this.roleBasedCache.getCachedMembersWithoutGroups() : '',
         this.getCachedWhitelist('whitelist')
       ]);
 
@@ -475,8 +477,8 @@ class WhitelistService {
       try {
         let content;
         
-        // Use role-based cache if available, otherwise fall back to database
-        if (this.roleBasedCache) {
+        // Use role-based cache if available and ready, otherwise fall back to database
+        if (this.roleBasedCache && this.roleBasedCache.isReady()) {
           content = await this.roleBasedCache.getCachedStaff();
         } else {
           content = await this.getCachedWhitelist('staff');
@@ -537,10 +539,10 @@ class WhitelistService {
       try {
         let content;
         
-        if (this.roleBasedCache) {
+        if (this.roleBasedCache && this.roleBasedCache.isReady()) {
           content = await this.roleBasedCache.getCachedMembers();
         } else {
-          // If no role cache, return empty list
+          // If no role cache or not ready, return empty list
           content = '/////////////////////////////////\n////// No entries \n/////////////////////////////////\n';
         }
         
