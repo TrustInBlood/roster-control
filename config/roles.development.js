@@ -5,9 +5,12 @@
  */
 const COMMAND_PERMISSIONS = {
   // Admin commands - Update these with your development server role IDs
-  'whitelist': [], // Same as duty commands
-  'duty': ['1365205433236717598'],      // Everyone can use duty commands in development
-    
+  'whitelist': ['1365205433236717598'], // Admin roles can use whitelist commands
+  'duty': ['1365205433236717598'],      // Admin roles can use duty commands
+  'link': ['1365205433236717598'],      // Admin roles can use link commands
+  'whatsnew': ['1365205433236717598'],  // Admin roles can use whatsnew command
+  'unlinkedstaff': ['1365205433236717598'], // Admin roles can view unlinked staff
+
   // Public commands
   'ping': [],  // Everyone can use
   'help': [],  // Everyone can use
