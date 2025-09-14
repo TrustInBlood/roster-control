@@ -134,68 +134,68 @@ async function logToDiscord(client, eventType, eventData) {
  */
 function logToConsole(eventType, eventData) {
   switch(eventType) {
-    case 'ACCOUNT_LINK':
-      if (eventData.user && eventData.steamId) {
-        const linkType = eventData.description?.split(' via ')[1] || 'manual';
-        const actor = eventData.details?.['Created By'] || eventData.user.tag;
-        console.log(`${actor} created link for ${eventData.user.tag} ${eventData.steamId}`);
-      }
-      break;
-    case 'ALT_ACCOUNT':
-      if (eventData.user && eventData.steamId) {
-        console.log(`Alt account discovered: ${eventData.user.tag} ${eventData.steamId}`);
-      }
-      break;
-    case 'WHITELIST_GRANT':
-      if (eventData.steamId) {
-        const grantedBy = eventData.details?.['Granted By'] || 'System';
-        const target = eventData.user?.tag || 'Unknown';
-        console.log(`${grantedBy} granted whitelist to ${target} ${eventData.steamId}`);
-      }
-      break;
-    case 'WHITELIST_REVOKE':
-      if (eventData.steamId) {
-        const revokedBy = eventData.details?.['Granted By'] || 'System';
-        const target = eventData.user?.tag || 'Unknown';
-        console.log(`${revokedBy} revoked whitelist from ${target} ${eventData.steamId}`);
-      }
-      break;
-    case 'WHITELIST_EXTEND':
-      if (eventData.user && eventData.steamId) {
-        console.log(`Whitelist extended for ${eventData.user.tag} ${eventData.steamId}`);
-      }
-      break;
-    case 'COMMAND_USED':
-      if (eventData.user && eventData.details?.Command) {
-        const status = eventData.details.Status?.includes('Success') ? 'executed' : 'failed';
-        console.log(`${eventData.user.tag} ${status} ${eventData.details.Command}`);
-      }
-      break;
-    case 'DUTY_CHANGE':
-      if (eventData.description) {
-        console.log(eventData.description);
-      }
-      break;
-    case 'LEGACY_COMMAND':
-      if (eventData.user && eventData.details?.['Old Command']) {
-        console.log(`${eventData.user.tag} used legacy command ${eventData.details['Old Command']}`);
-      }
-      break;
-    case 'ERROR':
-      if (eventData.description) {
-        console.log(`Error: ${eventData.description}`);
-      }
-      break;
-    case 'WARNING':
-      if (eventData.description) {
-        console.log(`Warning: ${eventData.description}`);
-      }
-      break;
-    case 'INFO':
-      if (eventData.description) {
-        console.log(`Info: ${eventData.description}`);
-      }
-      break;
+  case 'ACCOUNT_LINK':
+    if (eventData.user && eventData.steamId) {
+      const linkType = eventData.description?.split(' via ')[1] || 'manual';
+      const actor = eventData.details?.['Created By'] || eventData.user.tag;
+      console.log(`${actor} created link for ${eventData.user.tag} ${eventData.steamId}`);
+    }
+    break;
+  case 'ALT_ACCOUNT':
+    if (eventData.user && eventData.steamId) {
+      console.log(`Alt account discovered: ${eventData.user.tag} ${eventData.steamId}`);
+    }
+    break;
+  case 'WHITELIST_GRANT':
+    if (eventData.steamId) {
+      const grantedBy = eventData.details?.['Granted By'] || 'System';
+      const target = eventData.user?.tag || 'Unknown';
+      console.log(`${grantedBy} granted whitelist to ${target} ${eventData.steamId}`);
+    }
+    break;
+  case 'WHITELIST_REVOKE':
+    if (eventData.steamId) {
+      const revokedBy = eventData.details?.['Granted By'] || 'System';
+      const target = eventData.user?.tag || 'Unknown';
+      console.log(`${revokedBy} revoked whitelist from ${target} ${eventData.steamId}`);
+    }
+    break;
+  case 'WHITELIST_EXTEND':
+    if (eventData.user && eventData.steamId) {
+      console.log(`Whitelist extended for ${eventData.user.tag} ${eventData.steamId}`);
+    }
+    break;
+  case 'COMMAND_USED':
+    if (eventData.user && eventData.details?.Command) {
+      const status = eventData.details.Status?.includes('Success') ? 'executed' : 'failed';
+      console.log(`${eventData.user.tag} ${status} ${eventData.details.Command}`);
+    }
+    break;
+  case 'DUTY_CHANGE':
+    if (eventData.description) {
+      console.log(eventData.description);
+    }
+    break;
+  case 'LEGACY_COMMAND':
+    if (eventData.user && eventData.details?.['Old Command']) {
+      console.log(`${eventData.user.tag} used legacy command ${eventData.details['Old Command']}`);
+    }
+    break;
+  case 'ERROR':
+    if (eventData.description) {
+      console.log(`Error: ${eventData.description}`);
+    }
+    break;
+  case 'WARNING':
+    if (eventData.description) {
+      console.log(`Warning: ${eventData.description}`);
+    }
+    break;
+  case 'INFO':
+    if (eventData.description) {
+      console.log(`Info: ${eventData.description}`);
+    }
+    break;
   }
 }
 

@@ -63,7 +63,7 @@ async function testCacheInit() {
     console.log(`  Highest group: ${highestGroup || 'none'}`);
     
     if (highestGroup) {
-      console.log(`  Has tracked roles, checking Steam link...`);
+      console.log('  Has tracked roles, checking Steam link...');
       
       // Get Steam ID link
       const { PlayerDiscordLink } = require('../src/database/models');
@@ -83,7 +83,7 @@ async function testCacheInit() {
         cache.addUser(link.steamid64, highestGroup, userData);
         processedCount++;
       } else if (highestGroup !== 'Member') {
-        console.log(`  No Steam link - adding as unlinked staff`);
+        console.log('  No Steam link - adding as unlinked staff');
         const userData = {
           username: member.displayName || member.user.username || '',
           discord_username: member.user.username || ''
@@ -92,18 +92,18 @@ async function testCacheInit() {
         cache.addUnlinkedStaff(memberId, highestGroup, userData);
         processedCount++;
       } else {
-        console.log(`  No Steam link and is Member group - skipping`);
+        console.log('  No Steam link and is Member group - skipping');
       }
     } else {
-      console.log(`  No tracked roles - skipping`);
+      console.log('  No tracked roles - skipping');
     }
   }
   
-  console.log(`\n3. Final cache state:`);
+  console.log('\n3. Final cache state:');
   const counts = cache.getTotalCount();
   console.log(JSON.stringify(counts, null, 2));
   
-  console.log(`\n4. Testing content generation:`);
+  console.log('\n4. Testing content generation:');
   const staffContent = await cache.getCachedStaff();
   const memberContent = await cache.getCachedMembers();
   

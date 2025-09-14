@@ -97,7 +97,7 @@ async function resolveUserInfo(steamid, discordUser, createLink = false) {
   };
 }
 
-// Helper function for info command - works with either user OR steamid  
+// Helper function for info command - works with either user OR steamid
 async function resolveUserForInfo(steamid, discordUser) {
   // Use the comprehensive getUserInfo function
   const userInfo = await getUserInfo({
@@ -106,16 +106,25 @@ async function resolveUserForInfo(steamid, discordUser) {
     username: discordUser?.displayName || discordUser?.username
   });
 
-  // Validate that we have at least a Steam ID
-  if (!userInfo.steamid64) {
-    if (discordUser && !steamid) {
-      throw new Error('No linked Steam account found for this Discord user. Please provide a Steam ID.');
-    } else {
-      throw new Error('Please provide either a Discord user or Steam ID to check.');
-    }
+  // If no Steam ID was found and no Steam ID was provided, that's okay for info command
+  // The user might have role-based whitelist access
+  if (!userInfo.steamid64 && !steamid && discordUser) {
+    // Return with null steamid64 - the info handler will check role-based status
+    return {
+      steamid64: null,
+      discordUser: discordUser,
+      hasLink: false,
+      hasWhitelistHistory: false
+    };
   }
 
-  if (!isValidSteamId(userInfo.steamid64)) {
+  // Validate that we have at least a Steam ID or Discord user
+  if (!userInfo.steamid64 && !discordUser) {
+    throw new Error('Please provide either a Discord user or Steam ID to check.');
+  }
+
+  // Only validate Steam ID format if we have one
+  if (userInfo.steamid64 && !isValidSteamId(userInfo.steamid64)) {
     throw new Error('Invalid Steam ID format. Please provide a valid Steam ID64.');
   }
 
@@ -783,14 +792,19 @@ async function handleInfo(interaction) {
       }
     }
 
-    // Get whitelist status with proper stacking calculation
-    const whitelistStatus = await Whitelist.getActiveWhitelistForUser(resolvedSteamId);
+    // Get whitelist status with proper stacking calculation (only if we have a Steam ID)
+    let whitelistStatus = { hasWhitelist: false, status: 'No whitelist' };
+    let history = [];
 
-    // Get history to show stacking info (without Group association to avoid error)
-    const history = await Whitelist.findAll({
-      where: { steamid64: resolvedSteamId },
-      order: [['granted_at', 'DESC']]
-    });
+    if (resolvedSteamId) {
+      whitelistStatus = await Whitelist.getActiveWhitelistForUser(resolvedSteamId);
+
+      // Get history to show stacking info (without Group association to avoid error)
+      history = await Whitelist.findAll({
+        where: { steamid64: resolvedSteamId },
+        order: [['granted_at', 'DESC']]
+      });
+    }
     // Filter for truly active entries (not revoked AND not expired)
     const now = new Date();
     const activeEntries = history.filter(entry => {
@@ -835,7 +849,7 @@ async function handleInfo(interaction) {
       title: '📋 Whitelist Status',
       description: `Whitelist information for ${resolvedDiscordUser ? `<@${resolvedDiscordUser.id}>` : 'user'}`,
       fields: [
-        { name: 'Steam ID', value: resolvedSteamId, inline: true },
+        { name: 'Steam ID', value: resolvedSteamId || 'Not linked', inline: true },
         { name: 'Status', value: finalStatus, inline: true },
         { name: 'Account Link', value: hasLink ? '✅ Linked' : '❌ Not linked', inline: true }
       ],
@@ -936,10 +950,15 @@ async function handleExtend(interaction) {
     // Use the new helper that works with either user OR steamid
     const { steamid64: resolvedSteamId, discordUser: resolvedDiscordUser } = await resolveUserForInfo(steamid, discordUser);
 
+    // Ensure we have a Steam ID for extension
+    if (!resolvedSteamId) {
+      throw new Error('No Steam ID found. Please provide a Steam ID or link the Discord account first.');
+    }
+
     // Extend the whitelist
     const extensionEntry = await Whitelist.extendWhitelist(
-      resolvedSteamId, 
-      months, 
+      resolvedSteamId,
+      months,
       interaction.user.id
     );
 
@@ -970,6 +989,11 @@ async function handleRevoke(interaction) {
 
     // Use the new helper that works with either user OR steamid
     const { steamid64: resolvedSteamId, discordUser: resolvedDiscordUser } = await resolveUserForInfo(steamid, discordUser);
+
+    // Ensure we have a Steam ID for revocation
+    if (!resolvedSteamId) {
+      throw new Error('No Steam ID found. Please provide a Steam ID or link the Discord account first.');
+    }
 
     // Revoke the whitelist
     const revokedCount = await Whitelist.revokeWhitelist(

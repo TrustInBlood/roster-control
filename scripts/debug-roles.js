@@ -81,7 +81,7 @@ async function debugRoles() {
       }
     }
     
-    console.log(`\nMembers with tracked roles:`);
+    console.log('\nMembers with tracked roles:');
     if (membersWithRoles.length === 0) {
       console.log('  No members found with tracked roles!');
       console.log('  👆 This is likely the problem - assign yourself a role first');
