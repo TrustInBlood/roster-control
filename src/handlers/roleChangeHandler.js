@@ -35,7 +35,6 @@ class RoleChangeHandler {
         // Prevent duplicate processing if this user is already being processed
         const userId = newMember.user.id;
         if (this.processingUsers.has(userId)) {
-          console.log(`⏭️ Skipping duplicate duty role change processing for ${newMember.user.tag} (bot-initiated change)`);
         } else {
           this.processingUsers.add(userId);
 
@@ -84,14 +83,12 @@ class RoleChangeHandler {
           const oldGroup = getHighestPriorityGroup(oldMember.roles.cache);
           const newGroup = getHighestPriorityGroup(newMember.roles.cache);
 
-          console.log(`🔍 Role change analysis for ${newMember.user.tag}:`);
           console.log(`  Old roles: ${[...oldTrackedRoles.values()].map(r => r.name).join(', ') || 'none'}`);
           console.log(`  New roles: ${[...newTrackedRoles.values()].map(r => r.name).join(', ') || 'none'}`);
           console.log(`  Old group: ${oldGroup || 'none'}`);
           console.log(`  New group: ${newGroup || 'none'}`);
 
           if (oldGroup !== newGroup) {
-            console.log(`📋 Whitelist role change detected: ${newMember.user.tag} -> ${oldGroup || 'none'} to ${newGroup || 'none'}`);
 
             // Update role-based cache
             await this.roleBasedCache.updateUserRole(newMember.user.id, newGroup, newMember);
@@ -157,7 +154,6 @@ class RoleChangeHandler {
       const dbStatus = latestChange ? latestChange.status : false;
 
       if (hasRole !== dbStatus) {
-        console.log(`🔄 Syncing ${member.user.tag}: Discord=${hasRole}, DB=${dbStatus}`);
                 
         const result = await this.dutyFactory._handleDutyStatusChange(null, hasRole, {
           member,
@@ -174,7 +170,6 @@ class RoleChangeHandler {
 
         return result;
       } else {
-        console.log(`✅ ${member.user.tag} is already in sync`);
         return { success: true, message: 'Already in sync' };
       }
     } catch (error) {

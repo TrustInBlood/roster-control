@@ -99,11 +99,9 @@ class NotificationService {
 
       // Send the notification
       await channel.send({ embeds: [embed] });
-      
-      // Log success for debugging
-      if (isDevelopment) {
-        console.log(`Notification sent: ${type} to ${channelKey}`);
-      }
+
+      // Log notification action
+      this.logNotificationAction(type, options);
       
       return true;
     } catch (error) {
@@ -294,6 +292,68 @@ class NotificationService {
       colorType: data.success ? 'account_link' : 'error',
       thumbnail: data.thumbnail
     });
+  }
+
+  /**
+   * Log notification action to console
+   * @param {string} type - Notification type
+   * @param {Object} options - Notification options
+   */
+  logNotificationAction(type, options) {
+    // Extract relevant information from options
+    const { title, description, fields } = options;
+
+    // Create minimalist log based on notification type
+    switch(type) {
+      case 'duty_status':
+        // Extract member name and status from description
+        const dutyMatch = description?.match(/(.+) is now (on|off) duty/);
+        if (dutyMatch) {
+          console.log(`${dutyMatch[1]} went ${dutyMatch[2]} duty`);
+        }
+        break;
+
+      case 'whitelist':
+        // Log whitelist actions from title/description
+        if (title?.includes('Grant')) {
+          console.log(`Whitelist granted: ${description}`);
+        } else if (title?.includes('Revoke')) {
+          console.log(`Whitelist revoked: ${description}`);
+        } else {
+          console.log(`Whitelist action: ${description}`);
+        }
+        break;
+
+      case 'account_link':
+        // Log account linking
+        if (title?.includes('Link')) {
+          console.log(`Account link: ${description}`);
+        }
+        break;
+
+      case 'tutor_management':
+        // Log tutor actions
+        console.log(`Tutor action: ${description}`);
+        break;
+
+      case 'error':
+        // Log errors
+        console.log(`Error notification: ${title} - ${description}`);
+        break;
+
+      case 'command_usage':
+        // Log command usage if present
+        if (description) {
+          console.log(`Command: ${description}`);
+        }
+        break;
+
+      default:
+        // Generic log for other types
+        if (description) {
+          console.log(`Notification: ${description}`);
+        }
+    }
   }
 
   /**

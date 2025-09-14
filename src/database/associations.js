@@ -103,7 +103,7 @@ function defineAssociations() {
   // Note: These are handled through constraints: false and scopes above
   // since Sequelize doesn't have native polymorphic support
 
-  console.log('✅ Database model associations defined successfully');
+  console.log('Database model associations defined successfully');
 }
 
 module.exports = {

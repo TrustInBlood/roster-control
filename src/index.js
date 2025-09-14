@@ -69,21 +69,21 @@ client.logger = logger;
 // Event handler
 client.on('ready', async () => {
   logger.info(`Logged in as ${client.user.tag}`);
-  console.log(`🤖 Bot logged in as ${client.user.tag}`);
+  console.log(`Bot logged in as ${client.user.tag}`);
     
   // Initialize NotificationService
   notificationService.initialize(client);
-  console.log('📢 Notification service initialized');
+  console.log('NotificationService initialized');
     
   // Log legacy command handler initialization
-  console.log('📜 Legacy command handler initialized (messageCreate event)');
+  console.log('Legacy command handler initialized (messageCreate event)');
     
   // Initialize whitelist functionality first (includes role-based cache)
   const whitelistServices = await initializeWhitelist();
     
   // Set up role change handler with role-based cache
   const roleChangeHandler = setupRoleChangeHandler(client, whitelistServices?.roleBasedCache);
-  console.log('🔧 Role change handler initialized with role-based cache');
+  console.log('Role change handler initialized with role-based cache');
     
   // Wait a moment for all guilds to be loaded
   setTimeout(async () => {
@@ -112,7 +112,7 @@ client.on('messageCreate', async (message) => {
 // Startup sync function
 async function performStartupSync(client) {
   try {
-    console.log('🚀 Starting bot startup sync...');
+    console.log('Starting bot startup sync...');
         
     // First, ensure database is connected and run migrations
     await ensureDatabaseReady();
@@ -120,13 +120,13 @@ async function performStartupSync(client) {
     const syncService = new DutyStatusSyncService();
         
     for (const [guildId, guild] of client.guilds.cache) {
-      console.log(`🔄 Syncing guild: ${guild.name}`);
+      console.log(`Syncing guild: ${guild.name}`);
             
       try {
         const syncResults = await syncService.syncGuildDutyStatus(guild);
                 
         // Log sync summary
-        console.log(`📊 Sync completed for ${guild.name}:`, {
+        console.log(`Sync completed for ${guild.name}:`, {
           scanned: syncResults.scanned,
           roleHolders: syncResults.discordRoleHolders,
           recordsCreated: syncResults.recordsCreated,
@@ -150,7 +150,7 @@ async function performStartupSync(client) {
       }
     }
         
-    console.log('✅ Startup sync completed for all guilds');
+    console.log('Startup sync completed for all guilds');
         
   } catch (error) {
     console.error('❌ Startup sync failed:', error);
@@ -164,22 +164,22 @@ async function performStartupSync(client) {
 // Database initialization function using migrations
 async function ensureDatabaseReady() {
   try {
-    console.log('🗄️ Initializing database connection and schema...');
+    console.log('Initializing database connection and schema...');
         
     // Connect to database and set up associations
     const connected = await databaseManager.connect();
     if (!connected) {
       throw new Error('Failed to establish database connection');
     }
-    console.log('✅ Database connection established');
+    console.log('Database connection established successfully.');
         
     // Run all pending migrations
     const migrationResult = await migrationManager.runMigrations();
         
     if (migrationResult.migrationsRun > 0) {
-      console.log(`✅ Applied ${migrationResult.migrationsRun} database migration(s)`);
+      console.log(`Applied ${migrationResult.migrationsRun} database migration(s)`);
     } else {
-      console.log('✅ Database schema is up to date');
+      console.log('Database schema is up to date');
     }
         
     // Verify database health
@@ -190,13 +190,13 @@ async function ensureDatabaseReady() {
         
     // Get migration status for logging
     const status = await migrationManager.getStatus();
-    console.log(`📊 Database status: ${status.executed.length} migrations executed, ${status.pending.length} pending`);
+    console.log(`Database status: ${status.executed.length} migrations executed, ${status.pending.length} pending`);
         
     // Verify critical tables exist
     const sequelize = databaseManager.getSequelize();
     const tables = await sequelize.getQueryInterface().showAllTables();
     const tableNames = tables.map(t => t.tableName || t).sort();
-    console.log(`📋 Active tables: ${tableNames.length} (${tableNames.join(', ')})`);
+    console.log(`Active tables: ${tableNames.length} (${tableNames.join(', ')})`);
         
     const requiredTables = ['players', 'duty_status_changes', 'admins', 'servers', 'audit_logs', 'groups', 'whitelists', 'player_discord_links', 'verification_codes', 'unlink_history'];
     const missingTables = requiredTables.filter(table => !tableNames.includes(table));
@@ -206,7 +206,7 @@ async function ensureDatabaseReady() {
       console.warn('This might indicate a migration issue or fresh installation');
     }
         
-    console.log('✅ Database initialization complete');
+    console.log('Database initialization complete');
         
   } catch (error) {
     console.error('❌ Database initialization failed:', error);
@@ -251,7 +251,7 @@ client.on('interactionCreate', async interaction => {
 // Initialize whitelist functionality
 async function initializeWhitelist() {
   try {
-    console.log('🔗 Initializing whitelist integration...');
+    console.log('Initializing whitelist integration...');
         
     // Setup HTTP server
     const app = express();
@@ -270,14 +270,14 @@ async function initializeWhitelist() {
         
     const server = app.listen(port, host, () => {
       logger.info(`Whitelist HTTP server listening on ${host}:${port}`);
-      console.log(`🌐 Whitelist HTTP server started on ${host}:${port}`);
+      console.log(`Whitelist HTTP server started on ${host}:${port}`);
     });
 
     // Store for graceful shutdown
     global.whitelistServices = whitelistServices;
     global.httpServer = server;
 
-    console.log('✅ Whitelist integration initialized successfully');
+    console.log('Whitelist integration initialized successfully');
     logger.info('Whitelist integration initialized successfully', {
       squadJSServers: whitelistServices.config.squadjs.servers.length,
       squadJSConnected: whitelistServices.connectionManager.isConnected(),
@@ -304,7 +304,7 @@ process.on('SIGINT', () => {
     
   if (global.httpServer) {
     global.httpServer.close(() => {
-      console.log('✅ HTTP server closed');
+      console.log('HTTP server closed');
     });
   }
     
@@ -321,7 +321,7 @@ process.on('SIGTERM', () => {
     
   if (global.httpServer) {
     global.httpServer.close(() => {
-      console.log('✅ HTTP server closed');
+      console.log('HTTP server closed');
     });
   }
     

@@ -28,23 +28,23 @@ const umzug = new Umzug({
 const migrationManager = {
   // Run all pending migrations
   async runMigrations() {
-    console.log('🔄 Checking for pending database migrations...');
+    console.log('Checking for pending database migrations...');
     
     try {
       const migrations = await umzug.pending();
       
       if (migrations.length === 0) {
-        console.log('✅ No pending migrations found. Database is up to date.');
+        console.log('No pending migrations found. Database is up to date.');
         return { success: true, migrationsRun: 0 };
       }
       
-      console.log(`📋 Found ${migrations.length} pending migration(s):`, 
+      console.log(`Found ${migrations.length} pending migration(s):`, 
         migrations.map(m => m.name).join(', '));
       
       // Run migrations
       const results = await umzug.up();
       
-      console.log(`✅ Successfully executed ${results.length} migration(s).`);
+      console.log(`Successfully executed ${results.length} migration(s).`);
       return { success: true, migrationsRun: results.length, migrations: results.map(m => m.name) };
       
     } catch (error) {
@@ -72,15 +72,15 @@ const migrationManager = {
 
   // Rollback last migration (use with caution)
   async rollbackLast() {
-    console.log('⚠️ Rolling back last migration...');
+    console.log('Rolling back last migration...');
     
     try {
       const result = await umzug.down();
       if (result.length > 0) {
-        console.log(`✅ Successfully rolled back migration: ${result[0].name}`);
+        console.log(`Successfully rolled back migration: ${result[0].name}`);
         return { success: true, rolledBack: result[0].name };
       } else {
-        console.log('ℹ️ No migrations to roll back.');
+        console.log('No migrations to roll back.');
         return { success: true, rolledBack: null };
       }
     } catch (error) {
@@ -95,11 +95,11 @@ const migrationManager = {
       throw new Error('Cannot reset migrations in production environment');
     }
     
-    console.log('⚠️ DANGER: Resetting all migrations (development only)...');
+    console.log('DANGER: Resetting all migrations (development only)...');
     
     try {
       await umzug.down({ to: 0 });
-      console.log('✅ All migrations have been rolled back.');
+      console.log('All migrations have been rolled back.');
       return { success: true };
     } catch (error) {
       console.error('❌ Reset failed:', error);

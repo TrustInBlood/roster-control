@@ -107,7 +107,6 @@ class DutyStatusFactory {
         }
       }
 
-      console.log(`🔄 Processing ${dutyType} duty status change: ${member.user.tag} -> ${isOnDuty ? 'ON' : 'OFF'} duty`);
 
       // Handle role change (skip for external changes since role already changed)
       if (options.source !== 'external') {
@@ -122,7 +121,6 @@ class DutyStatusFactory {
           return result;
         }
         result.data.roleChanged = true;
-        console.log(`✅ Role ${isOnDuty ? 'added' : 'removed'} successfully`);
       } else {
         result.data.roleChanged = false; // Role was changed externally
         console.log('📝 External role change detected - logging the change');
@@ -135,7 +133,6 @@ class DutyStatusFactory {
         if (!notificationResult.success && notificationResult.warning) {
           result.warning = notificationResult.warning;
         }
-        console.log(`📢 Notification ${notificationResult.success ? 'sent' : 'failed'}`);
       }
 
       // Log to database
@@ -205,7 +202,6 @@ class DutyStatusFactory {
         return await sendDutyNotification(interaction, isOnDuty, dutyType);
       } else {
         // For external role changes, send direct notification to duty logs
-        console.log(`📢 Sending notification for ${member.user.tag} (external change)`);
         return await this._sendDirectNotification(member, isOnDuty, dutyType);
       }
     } catch (error) {
@@ -260,7 +256,6 @@ class DutyStatusFactory {
         success: true
       });
             
-      console.log(`✅ Duty status change logged to database (ID: ${changeRecord.id})`);
       return { success: true, record: changeRecord };
     } catch (error) {
       console.error('❌ Failed to log duty status change:', error);

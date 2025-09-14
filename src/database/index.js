@@ -34,9 +34,9 @@ class DatabaseManager {
     try {
       await this.sequelize.close();
       this.isConnected = false;
-      console.log('✅ Database connection closed successfully.');
+      console.log('Database connection closed successfully.');
     } catch (error) {
-      console.error('❌ Error closing database connection:', error);
+      console.error('Error closing database connection:', error);
     }
   }
 
