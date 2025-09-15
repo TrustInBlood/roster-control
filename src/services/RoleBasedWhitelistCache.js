@@ -522,28 +522,40 @@ class RoleBasedWhitelistCache {
    */
   async initializeFromGuild(guild) {
     this.logger.info('Initializing role-based whitelist cache from guild');
-    
+
     try {
+      // Clear all existing caches to prevent stale data
+      this.roleCache.staff.HeadAdmin.clear();
+      this.roleCache.staff.SquadAdmin.clear();
+      this.roleCache.staff.Moderator.clear();
+      this.roleCache.members.clear();
+      this.roleCache.unlinkedStaff.HeadAdmin.clear();
+      this.roleCache.unlinkedStaff.SquadAdmin.clear();
+      this.roleCache.unlinkedStaff.Moderator.clear();
+
+      // Invalidate cached content
+      this.invalidateCache('all');
+
       const members = await guild.members.fetch();
       let processedCount = 0;
-      
+
       for (const [memberId, member] of members) {
         // Check if member has any tracked roles
         const highestGroup = getHighestPriorityGroup(member.roles.cache);
-        
+
         if (highestGroup) {
           // Get Steam ID link
           const link = await PlayerDiscordLink.findOne({
             where: { discord_user_id: memberId, is_primary: true }
           });
-          
+
           if (link) {
             const userData = {
               username: link.steam_username || '',
               discord_username: member.user.username || '',
               discordId: memberId
             };
-            
+
             this.addUser(link.steamid64, highestGroup, userData);
             processedCount++;
           } else if (highestGroup !== 'Member') {
@@ -552,13 +564,13 @@ class RoleBasedWhitelistCache {
               username: member.displayName || member.user.username || '',
               discord_username: member.user.username || ''
             };
-            
+
             this.addUnlinkedStaff(memberId, highestGroup, userData);
             processedCount++;
           }
         }
       }
-      
+
       const counts = this.getTotalCount();
       this.isInitialized = true; // Mark cache as ready
       this.logger.info('Role-based whitelist cache initialized', {
