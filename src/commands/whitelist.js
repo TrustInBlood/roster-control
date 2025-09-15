@@ -948,7 +948,7 @@ async function handleInfo(interaction) {
     if (!resolvedSteamId && roleBasedStatus) {
       embed.addFields({
         name: '⚠️ Action Required',
-        value: 'You need to link your Steam account for the whitelist to work. Use `/link` to connect your Steam account.',
+        value: 'You need to link your Steam account for the whitelist to work. Use `/linkid` to connect your Steam account.',
         inline: false
       });
     }
