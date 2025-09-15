@@ -12,15 +12,19 @@ module.exports = {
     await permissionMiddleware(interaction, async () => {
       try {
         await interaction.deferReply();
-        
+
         // Get role change handler to access role-based cache
         const roleChangeHandler = getRoleChangeHandler();
-        
+
         if (!roleChangeHandler || !roleChangeHandler.roleBasedCache) {
           await sendError(interaction, 'Role-based cache not available. Please contact an administrator.');
           return;
         }
-        
+
+        // Refresh the cache from Discord before getting unlinked staff
+        const guild = interaction.guild;
+        await roleChangeHandler.roleBasedCache.initializeFromGuild(guild);
+
         const unlinkedStaff = roleChangeHandler.roleBasedCache.getUnlinkedStaff();
         
         if (unlinkedStaff.length === 0) {
