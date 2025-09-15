@@ -828,18 +828,32 @@ async function handleInfo(interaction) {
       return expirationDate > now; // Only include if not expired
     });
 
-    // Determine final status (role-based takes precedence)
+    // Determine final status - whitelist requires Steam ID to function
     let finalStatus, finalColor, hasActiveWhitelist;
-    
-    if (roleBasedStatus) {
+
+    // Check if user has no Steam ID linked
+    if (!resolvedSteamId) {
+      // No Steam ID = whitelist won't work, regardless of roles
+      if (roleBasedStatus) {
+        finalStatus = `Inactive - Steam account not linked (has ${roleBasedStatus.group} role)`;
+        finalColor = 0xFFA500; // Orange - has role but missing Steam link
+      } else {
+        finalStatus = 'No whitelist - Steam account not linked';
+        finalColor = 0xFF0000; // Red - no whitelist and no Steam link
+      }
+      hasActiveWhitelist = false;
+    } else if (roleBasedStatus) {
+      // Has both Steam ID and role-based access
       finalStatus = `Active (permanent - ${roleBasedStatus.group})`;
       finalColor = roleBasedStatus.isStaff ? 0x9C27B0 : 0x2196F3; // Purple for staff, blue for members
       hasActiveWhitelist = true;
     } else if (whitelistStatus.hasWhitelist) {
+      // Has Steam ID and database whitelist
       finalStatus = whitelistStatus.status;
       finalColor = 0x00FF00;
       hasActiveWhitelist = true;
     } else {
+      // Has Steam ID but no whitelist
       finalStatus = whitelistStatus.status;
       finalColor = 0xFF0000;
       hasActiveWhitelist = false;
@@ -922,11 +936,20 @@ async function handleInfo(interaction) {
     if (whitelistEntries.length > 0) {
       const totalEntries = whitelistEntries.length;
       const entryLabel = roleBasedStatus ? 'Whitelist Sources' : 'Active Whitelist Entries';
-      
-      embed.addFields({ 
-        name: `${entryLabel} (${totalEntries})`, 
-        value: whitelistEntries.join('\n'), 
-        inline: false 
+
+      embed.addFields({
+        name: `${entryLabel} (${totalEntries})`,
+        value: whitelistEntries.join('\n'),
+        inline: false
+      });
+    }
+
+    // Add warning if user has role but no Steam link
+    if (!resolvedSteamId && roleBasedStatus) {
+      embed.addFields({
+        name: '⚠️ Action Required',
+        value: 'You need to link your Steam account for the whitelist to work. Use `/link` to connect your Steam account.',
+        inline: false
       });
     }
 
