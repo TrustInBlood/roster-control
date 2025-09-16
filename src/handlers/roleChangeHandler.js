@@ -136,6 +136,54 @@ class RoleChangeHandler {
     }
   }
 
+  // Method to manually update role-based cache for a user without role change
+  async updateUserInCache(discordUserId, guildId) {
+    try {
+      if (!this.roleBasedCache) {
+        console.log('No role-based cache available for manual update');
+        return { success: false, error: 'No role-based cache available' };
+      }
+
+      // Get the Discord guild and member
+      const client = require('../index').client || this.client;
+
+      if (!client) {
+        console.log('Discord client not available for cache update');
+        return { success: false, error: 'Discord client not available' };
+      }
+
+      const guild = await client.guilds.fetch(guildId);
+      if (!guild) {
+        console.log(`Guild ${guildId} not found for cache update`);
+        return { success: false, error: 'Guild not found' };
+      }
+
+      const member = await guild.members.fetch(discordUserId);
+      if (!member) {
+        console.log(`Member ${discordUserId} not found for cache update`);
+        return { success: false, error: 'Member not found' };
+      }
+
+      // Get their current highest priority group
+      const currentGroup = getHighestPriorityGroup(member.roles.cache);
+
+      console.log(`Manually updating cache for ${member.user.tag}: group=${currentGroup || 'none'}`);
+
+      // Update the role-based cache
+      await this.roleBasedCache.updateUserRole(discordUserId, currentGroup, member);
+
+      return {
+        success: true,
+        message: `Cache updated for ${member.user.tag}`,
+        group: currentGroup || 'none'
+      };
+
+    } catch (error) {
+      console.error(`Failed to manually update cache for user ${discordUserId}:`, error);
+      return { success: false, error: error.message };
+    }
+  }
+
   // Method to manually trigger role sync for a member
   async syncMemberRoles(member) {
     try {

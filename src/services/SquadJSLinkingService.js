@@ -82,6 +82,9 @@ class SquadJSLinkingService {
 
       this.whitelistService?.invalidateCache();
 
+      // Update role-based cache to reflect the new link
+      await this.updateRoleBasedCache(link.discord_user_id, server);
+
       this.logger.info('Account linking successful', {
         serverId: server.id,
         serverName: server.name,
@@ -99,6 +102,50 @@ class SquadJSLinkingService {
         code,
         playerId: player.id,
         playerName: player.name,
+        error: error.message
+      });
+    }
+  }
+
+  async updateRoleBasedCache(discordUserId, server) {
+    try {
+      // Get the role change handler to access the role-based cache
+      const { getRoleChangeHandler } = require('../handlers/roleChangeHandler');
+      const roleChangeHandler = getRoleChangeHandler();
+
+      if (!roleChangeHandler || !roleChangeHandler.roleBasedCache) {
+        this.logger.debug('Role-based cache not available for update after linking');
+        return;
+      }
+
+      // Get guild ID from the Discord client
+      const guild = this.discordClient.guilds.cache.first(); // Assuming single guild bot
+      if (!guild) {
+        this.logger.warn('No guild found for role-based cache update');
+        return;
+      }
+
+      // Trigger manual cache update
+      const result = await roleChangeHandler.updateUserInCache(discordUserId, guild.id);
+
+      if (result.success) {
+        this.logger.info('Role-based cache updated after account linking', {
+          discordUserId,
+          group: result.group,
+          serverName: server.name
+        });
+      } else {
+        this.logger.warn('Failed to update role-based cache after linking', {
+          discordUserId,
+          error: result.error,
+          serverName: server.name
+        });
+      }
+
+    } catch (error) {
+      this.logger.error('Error updating role-based cache after linking', {
+        discordUserId,
+        serverName: server.name,
         error: error.message
       });
     }
