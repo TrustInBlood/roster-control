@@ -140,16 +140,24 @@ module.exports = (sequelize) => {
   PlayerDiscordLink.createTicketLink = async function(discordUserId, steamid64, ticketInfo) {
     // Check if this exact combination already exists
     const existingLink = await this.findOne({
-      where: { 
+      where: {
         discord_user_id: discordUserId,
-        steamid64: steamid64 
+        steamid64: steamid64
       }
     });
-    
+
     // If exact same record exists, skip
     if (existingLink) {
       return { link: existingLink, created: false, reason: 'duplicate_link' };
     }
+
+    // Check if user has any high-confidence links
+    const highConfidenceLink = await this.findOne({
+      where: {
+        discord_user_id: discordUserId,
+        confidence_score: { [Op.gte]: 1.0 }
+      }
+    });
 
     const metadata = {
       ticketChannelId: ticketInfo.channelId,
@@ -159,10 +167,13 @@ module.exports = (sequelize) => {
       originalMessage: ticketInfo.messageContent?.substring(0, 500) // Limit size
     };
 
+    // Only mark as primary if no high-confidence link exists
+    const shouldBePrimary = !highConfidenceLink;
+
     return await this.createOrUpdateLink(discordUserId, steamid64, null, ticketInfo.username, {
       linkSource: 'ticket',
       confidenceScore: 0.3, // Lower confidence for ticket text extraction
-      isPrimary: true,
+      isPrimary: shouldBePrimary, // Only primary if no better link exists
       metadata
     });
   };
