@@ -1,7 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
+const { permissionMiddleware } = require('../handlers/permissionHandler');
 const { sendSuccess, sendError } = require('../utils/messageHandler');
 const DutyStatusFactory = require('../services/DutyStatusFactory');
-const { TUTOR_ROLE_ID } = require('../../config/discord');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -9,11 +9,8 @@ module.exports = {
     .setDescription('Remove your on-duty tutor status'),
     
   async execute(interaction) {
+    await permissionMiddleware(interaction, async () => {
     try {
-      // Check if user has the tutor role
-      if (!interaction.member.roles.cache.has(TUTOR_ROLE_ID)) {
-        return sendError(interaction, 'You must be a tutor to use this command.');
-      }
 
       const dutyFactory = new DutyStatusFactory();
             
@@ -53,5 +50,6 @@ module.exports = {
       console.error('Error in offdutytutor command:', error);
       return sendError(interaction, 'Failed to set you as off duty tutor. Please try again or contact a server administrator.');
     }
+    });
   },
 };

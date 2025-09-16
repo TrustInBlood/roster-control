@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
+const { permissionMiddleware } = require('../handlers/permissionHandler');
 const { sendSuccess, sendError, createResponseEmbed } = require('../utils/messageHandler');
-const { TUTOR_LEAD_ROLE_ID, SPECIALTY_ROLES } = require('../../config/discord');
+const { SPECIALTY_ROLES } = require('../../config/discord');
 const { AuditLog } = require('../database/models');
 const notificationService = require('../services/NotificationService');
 
@@ -42,11 +43,8 @@ module.exports = {
             .setRequired(true))),
     
   async execute(interaction) {
+    await permissionMiddleware(interaction, async () => {
     try {
-      // Check if user has the tutor lead role
-      if (!interaction.member.roles.cache.has(TUTOR_LEAD_ROLE_ID)) {
-        return sendError(interaction, 'You must be a Tutor Program Lead to use this command.');
-      }
 
       const subcommand = interaction.options.getSubcommand();
       const targetUser = interaction.options.getUser('user');
@@ -162,5 +160,6 @@ module.exports = {
       console.error('Error in addspecialty command:', error);
       return sendError(interaction, 'An error occurred while assigning the specialty.');
     }
+    });
   },
 };

@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
+const { permissionMiddleware } = require('../handlers/permissionHandler');
 const { sendSuccess, sendError, createResponseEmbed } = require('../utils/messageHandler');
-const { TUTOR_LEAD_ROLE_ID, TUTOR_ROLE_ID, TUTOR_ON_DUTY_ROLE_ID, SPECIALTY_ROLES } = require('../../config/discord');
+const { TUTOR_ROLE_ID, TUTOR_ON_DUTY_ROLE_ID, SPECIALTY_ROLES } = require('../../config/discord');
 const { AuditLog } = require('../database/models');
 const notificationService = require('../services/NotificationService');
 
@@ -18,11 +19,8 @@ module.exports = {
         .setRequired(false)),
     
   async execute(interaction) {
+    await permissionMiddleware(interaction, async () => {
     try {
-      // Check if user has the tutor lead role
-      if (!interaction.member.roles.cache.has(TUTOR_LEAD_ROLE_ID)) {
-        return sendError(interaction, 'You must be a Tutor Program Lead to use this command.');
-      }
 
       const targetUser = interaction.options.getUser('user');
       const reason = interaction.options.getString('reason') || 'No reason provided';
@@ -167,5 +165,6 @@ module.exports = {
       console.error('Error in removetutor command:', error);
       return sendError(interaction, 'An error occurred while removing tutor status.');
     }
+    });
   },
 };

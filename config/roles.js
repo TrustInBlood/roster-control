@@ -15,14 +15,24 @@ const COMMAND_PERMISSIONS = {
   'link': getAllAdminRoles(),       // All admin roles can use link commands
   'whatsnew': getAllAdminRoles(),   // All admin roles can use whatsnew command
   'unlinkedstaff': getAllAdminRoles(), // All admin roles can view unlinked staff
-  
+
+  // Tutor management commands (Tutor Lead only)
+  'addspecialty': [DISCORD_ROLES.TUTOR_LEAD],
+  'removespecialty': [DISCORD_ROLES.TUTOR_LEAD],
+  'removetutor': [DISCORD_ROLES.TUTOR_LEAD],
+
+  // Tutor duty commands (All tutors)
+  'ondutytutor': [DISCORD_ROLES.TUTOR],
+  'offdutytutor': [DISCORD_ROLES.TUTOR],
+
   // Shelved commands (restricted to no one for now)
   'migratewhitelists': ['DISABLED'],  // SHELVED - Set to invalid role ID to disable
-    
+
   // Public commands
   'ping': [],      // Everyone can use
   'help': [],      // Everyone can use
-  'linkid': []     // Everyone can use - self-service account linking
+  'linkid': [],    // Everyone can use - self-service account linking
+  'unlink': []     // Everyone can use - self-service account unlinking
 };
 
 // Both duty commands use the same permission list

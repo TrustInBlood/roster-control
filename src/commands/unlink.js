@@ -1,12 +1,14 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { permissionMiddleware } = require('../handlers/permissionHandler');
 const { PlayerDiscordLink, UnlinkHistory } = require('../database/models');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('unlink')
     .setDescription('Unlink your Discord account from your game account'),
-  
+
   async execute(interaction) {
+    await permissionMiddleware(interaction, async () => {
     try {
       const discordUserId = interaction.user.id;
 
@@ -74,5 +76,6 @@ module.exports = {
         flags: MessageFlags.Ephemeral
       });
     }
+    });
   }
 };
