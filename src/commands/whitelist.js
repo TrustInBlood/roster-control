@@ -37,6 +37,8 @@ async function resolveUserInfo(steamid, discordUser, createLink = false) {
   let username = null;
   let linkedAccount = false;
 
+  // IMPORTANT: Only set Discord attribution if a Discord user was explicitly provided
+  // This prevents cross-contamination when granting standalone Steam ID whitelists
   if (discordUser) {
     discordUsername = `${discordUser.username}#${discordUser.discriminator}`;
     username = discordUser.displayName || discordUser.username;
@@ -54,22 +56,23 @@ async function resolveUserInfo(steamid, discordUser, createLink = false) {
     throw new Error('Invalid Steam ID format. Please provide a valid Steam ID64.');
   }
 
-  // Create or update account link if both Discord and Steam info available
+  // Create or update account link ONLY if both Discord and Steam info are explicitly available
+  // This ensures no automatic linking happens for standalone Steam ID grants
   if (createLink && discordUser && resolvedSteamId) {
     const linkResult = await createOrUpdateLink(
-      discordUser.id, 
-      resolvedSteamId, 
+      discordUser.id,
+      resolvedSteamId,
       null, // eosID
       username,
       0.5  // Whitelist operations create 0.5 confidence links
     );
-    
+
     if (!linkResult.error) {
       linkedAccount = linkResult.created ? 'created' : 'updated';
     } else {
       // Log the error but don't fail the whitelist operation
       console.error(`Failed to create/update account link for ${discordUser.id} <-> ${resolvedSteamId}:`, linkResult.error);
-      
+
       // Send error notification using NotificationService
       try {
         await notificationService.sendAccountLinkNotification({
@@ -84,7 +87,7 @@ async function resolveUserInfo(steamid, discordUser, createLink = false) {
       } catch (logError) {
         console.error('Failed to send error notification:', logError);
       }
-      
+
       // Still continue with the whitelist, just note that linking failed
       linkedAccount = 'failed';
     }
@@ -92,9 +95,9 @@ async function resolveUserInfo(steamid, discordUser, createLink = false) {
 
   return {
     steamid64: resolvedSteamId,
-    discord_username: discordUsername,
-    username: username,
-    linkedAccount: linkedAccount
+    discord_username: discordUsername,  // Will be null if no discordUser provided
+    username: username,                 // Will be null if no discordUser provided
+    linkedAccount: linkedAccount       // Will be false if no discordUser provided
   };
 }
 
@@ -647,7 +650,9 @@ async function processWhitelistGrant(interaction, grantData) {
     const whitelistEntry = await Whitelist.grantWhitelist({
       steamid64: userInfo.steamid64,
       username: userInfo.username,
-      discord_username: userInfo.discord_username,
+      // IMPORTANT: Only store Discord attribution if a Discord user was explicitly provided
+      // This prevents automatic attribution when granting standalone Steam ID whitelists
+      discord_username: discordUser ? userInfo.discord_username : null,
       reason: reason,
       duration_value: durationValue,
       duration_type: durationType,
