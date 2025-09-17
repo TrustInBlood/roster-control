@@ -1,6 +1,8 @@
 const { Whitelist, PlayerDiscordLink } = require('../database/models');
+const { Op } = require('sequelize');
 
 const { getHighestPriorityGroup } = require('../utils/environment');
+const WhitelistAuthorityService = require('./WhitelistAuthorityService');
 
 class WhitelistService {
   constructor(logger, config, roleBasedCache = null, discordClient = null) {
@@ -144,42 +146,106 @@ class WhitelistService {
   }
 
   async filterByConfidence(entries, minConfidence) {
-    // Filter whitelist entries by checking PlayerDiscordLink confidence scores
+    // Filter whitelist entries using optimized bulk database queries
     const filteredEntries = [];
-    
-    for (const entry of entries) {
-      // Check if this Steam ID has a linked Discord account with sufficient confidence
+
+    if (entries.length === 0) {
+      return filteredEntries;
+    }
+
+    // Extract all Steam IDs for bulk query
+    const steamIds = entries.map(entry => entry.steamid64);
+    const entryBySteamId = new Map();
+    entries.forEach(entry => entryBySteamId.set(entry.steamid64, entry));
+
+    try {
+      // Single bulk query to get all relevant links
       const links = await PlayerDiscordLink.findAll({
-        where: { 
-          steamid64: entry.steamid64,
-          is_primary: true
+        where: {
+          steamid64: steamIds,
+          is_primary: true,
+          confidence_score: {
+            [Op.gte]: minConfidence
+          }
         },
         order: [['confidence_score', 'DESC']]
       });
-      
-      // If there are any links with sufficient confidence, include this entry
-      if (links.length > 0 && links[0].confidence_score >= minConfidence) {
-        filteredEntries.push(entry);
-        this.logger.debug('Including staff whitelist entry', {
-          steamid64: entry.steamid64,
-          confidence: links[0].confidence_score,
-          linkSource: links[0].link_source
-        });
-      } else if (links.length > 0) {
-        this.logger.warn('Excluding staff whitelist entry due to insufficient confidence', {
-          steamid64: entry.steamid64,
-          highestConfidence: links[0].confidence_score,
-          requiredConfidence: minConfidence,
-          linkSource: links[0].link_source
-        });
-      } else {
-        // No Discord link at all - exclude from staff whitelist
-        this.logger.debug('Excluding staff whitelist entry - no Discord link', {
-          steamid64: entry.steamid64
-        });
+
+      // Create lookup map for quick access
+      const linkBySteamId = new Map();
+      links.forEach(link => {
+        if (!linkBySteamId.has(link.steamid64) ||
+            link.confidence_score > linkBySteamId.get(link.steamid64).confidence_score) {
+          linkBySteamId.set(link.steamid64, link);
+        }
+      });
+
+      // Filter entries based on link confidence
+      for (const entry of entries) {
+        const link = linkBySteamId.get(entry.steamid64);
+
+        if (link && link.confidence_score >= minConfidence) {
+          filteredEntries.push(entry);
+          this.logger.debug('Including staff whitelist entry (optimized bulk validation)', {
+            steamid64: entry.steamid64,
+            confidence: link.confidence_score,
+            linkSource: link.link_source,
+            validationMethod: 'bulk_optimized'
+          });
+        } else {
+          this.logger.debug('Excluding staff whitelist entry due to insufficient confidence', {
+            steamid64: entry.steamid64,
+            hasLink: !!link,
+            actualConfidence: link?.confidence_score || 0,
+            requiredConfidence: minConfidence,
+            linkSource: link?.link_source || 'none'
+          });
+        }
+      }
+
+      this.logger.info('Bulk confidence filtering completed', {
+        totalEntries: entries.length,
+        linkedEntries: links.length,
+        filteredEntries: filteredEntries.length,
+        excludedEntries: entries.length - filteredEntries.length,
+        requiredConfidence: minConfidence,
+        queryOptimization: 'single_bulk_query'
+      });
+
+    } catch (error) {
+      this.logger.error('Failed to perform bulk confidence filtering, falling back to individual queries', {
+        error: error.message,
+        entryCount: entries.length
+      });
+
+      // Fallback to individual queries only if bulk query fails
+      for (const entry of entries) {
+        try {
+          const link = await PlayerDiscordLink.findOne({
+            where: {
+              steamid64: entry.steamid64,
+              is_primary: true
+            },
+            order: [['confidence_score', 'DESC']]
+          });
+
+          if (link && link.confidence_score >= minConfidence) {
+            filteredEntries.push(entry);
+            this.logger.debug('Including staff whitelist entry (fallback validation)', {
+              steamid64: entry.steamid64,
+              confidence: link.confidence_score,
+              linkSource: link.link_source
+            });
+          }
+        } catch (linkError) {
+          this.logger.warn('Failed to check link for entry', {
+            steamid64: entry.steamid64,
+            error: linkError.message
+          });
+        }
       }
     }
-    
+
     return filteredEntries;
   }
 

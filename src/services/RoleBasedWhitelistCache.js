@@ -2,6 +2,7 @@ const { PlayerDiscordLink, AuditLog } = require('../database/models');
 
 const { squadGroups } = require('../utils/environment');
 const { SQUAD_GROUPS, getHighestPriorityGroup } = squadGroups;
+const WhitelistAuthorityService = require('./WhitelistAuthorityService');
 
 class RoleBasedWhitelistCache {
   constructor(logger, config) {
@@ -121,28 +122,29 @@ class RoleBasedWhitelistCache {
    */
   async updateUserRole(discordId, newGroup, memberData = null) {
     try {
-      // Get Steam ID from Discord ID - for staff roles, require high confidence
-      const minConfidence = (newGroup && newGroup !== 'Member') ? 1.0 : 0.5;
+      // Use WhitelistAuthorityService to validate role-based whitelist access
+      const authorityResult = await WhitelistAuthorityService.getWhitelistStatus(
+        discordId,
+        null, // Let the authority service look up the Steam ID
+        memberData
+      );
 
-      const link = await PlayerDiscordLink.findOne({
-        where: { discord_user_id: discordId, is_primary: true }
-      });
+      const steamId = authorityResult.steamId;
+      const linkInfo = authorityResult.linkInfo;
 
-      // Check if link meets confidence requirements
-      const hasValidLink = link && link.confidence_score >= minConfidence;
+      // Determine if user should have role-based whitelist privileges
+      const shouldHaveRolePrivileges = authorityResult.sources.roleBased?.isActive || false;
 
-      if (hasValidLink) {
-        // User has linked account with sufficient confidence - handle normally
-        const steamId = link.steamid64;
-
-        // Remove from unlinked staff cache since they're now linked
+      if (shouldHaveRolePrivileges && steamId) {
+        // User has valid role-based whitelist access
+        // Remove from unlinked staff cache since they're now properly linked
         this.removeUnlinkedStaff(discordId);
 
         if (newGroup) {
           // Add/update user in appropriate cache
           const userData = {
-            username: link.steam_username || '',
-            discord_username: link.discord_username || '',
+            username: linkInfo?.steam_username || '',
+            discord_username: linkInfo?.discord_username || '',
             discordId: discordId
           };
           this.addUser(steamId, newGroup, userData);
@@ -151,11 +153,12 @@ class RoleBasedWhitelistCache {
           this.removeUser(steamId);
         }
 
-        this.logger.info('Updated role-based whitelist for linked user', {
+        this.logger.info('Updated role-based whitelist for validated user', {
           discordId,
           steamId,
           newGroup: newGroup || 'none',
-          confidenceScore: link.confidence_score
+          confidenceScore: linkInfo?.confidence || 0,
+          validationSource: 'WhitelistAuthorityService'
         });
 
         // Audit log for staff privilege grants
@@ -170,15 +173,20 @@ class RoleBasedWhitelistCache {
               targetId: discordId,
               targetName: steamId,
               guildId: null,
-              description: `Granted ${newGroup} privileges via role-based whitelist. Confidence: ${link.confidence_score}`,
+              description: `Granted ${newGroup} privileges via role-based whitelist (Authority Service validated). Confidence: ${linkInfo?.confidence || 0}`,
               beforeState: null,
-              afterState: { group: newGroup, confidence: link.confidence_score },
+              afterState: {
+                group: newGroup,
+                confidence: linkInfo?.confidence || 0,
+                validatedBy: 'WhitelistAuthorityService'
+              },
               metadata: {
                 steamId: steamId,
                 discordId: discordId,
                 group: newGroup,
-                confidenceScore: link.confidence_score,
-                linkSource: link.link_source
+                confidenceScore: linkInfo?.confidence || 0,
+                linkSource: linkInfo?.source,
+                authorityValidation: true
               },
               severity: 'info'
             });
@@ -192,15 +200,29 @@ class RoleBasedWhitelistCache {
           }
         }
 
-      } else if (link && link.confidence_score < minConfidence && newGroup && newGroup !== 'Member') {
-        // User has a link but confidence too low for staff privileges
-        this.logger.warn('Rejected staff role due to low confidence link', {
+      } else if (newGroup && newGroup !== 'Member') {
+        // User has staff role but doesn't meet requirements for role-based whitelist
+        const denialReason = authorityResult.effectiveStatus.reason;
+
+        // Determine logging level and message based on denial reason
+        let logLevel = 'warn';
+        let logMessage = 'Rejected staff role privileges';
+
+        if (denialReason === 'security_blocked_insufficient_confidence') {
+          logLevel = 'warn';
+          logMessage = 'Rejected staff role due to insufficient confidence';
+        } else if (denialReason === 'no_steam_account_linked') {
+          logLevel = 'info';
+          logMessage = 'Staff member not linked to Steam account';
+        }
+
+        this.logger[logLevel](logMessage, {
           discordId,
-          steamId: link.steamid64,
+          steamId: steamId || 'none',
           newGroup,
-          confidenceScore: link.confidence_score,
-          requiredConfidence: minConfidence,
-          linkSource: link.link_source
+          denialReason,
+          confidenceScore: linkInfo?.confidence || 0,
+          linkSource: linkInfo?.source || 'none'
         });
 
         // Track as unlinked staff since we're not granting privileges
@@ -221,19 +243,19 @@ class RoleBasedWhitelistCache {
             actorName: 'Role-Based Whitelist Cache',
             targetType: 'player_discord_link',
             targetId: discordId,
-            targetName: link.steamid64,
+            targetName: steamId || discordId,
             guildId: null,
-            description: `Denied ${newGroup} privileges due to low confidence score (${link.confidence_score} < ${minConfidence})`,
+            description: `Denied ${newGroup} privileges: ${denialReason} (Authority Service validation)`,
             beforeState: null,
             afterState: null,
             metadata: {
-              steamId: link.steamid64,
+              steamId: steamId || null,
               discordId: discordId,
               requestedGroup: newGroup,
-              confidenceScore: link.confidence_score,
-              requiredConfidence: minConfidence,
-              linkSource: link.link_source,
-              reason: 'low_confidence'
+              confidenceScore: linkInfo?.confidence || 0,
+              linkSource: linkInfo?.source || 'none',
+              denialReason: denialReason,
+              authorityValidation: true
             },
             severity: 'warning'
           });
@@ -241,34 +263,26 @@ class RoleBasedWhitelistCache {
           this.logger.error('Failed to create audit log for privilege denial', {
             error: error.message,
             discordId,
-            steamId: link.steamid64,
+            steamId: steamId || 'none',
             newGroup
           });
         }
 
       } else {
-        // User has no linked account - track as unlinked staff if they have staff roles
-        if (newGroup && newGroup !== 'Member' && memberData) {
-          const userData = {
-            username: memberData.displayName || memberData.user?.username || '',
-            discord_username: memberData.user?.username || ''
-          };
-          this.addUnlinkedStaff(discordId, newGroup, userData);
-
-          this.logger.info('Added unlinked staff to cache', {
-            discordId,
-            newGroup,
-            username: userData.username
-          });
-        } else {
-          // Remove from unlinked staff cache
-          this.removeUnlinkedStaff(discordId);
-
-          this.logger.debug('Removed from unlinked staff cache', {
-            discordId,
-            newGroup: newGroup || 'none'
-          });
+        // User has no staff role or role was removed - handle cleanup
+        if (steamId) {
+          // Remove from whitelist caches if they have a Steam ID
+          this.removeUser(steamId);
         }
+
+        // Remove from unlinked staff cache
+        this.removeUnlinkedStaff(discordId);
+
+        this.logger.debug('Cleaned up caches for user role change', {
+          discordId,
+          steamId: steamId || 'none',
+          newGroup: newGroup || 'none'
+        });
       }
 
     } catch (error) {
@@ -633,57 +647,85 @@ class RoleBasedWhitelistCache {
       const members = await guild.members.fetch();
       let processedCount = 0;
 
+      // Prepare bulk validation data for WhitelistAuthorityService
+      const memberValidations = [];
+      const membersByGroup = new Map(); // Track members by their highest group
+
       for (const [memberId, member] of members) {
-        // Check if member has any tracked roles
         const highestGroup = getHighestPriorityGroup(member.roles.cache);
-
         if (highestGroup) {
-          // Determine minimum confidence required based on role
-          const minConfidence = (highestGroup !== 'Member') ? 1.0 : 0.5;
-
-          // Get Steam ID link
-          const link = await PlayerDiscordLink.findOne({
-            where: { discord_user_id: memberId, is_primary: true }
+          memberValidations.push({
+            discordUserId: memberId,
+            discordMember: member
           });
+          membersByGroup.set(memberId, { member, highestGroup });
+        }
+      }
 
-          if (link && link.confidence_score >= minConfidence) {
-            // Link has sufficient confidence for the role
-            const userData = {
-              username: link.steam_username || '',
-              discord_username: member.user.username || '',
-              discordId: memberId
-            };
+      this.logger.info(`Processing ${memberValidations.length} members with roles for cache initialization`);
 
-            this.addUser(link.steamid64, highestGroup, userData);
-            processedCount++;
-          } else if (link && link.confidence_score < minConfidence && highestGroup !== 'Member') {
-            // Staff member has a link but confidence too low - treat as unlinked
+      // Use WhitelistAuthorityService for bulk validation
+      const validationResults = await WhitelistAuthorityService.bulkValidateUsers(memberValidations);
+
+      // Process validation results
+      for (const [memberId, result] of validationResults) {
+        const memberInfo = membersByGroup.get(memberId);
+        if (!memberInfo) continue;
+
+        const { member, highestGroup } = memberInfo;
+
+        if (result.error) {
+          this.logger.warn('Validation error for member, skipping', {
+            discordId: memberId,
+            error: result.error,
+            group: highestGroup
+          });
+          continue;
+        }
+
+        const steamId = result.steamId;
+        const linkInfo = result.linkInfo;
+        const hasRoleBasedAccess = result.sources?.roleBased?.isActive || false;
+
+        if (hasRoleBasedAccess && steamId) {
+          // User has valid role-based whitelist access
+          const userData = {
+            username: linkInfo?.steam_username || '',
+            discord_username: member.user.username || '',
+            discordId: memberId
+          };
+
+          this.addUser(steamId, highestGroup, userData);
+          processedCount++;
+
+        } else if (highestGroup !== 'Member') {
+          // Staff member doesn't have valid role-based access - track as unlinked
+          const denialReason = result.effectiveStatus?.reason || 'unknown';
+
+          // Log appropriate level based on reason
+          if (denialReason === 'security_blocked_insufficient_confidence') {
             this.logger.warn('Staff member has low-confidence link, treating as unlinked', {
               discordId: memberId,
-              steamId: link.steamid64,
+              steamId: steamId || 'none',
               group: highestGroup,
-              confidenceScore: link.confidence_score,
-              requiredConfidence: minConfidence,
-              linkSource: link.link_source
+              confidenceScore: linkInfo?.confidence || 0,
+              linkSource: linkInfo?.source || 'none',
+              denialReason
             });
-
-            const userData = {
-              username: member.displayName || member.user.username || '',
-              discord_username: member.user.username || ''
-            };
-
-            this.addUnlinkedStaff(memberId, highestGroup, userData);
-            processedCount++;
-          } else if (!link && highestGroup !== 'Member') {
-            // Track unlinked staff members
-            const userData = {
-              username: member.displayName || member.user.username || '',
-              discord_username: member.user.username || ''
-            };
-
-            this.addUnlinkedStaff(memberId, highestGroup, userData);
-            processedCount++;
+          } else if (denialReason === 'no_steam_account_linked') {
+            this.logger.debug('Staff member not linked, adding to unlinked cache', {
+              discordId: memberId,
+              group: highestGroup
+            });
           }
+
+          const userData = {
+            username: member.displayName || member.user.username || '',
+            discord_username: member.user.username || ''
+          };
+
+          this.addUnlinkedStaff(memberId, highestGroup, userData);
+          processedCount++;
         }
       }
 
