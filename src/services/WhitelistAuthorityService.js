@@ -109,7 +109,7 @@ class WhitelistAuthorityService {
     } catch (error) {
       // Log validation errors
       await AuditLog.create({
-        actionType: 'WHITELIST_VALIDATION_ERROR',
+        actionType: 'WHITELIST_ERROR',
         actorType: 'system',
         actorId: 'AUTHORITY_SERVICE',
         actorName: 'WhitelistAuthorityService',
@@ -317,7 +317,7 @@ class WhitelistAuthorityService {
   static async _logValidationDecision(discordUserId, validationData) {
     try {
       await AuditLog.create({
-        actionType: 'WHITELIST_VALIDATION_DECISION',
+        actionType: 'WHITELIST_CHECK',
         actorType: 'system',
         actorId: 'AUTHORITY_SERVICE',
         actorName: 'WhitelistAuthorityService',
