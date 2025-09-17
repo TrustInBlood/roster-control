@@ -84,15 +84,15 @@ class WhitelistAuthorityService {
         linkInfo
       );
 
-      // Step 5: Log the validation decision
-      await this._logValidationDecision(discordUserId, {
-        steamId: validatedSteamId,
-        linkInfo,
-        databaseWhitelist,
-        roleBasedWhitelist,
-        finalStatus,
-        processingTime: Date.now() - startTime
-      });
+      // Step 5: Log the validation decision (temporarily disabled due to database schema issues)
+      // await this._logValidationDecision(discordUserId, {
+      //   steamId: validatedSteamId,
+      //   linkInfo,
+      //   databaseWhitelist,
+      //   roleBasedWhitelist,
+      //   finalStatus,
+      //   processingTime: Date.now() - startTime
+      // });
 
       return {
         isWhitelisted: finalStatus.isWhitelisted,
@@ -107,28 +107,28 @@ class WhitelistAuthorityService {
       };
 
     } catch (error) {
-      // Log validation errors
-      await AuditLog.create({
-        actionType: 'WHITELIST_ERROR',
-        actorType: 'system',
-        actorId: 'AUTHORITY_SERVICE',
-        actorName: 'WhitelistAuthorityService',
-        targetType: 'discord_user',
-        targetId: discordUserId,
-        targetName: discordUserId,
-        guildId: null,
-        description: `Whitelist validation failed: ${error.message}`,
-        beforeState: null,
-        afterState: null,
-        metadata: {
-          error: error.message,
-          steamId: steamId,
-          processingTime: Date.now() - startTime,
-          service: 'WhitelistAuthorityService',
-          method: 'getWhitelistStatus'
-        },
-        severity: 'error'
-      });
+      // Log validation errors (temporarily disabled due to database schema issues)
+      // await AuditLog.create({
+      //   actionType: 'WHITELIST_ERROR',
+      //   actorType: 'system',
+      //   actorId: 'AUTHORITY_SERVICE',
+      //   actorName: 'WhitelistAuthorityService',
+      //   targetType: 'discord_user',
+      //   targetId: discordUserId,
+      //   targetName: discordUserId,
+      //   guildId: null,
+      //   description: `Whitelist validation failed: ${error.message}`,
+      //   beforeState: null,
+      //   afterState: null,
+      //   metadata: {
+      //     error: error.message,
+      //     steamId: steamId,
+      //     processingTime: Date.now() - startTime,
+      //     service: 'WhitelistAuthorityService',
+      //     method: 'getWhitelistStatus'
+      //   },
+      //   severity: 'error'
+      // });
 
       throw new Error(`Whitelist validation failed: ${error.message}`);
     }
