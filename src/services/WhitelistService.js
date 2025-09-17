@@ -28,10 +28,10 @@ class WhitelistService {
 
     this.setupCleanupInterval();
 
-    // Pre-warm the cache after a short delay to allow system initialization
+    // Pre-warm the cache after role-based cache initialization (10 seconds to allow Discord cache init at 7s)
     setTimeout(() => {
       this.prewarmCache();
-    }, 5000);
+    }, 10000);
   }
 
   setupCleanupInterval() {
@@ -463,13 +463,26 @@ class WhitelistService {
 
     try {
       // Get all whitelist data sources (without group definitions to avoid duplication)
-      // Only use role-based cache if it's been initialized, otherwise fall back to database
+      // Only use role-based cache if it's been initialized, otherwise skip role-based sections for performance
       const useRoleBasedCache = this.roleBasedCache && this.roleBasedCache.isReady();
-      const [staffContent, membersContent, generalContent] = await Promise.all([
-        useRoleBasedCache ? this.roleBasedCache.getCachedStaffWithoutGroups() : this.getCachedWhitelist('staff'),
-        useRoleBasedCache ? this.roleBasedCache.getCachedMembersWithoutGroups() : '',
-        this.getCachedWhitelist('whitelist')
-      ]);
+
+      let staffContent, membersContent;
+
+      if (useRoleBasedCache) {
+        // Use fast role-based cache
+        [staffContent, membersContent] = await Promise.all([
+          this.roleBasedCache.getCachedStaffWithoutGroups(),
+          this.roleBasedCache.getCachedMembersWithoutGroups()
+        ]);
+      } else {
+        // Role-based cache not ready - skip role-based sections for immediate response
+        staffContent = '';
+        membersContent = '';
+        this.logger.debug('Role-based cache not ready, skipping role-based sections for fast response');
+      }
+
+      // Always get database whitelist (this is already fast due to our optimizations)
+      const generalContent = await this.getCachedWhitelist('whitelist');
 
       // Build comprehensive whitelist with group definitions first
       let combinedContent = '';
