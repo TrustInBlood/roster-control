@@ -305,13 +305,14 @@ class NotificationService {
 
     // Create minimalist log based on notification type
     switch(type) {
-    case 'duty_status':
+    case 'duty_status': {
       // Extract member name and status from description
       const dutyMatch = description?.match(/(.+) is now (on|off) duty/);
       if (dutyMatch) {
         console.log(`${dutyMatch[1]} went ${dutyMatch[2]} duty`);
       }
       break;
+    }
 
     case 'whitelist':
       // Log whitelist actions from title/description

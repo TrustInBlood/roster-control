@@ -52,127 +52,127 @@ module.exports = {
     
   async execute(interaction) {
     await permissionMiddleware(interaction, async () => {
-    try {
-
-      const subcommand = interaction.options.getSubcommand();
-      const targetUser = interaction.options.getUser('user');
-      const targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
-
-      if (!targetMember) {
-        return sendError(interaction, 'Could not find that user in this server.');
-      }
-
-      // Handle "all" subcommand separately
-      if (subcommand === 'all') {
-        return await handleRemoveAll(interaction, targetMember, targetUser);
-      }
-
-      // Map subcommand to role
-      const specialtyMap = {
-        'helicopter': { role: SPECIALTY_ROLES.HELICOPTER, name: 'Helicopter Specialist' },
-        'armor': { role: SPECIALTY_ROLES.ARMOR, name: 'Armor Specialist' },
-        'infantry': { role: SPECIALTY_ROLES.INFANTRY, name: 'Infantry Specialist' },
-        'expert': { role: SPECIALTY_ROLES.EXPERT, name: 'Squad Expert' }
-      };
-
-      const specialty = specialtyMap[subcommand];
-      if (!specialty) {
-        return sendError(interaction, 'Invalid specialty selected.');
-      }
-
-      // Get the role
-      const role = interaction.guild.roles.cache.get(specialty.role);
-      if (!role) {
-        return sendError(interaction, `The ${specialty.name} role has not been configured. Please contact a server administrator.`);
-      }
-
-      // Check if user has the role
-      if (!targetMember.roles.cache.has(specialty.role)) {
-        return sendError(interaction, `${targetUser} does not have the ${specialty.name} role.`);
-      }
-
-      // Remove the role
       try {
-        await targetMember.roles.remove(role, `Specialty removed by ${interaction.user.tag}`);
-      } catch (error) {
-        console.error('Failed to remove specialty role:', error);
-        return sendError(interaction, 'Failed to remove the specialty role. Please check bot permissions.');
-      }
 
-      // Log to database
-      try {
-        await AuditLog.create({
-          actionType: 'SPECIALTY_REMOVED',
-          actorType: 'user',
-          actorId: interaction.user.id,
-          actorName: interaction.user.username,
-          targetType: 'user',
-          targetId: targetUser.id,
-          targetName: targetUser.username,
-          description: `${specialty.name} role removed from ${targetUser.username} by ${interaction.user.username}`,
-          guildId: interaction.guild.id,
-          channelId: interaction.channelId,
-          metadata: {
-            specialty: subcommand,
-            roleId: specialty.role,
-            roleName: specialty.name
-          }
-        });
-      } catch (dbError) {
-        console.error('Failed to log specialty removal:', dbError);
+        const subcommand = interaction.options.getSubcommand();
+        const targetUser = interaction.options.getUser('user');
+        const targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+
+        if (!targetMember) {
+          return sendError(interaction, 'Could not find that user in this server.');
+        }
+
+        // Handle "all" subcommand separately
+        if (subcommand === 'all') {
+          return await handleRemoveAll(interaction, targetMember, targetUser);
+        }
+
+        // Map subcommand to role
+        const specialtyMap = {
+          'helicopter': { role: SPECIALTY_ROLES.HELICOPTER, name: 'Helicopter Specialist' },
+          'armor': { role: SPECIALTY_ROLES.ARMOR, name: 'Armor Specialist' },
+          'infantry': { role: SPECIALTY_ROLES.INFANTRY, name: 'Infantry Specialist' },
+          'expert': { role: SPECIALTY_ROLES.EXPERT, name: 'Squad Expert' }
+        };
+
+        const specialty = specialtyMap[subcommand];
+        if (!specialty) {
+          return sendError(interaction, 'Invalid specialty selected.');
+        }
+
+        // Get the role
+        const role = interaction.guild.roles.cache.get(specialty.role);
+        if (!role) {
+          return sendError(interaction, `The ${specialty.name} role has not been configured. Please contact a server administrator.`);
+        }
+
+        // Check if user has the role
+        if (!targetMember.roles.cache.has(specialty.role)) {
+          return sendError(interaction, `${targetUser} does not have the ${specialty.name} role.`);
+        }
+
+        // Remove the role
+        try {
+          await targetMember.roles.remove(role, `Specialty removed by ${interaction.user.tag}`);
+        } catch (error) {
+          console.error('Failed to remove specialty role:', error);
+          return sendError(interaction, 'Failed to remove the specialty role. Please check bot permissions.');
+        }
+
+        // Log to database
+        try {
+          await AuditLog.create({
+            actionType: 'SPECIALTY_REMOVED',
+            actorType: 'user',
+            actorId: interaction.user.id,
+            actorName: interaction.user.username,
+            targetType: 'user',
+            targetId: targetUser.id,
+            targetName: targetUser.username,
+            description: `${specialty.name} role removed from ${targetUser.username} by ${interaction.user.username}`,
+            guildId: interaction.guild.id,
+            channelId: interaction.channelId,
+            metadata: {
+              specialty: subcommand,
+              roleId: specialty.role,
+              roleName: specialty.name
+            }
+          });
+        } catch (dbError) {
+          console.error('Failed to log specialty removal:', dbError);
         // Continue - role was removed successfully
-      }
+        }
 
-      // Send notification using NotificationService
-      try {
-        await notificationService.sendTutorNotification('specialty_removed', {
-          description: `${targetUser} has had the **${specialty.name}** role removed`,
+        // Send notification using NotificationService
+        try {
+          await notificationService.sendTutorNotification('specialty_removed', {
+            description: `${targetUser} has had the **${specialty.name}** role removed`,
+            fields: [
+              { name: 'Removed From', value: `${targetUser}`, inline: true },
+              { name: 'Specialty', value: specialty.name, inline: true },
+              { name: 'Removed By', value: `${interaction.user}`, inline: true }
+            ],
+            thumbnail: targetUser.displayAvatarURL({ dynamic: true })
+          });
+        } catch (notifyError) {
+          console.error('Failed to send tutor specialty notification:', notifyError);
+        // Non-critical error - continue
+        }
+
+        // Create success embed
+        const embed = createResponseEmbed({
+          title: '✅ Specialty Removed',
+          description: `Successfully removed **${specialty.name}** role from ${targetUser}`,
           fields: [
-            { name: 'Removed From', value: `${targetUser}`, inline: true },
+            { name: 'User', value: `${targetUser}`, inline: true },
             { name: 'Specialty', value: specialty.name, inline: true },
             { name: 'Removed By', value: `${interaction.user}`, inline: true }
           ],
-          thumbnail: targetUser.displayAvatarURL({ dynamic: true })
-        });
-      } catch (notifyError) {
-        console.error('Failed to send tutor specialty notification:', notifyError);
-        // Non-critical error - continue
-      }
-
-      // Create success embed
-      const embed = createResponseEmbed({
-        title: '✅ Specialty Removed',
-        description: `Successfully removed **${specialty.name}** role from ${targetUser}`,
-        fields: [
-          { name: 'User', value: `${targetUser}`, inline: true },
-          { name: 'Specialty', value: specialty.name, inline: true },
-          { name: 'Removed By', value: `${interaction.user}`, inline: true }
-        ],
-        color: 0xFF9800
-      });
-
-      await sendSuccess(interaction, 'Specialty removed successfully!', embed);
-
-      // Send a public announcement
-      try {
-        const publicEmbed = createResponseEmbed({
-          title: '📝 Specialty Removed',
-          description: `${targetUser} no longer holds the **${specialty.name}** role.`,
           color: 0xFF9800
         });
 
-        await interaction.followUp({
-          embeds: [publicEmbed]
-        });
-      } catch (followUpError) {
-        console.error('Failed to send public announcement:', followUpError);
-        // Non-critical error
-      }
+        await sendSuccess(interaction, 'Specialty removed successfully!', embed);
 
-    } catch (error) {
-      console.error('Error in removespecialty command:', error);
-      return sendError(interaction, 'An error occurred while removing the specialty.');
-    }
+        // Send a public announcement
+        try {
+          const publicEmbed = createResponseEmbed({
+            title: '📝 Specialty Removed',
+            description: `${targetUser} no longer holds the **${specialty.name}** role.`,
+            color: 0xFF9800
+          });
+
+          await interaction.followUp({
+            embeds: [publicEmbed]
+          });
+        } catch (followUpError) {
+          console.error('Failed to send public announcement:', followUpError);
+        // Non-critical error
+        }
+
+      } catch (error) {
+        console.error('Error in removespecialty command:', error);
+        return sendError(interaction, 'An error occurred while removing the specialty.');
+      }
     });
   },
 };

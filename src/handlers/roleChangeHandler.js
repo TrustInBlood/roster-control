@@ -35,6 +35,7 @@ class RoleChangeHandler {
         // Prevent duplicate processing if this user is already being processed
         const userId = newMember.user.id;
         if (this.processingUsers.has(userId)) {
+          return; // Skip processing if already being processed
         } else {
           this.processingUsers.add(userId);
 
