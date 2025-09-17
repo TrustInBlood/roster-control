@@ -117,9 +117,6 @@ module.exports = (sequelize) => {
   // Note: Associations are defined in src/database/associations.js
 
   Whitelist.getActiveEntries = async function(type) {
-    // Get all users with active whitelist entries (using stacking logic)
-    const activeUsers = new Map();
-    
     // Get all approved, non-revoked entries for this type
     const allEntries = await this.findAll({
       where: {
@@ -130,7 +127,11 @@ module.exports = (sequelize) => {
       order: [['steamid64', 'ASC'], ['granted_at', 'ASC']]
     });
 
-    // Group by steamid64 and check if each user has active whitelist
+    if (allEntries.length === 0) {
+      return [];
+    }
+
+    // Group by steamid64
     const userGroups = new Map();
     for (const entry of allEntries) {
       if (!userGroups.has(entry.steamid64)) {
@@ -139,30 +140,141 @@ module.exports = (sequelize) => {
       userGroups.get(entry.steamid64).push(entry);
     }
 
-    // For each user, check if they have active whitelist using stacking logic
+    // Process each user's entries using the same stacking logic as getActiveWhitelistForUser
+    const activeUsers = new Map();
+    const now = new Date();
+
     for (const [steamid64, entries] of userGroups) {
-      const whitelistStatus = await this.getActiveWhitelistForUser(steamid64);
-      
-      if (whitelistStatus.hasWhitelist) {
-        // Use the most recent entry for display info, but include group info
+      // Check for permanent whitelist (any entry with null duration)
+      const hasPermanent = entries.some(entry =>
+        (entry.duration_value === null && entry.duration_type === null));
+
+      if (hasPermanent) {
+        // User has permanent access - use the most recent entry for display
         const latestEntry = entries[entries.length - 1];
-        
-        // For now, add group info manually to avoid association issues
-        if (latestEntry.group_id) {
-          try {
-            const { Group } = require('./index');
-            const group = await Group.findByPk(latestEntry.group_id);
-            latestEntry.group = group;
-          } catch (error) {
-            console.error('Failed to load group for entry:', error.message);
-          }
+        activeUsers.set(steamid64, latestEntry);
+        continue;
+      }
+
+      // Filter out entries that have already expired individually
+      const validEntries = [];
+
+      entries.forEach(entry => {
+        // Skip entries with 0 duration (these are expired)
+        if (entry.duration_value === 0) return;
+
+        // Calculate individual expiration date
+        const grantedDate = new Date(entry.granted_at);
+        const entryExpiration = new Date(grantedDate);
+
+        if (entry.duration_type === 'days') {
+          entryExpiration.setDate(entryExpiration.getDate() + entry.duration_value);
+        } else if (entry.duration_type === 'months') {
+          entryExpiration.setMonth(entryExpiration.getMonth() + entry.duration_value);
         }
-        
+
+        // Only include entries that haven't expired yet
+        if (entryExpiration > now) {
+          validEntries.push(entry);
+        }
+      });
+
+      if (validEntries.length === 0) {
+        // All entries have expired - don't include this user
+        continue;
+      }
+
+      // Stack durations from valid entries to ensure user still has active access
+      const earliestEntry = validEntries.sort((a, b) => new Date(a.granted_at) - new Date(b.granted_at))[0];
+      let stackedExpiration = new Date(earliestEntry.granted_at);
+
+      // Add up all valid durations
+      let totalMonths = 0;
+      let totalDays = 0;
+
+      validEntries.forEach(entry => {
+        if (entry.duration_type === 'months') {
+          totalMonths += entry.duration_value;
+        } else if (entry.duration_type === 'days') {
+          totalDays += entry.duration_value;
+        }
+      });
+
+      // Apply the stacked duration
+      if (totalMonths > 0) {
+        stackedExpiration.setMonth(stackedExpiration.getMonth() + totalMonths);
+      }
+      if (totalDays > 0) {
+        stackedExpiration.setDate(stackedExpiration.getDate() + totalDays);
+      }
+
+      // Check if the stacked expiration is still in the future
+      if (stackedExpiration > now) {
+        // User has active stacked whitelist - use the most recent entry for display
+        const latestEntry = entries[entries.length - 1];
         activeUsers.set(steamid64, latestEntry);
       }
     }
 
-    return Array.from(activeUsers.values());
+    const finalEntries = Array.from(activeUsers.values());
+
+    // Bulk load group information for all entries at once
+    await this._addGroupInfoToEntries(finalEntries);
+
+    return finalEntries;
+  };
+
+  // Helper method to bulk add group info to multiple entries
+  Whitelist._addGroupInfoToEntries = async function(entries) {
+    if (entries.length === 0) {
+      return;
+    }
+
+    try {
+      // Get all unique group IDs from the entries
+      const groupIds = [...new Set(entries.map(entry => entry.group_id).filter(Boolean))];
+
+      if (groupIds.length === 0) {
+        return;
+      }
+
+      // Bulk fetch all groups at once
+      const { Group } = require('./index');
+      const groups = await Group.findAll({
+        where: {
+          id: groupIds
+        }
+      });
+
+      // Create a map for quick lookup
+      const groupsById = new Map();
+      for (const group of groups) {
+        groupsById.set(group.id, group);
+      }
+
+      // Assign group info to each entry
+      for (const entry of entries) {
+        if (entry.group_id && groupsById.has(entry.group_id)) {
+          entry.group = groupsById.get(entry.group_id);
+        }
+      }
+
+    } catch (error) {
+      console.error('Failed to bulk load group info for entries:', error.message);
+    }
+  };
+
+  // Helper method to add group info to a single entry (legacy method)
+  Whitelist._addGroupInfoToEntry = async function(entry) {
+    if (entry.group_id) {
+      try {
+        const { Group } = require('./index');
+        const group = await Group.findByPk(entry.group_id);
+        entry.group = group;
+      } catch (error) {
+        console.error('Failed to load group for entry:', error.message);
+      }
+    }
   };
 
   Whitelist.updateDiscordUsername = async function(steamid64, eosID, discordUsername) {

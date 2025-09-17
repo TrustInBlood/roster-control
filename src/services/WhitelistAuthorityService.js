@@ -361,42 +361,130 @@ class WhitelistAuthorityService {
   static async bulkValidateUsers(userValidations) {
     const results = new Map();
 
-    // Process in parallel with concurrency limit
-    const concurrency = 10;
-    for (let i = 0; i < userValidations.length; i += concurrency) {
-      const batch = userValidations.slice(i, i + concurrency);
-
-      const batchPromises = batch.map(async (validation) => {
-        try {
-          const result = await this.getWhitelistStatus(
-            validation.discordUserId,
-            validation.steamId,
-            validation.discordMember
-          );
-          return { discordUserId: validation.discordUserId, result };
-        } catch (error) {
-          return {
-            discordUserId: validation.discordUserId,
-            error: error.message
-          };
-        }
-      });
-
-      const batchResults = await Promise.all(batchPromises);
-
-      for (const { discordUserId, result, error } of batchResults) {
-        if (error) {
-          results.set(discordUserId, {
-            isWhitelisted: false,
-            error: error
-          });
-        } else {
-          results.set(discordUserId, result);
-        }
-      }
+    if (userValidations.length === 0) {
+      return results;
     }
 
-    return results;
+    try {
+      // Step 1: Extract all Discord user IDs for bulk link lookup
+      const discordUserIds = userValidations.map(v => v.discordUserId);
+
+      // Step 2: Bulk fetch all primary links for these Discord users
+      const allLinks = await PlayerDiscordLink.findAll({
+        where: {
+          discord_user_id: discordUserIds,
+          is_primary: true
+        },
+        order: [['confidence_score', 'DESC'], ['created_at', 'DESC']]
+      });
+
+      // Step 3: Create a map of Discord ID -> link info for fast lookup
+      const linksByDiscordId = new Map();
+      for (const link of allLinks) {
+        linksByDiscordId.set(link.discord_user_id, {
+          steamId: link.steamid64,
+          confidence: link.confidence_score,
+          source: link.link_source,
+          isPrimary: true
+        });
+      }
+
+      // Step 4: Get all Steam IDs for database whitelist bulk lookup
+      const steamIds = [...new Set(allLinks.map(link => link.steamid64).filter(Boolean))];
+
+      // Step 5: Bulk fetch database whitelist entries
+      const databaseWhitelists = new Map();
+      if (steamIds.length > 0) {
+        const activeWhitelists = await Whitelist.findAll({
+          where: {
+            steamid64: steamIds,
+            approved: true,
+            revoked: false
+          },
+          order: [['granted_at', 'ASC']]
+        });
+
+        for (const whitelist of activeWhitelists) {
+          // Check if this whitelist is currently active
+          const isActive = !whitelist.expiration || new Date(whitelist.expiration) > new Date();
+
+          databaseWhitelists.set(whitelist.steamid64, {
+            isActive,
+            id: whitelist.id,
+            reason: whitelist.reason,
+            expiration: whitelist.expiration,
+            grantedBy: whitelist.granted_by,
+            grantedAt: whitelist.granted_at,
+            source: 'database'
+          });
+        }
+      }
+
+      // Step 6: Process each user validation with pre-fetched data
+      for (const validation of userValidations) {
+        try {
+          const { discordUserId, discordMember } = validation;
+
+          // Get link info from bulk lookup
+          const linkInfo = linksByDiscordId.get(discordUserId) || null;
+          const steamId = linkInfo?.steamId || null;
+
+          // Get database whitelist from bulk lookup
+          const databaseWhitelist = steamId ?
+            (databaseWhitelists.get(steamId) || { isActive: false, source: 'database' }) :
+            null;
+
+          // Check role-based whitelist with strict validation
+          const roleBasedWhitelist = await this._checkRoleBasedWhitelist(
+            discordMember,
+            linkInfo
+          );
+
+          // Determine final status
+          const finalStatus = this._determineWhitelistStatus(
+            databaseWhitelist,
+            roleBasedWhitelist,
+            linkInfo
+          );
+
+          // Store result
+          results.set(discordUserId, {
+            isWhitelisted: finalStatus.isWhitelisted,
+            steamId: steamId,
+            linkInfo,
+            sources: {
+              database: databaseWhitelist,
+              roleBased: roleBasedWhitelist
+            },
+            effectiveStatus: finalStatus,
+            validatedAt: new Date().toISOString()
+          });
+
+        } catch (error) {
+          results.set(validation.discordUserId, {
+            isWhitelisted: false,
+            error: error.message
+          });
+        }
+      }
+
+      return results;
+
+    } catch (error) {
+      // If bulk operation fails, fall back to individual validation for critical operations
+      console.error('Bulk validation failed, falling back to individual validation:', error.message);
+
+      // For cache initialization, we can't afford to do individual queries, so return empty results
+      // The cache will be populated as users are validated individually through normal operation
+      for (const validation of userValidations) {
+        results.set(validation.discordUserId, {
+          isWhitelisted: false,
+          error: 'Bulk validation failed'
+        });
+      }
+
+      return results;
+    }
   }
 }
 

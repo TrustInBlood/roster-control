@@ -255,74 +255,105 @@ class WhitelistService {
       return entries;
     }
 
-    const filteredEntries = [];
-    
-    for (const entry of entries) {
-      let shouldInclude = true;
+    if (entries.length === 0) {
+      return entries;
+    }
 
-      try {
-        // Check if this Steam ID has a Discord link and current role-based access
-        const links = await PlayerDiscordLink.findAll({
-          where: { 
-            steamid64: entry.steamid64,
-            is_primary: true
-          }
+    try {
+      // Step 1: Bulk fetch all Discord links for these Steam IDs
+      const steamIds = entries.map(entry => entry.steamid64).filter(Boolean);
+
+      if (steamIds.length === 0) {
+        return entries;
+      }
+
+      const allLinks = await PlayerDiscordLink.findAll({
+        where: {
+          steamid64: steamIds,
+          is_primary: true
+        }
+      });
+
+      // Step 2: Create a map of Steam ID -> Discord user ID
+      const steamToDiscordMap = new Map();
+      for (const link of allLinks) {
+        steamToDiscordMap.set(link.steamid64, {
+          discordUserId: link.discord_user_id,
+          discordUsername: link.discord_username
         });
+      }
 
-        if (links.length > 0) {
-          const link = links[0];
-          
-          // Try to get Discord guild member to check current roles
-          const guild = client.guilds.cache.first();
-          if (guild) {
-            try {
-              const member = await guild.members.fetch(link.discord_user_id);
-              const currentGroup = getHighestPriorityGroup(member.roles.cache);
-              
-              if (currentGroup) {
-                // User currently has Discord roles and should be handled by role-based system
-                shouldInclude = false;
-                this.logger.debug('Excluding from database whitelist - user has Discord role', {
-                  steamid64: entry.steamid64,
-                  discordId: link.discord_user_id,
-                  discordUsername: member.user.username,
-                  currentGroup: currentGroup
-                });
-              }
-            } catch (discordError) {
-              // User may have left server or other Discord error
-              // Include in database whitelist as fallback
-              this.logger.debug('Discord lookup failed, including in database whitelist', {
+      // Step 3: Get Discord guild for role checking
+      const guild = client.guilds.cache.first();
+      if (!guild) {
+        // No guild available, include all entries as fallback
+        return entries;
+      }
+
+      // Step 4: Filter entries based on current Discord role status
+      const filteredEntries = [];
+      const excludedEntries = [];
+
+      for (const entry of entries) {
+        let shouldInclude = true;
+        const linkInfo = steamToDiscordMap.get(entry.steamid64);
+
+        if (linkInfo) {
+          try {
+            // Check if user currently has Discord roles that would give them role-based access
+            const member = await guild.members.fetch(linkInfo.discordUserId);
+            const currentGroup = getHighestPriorityGroup(member.roles.cache);
+
+            if (currentGroup) {
+              // User currently has Discord roles and should be handled by role-based system
+              shouldInclude = false;
+              excludedEntries.push({
                 steamid64: entry.steamid64,
-                discordId: link.discord_user_id,
-                error: discordError.message
+                discordId: linkInfo.discordUserId,
+                discordUsername: member.user.username,
+                currentGroup: currentGroup
               });
             }
+          } catch (discordError) {
+            // User may have left server or other Discord error
+            // Include in database whitelist as fallback
+            this.logger.debug('Discord lookup failed, including in database whitelist', {
+              steamid64: entry.steamid64,
+              discordId: linkInfo.discordUserId,
+              error: discordError.message
+            });
           }
         }
-      } catch (error) {
-        this.logger.error('Error checking role-based status', {
-          steamid64: entry.steamid64,
-          error: error.message
+
+        if (shouldInclude) {
+          filteredEntries.push(entry);
+        }
+      }
+
+      // Log exclusion summary
+      if (excludedEntries.length > 0) {
+        this.logger.info('Filtered whitelist entries with Discord roles', {
+          originalCount: entries.length,
+          filteredCount: filteredEntries.length,
+          excludedCount: excludedEntries.length
         });
-        // Include entry on error as fallback
+
+        // Log details for excluded entries
+        for (const excluded of excludedEntries) {
+          this.logger.debug('Excluding from database whitelist - user has Discord role', excluded);
+        }
       }
 
-      if (shouldInclude) {
-        filteredEntries.push(entry);
-      }
-    }
+      return filteredEntries;
 
-    const excludedCount = entries.length - filteredEntries.length;
-    if (excludedCount > 0) {
-      this.logger.info('Filtered whitelist entries with Discord roles', {
-        originalCount: entries.length,
-        filteredCount: filteredEntries.length,
-        excludedCount: excludedCount
+    } catch (error) {
+      // On any error with bulk processing, fall back to including all entries
+      this.logger.error('Error in bulk role-based filtering, including all entries', {
+        error: error.message,
+        entriesCount: entries.length
       });
+      return entries;
     }
-
-    return filteredEntries;
   }
 
   async formatWhitelistContent(entries) {
