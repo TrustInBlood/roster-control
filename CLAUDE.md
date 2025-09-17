@@ -57,7 +57,7 @@ This is a **Discord bot for Squad server roster management** with the following 
 #### Command System (`src/commands/`)
 - **Modular Structure**: Each command is a separate file with `data` (SlashCommandBuilder) and `execute` properties
 - **Error Handling**: Centralized error handling with user-friendly messages
-- **Current Commands**: `/ping`, `/help`, `/onduty`, `/offduty`, `/ondutytutor`, `/offdutytutor`, `/addspecialty`, `/removespecialty`, `/removetutor`, `/whatsnew`
+- **Current Commands**: `/ping`, `/help`, `/onduty`, `/offduty`, `/ondutytutor`, `/offdutytutor`, `/addspecialty`, `/removespecialty`, `/removetutor`, `/whatsnew`, `/linkid`, `/link`, `/whitelist` (grant/info/extend/revoke)
 
 #### Event Handling (`src/handlers/`)
 - **Voice State Monitoring**: Automatic notifications when users join monitored voice channels
@@ -136,9 +136,9 @@ const { getHighestPriorityGroup } = require(isDevelopment ? '../../config/squadG
 ## Project Structure Context
 
 ### Current Implementation Status
-- ✅ **Complete**: Discord bot framework, all database models with migrations, role-based on-duty system, tutor system with specialty management, external role change detection, duty status logging, permission system, error handling
+- ✅ **Complete**: Discord bot framework, all database models with migrations, role-based on-duty system, tutor system with specialty management, external role change detection, duty status logging, permission system, error handling, whitelist management with attribution bug fixes
 - 🔄 **In Progress**: SquadJS integration, BattleMetrics API
-- 📋 **Planned**: Whitelist management commands, player activity tracking, RCON integration
+- 📋 **Planned**: Player activity tracking, RCON integration, automated reporting
 
 ### Key Files for Development
 - `src/index.js` - Main bot entry point with event handlers

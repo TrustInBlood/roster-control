@@ -304,6 +304,7 @@
 - Enhanced `/whitelist info` command with role-based and database entry display
 - Resolved role detection issues and improved whitelist filtering logic
 - Unified HTTP whitelist endpoint (`/combined`) with comprehensive group definitions and organized content sections
+- **Whitelist Attribution Bug Fix**: Fixed issue where standalone Steam ID grants were incorrectly attributed to existing Discord users during bulk operations
 
 ### 🔄 In Progress
 - BattleMetrics API integration
@@ -348,6 +349,27 @@
   - [x] Organize content with clear section headers and comments
   - [x] Maintain existing individual endpoints for debugging purposes
   - [x] Generate comprehensive whitelist suitable for Squad server consumption
+
+## Phase 3.7: Whitelist Attribution Bug Fix ✅ COMPLETED
+
+### Bug Resolution ✅ COMPLETED
+- [x] **Investigate attribution issue** - Analyzed whitelist grant command logic and account linking system
+- [x] **Identify root cause** - Found that standalone Steam ID grants were being linked to existing Discord accounts
+- [x] **Implement protective measures** - Added explicit validation to prevent cross-contamination
+  - [x] Enhanced `resolveUserInfo()` function with defensive comments and logic
+  - [x] Added explicit check in database storage: `discord_username: discordUser ? userInfo.discord_username : null`
+  - [x] Ensured role assignment only happens when Discord user is explicitly provided
+- [x] **Test the fix** - Verified both scenarios work correctly:
+  - [x] `/whitelist grant <steamid> <user>` - Creates whitelist WITH Discord attribution
+  - [x] `/whitelist grant <steamid>` - Creates whitelist WITHOUT Discord attribution
+- [x] **Update documentation** - Added comments explaining the security measures
+
+### Technical Details
+**Issue**: When someone mentioned Steam IDs in Discord (automatic 0.3 confidence links), subsequent `/whitelist grant <steamid>` commands without Discord user would incorrectly attribute whitelists to the linked Discord account.
+
+**Solution**: Added explicit validation that only stores Discord attribution when a Discord user is explicitly provided in the command, regardless of existing automatic account links.
+
+**Impact**: Prevents bulk donation scenarios where one person mentions multiple Steam IDs from causing incorrect whitelist attribution.
 
 ## Phase 3.5: Account Linking & Whitelist Integration ✅ COMPLETED
 

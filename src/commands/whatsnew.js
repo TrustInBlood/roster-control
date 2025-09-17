@@ -23,7 +23,16 @@ module.exports = {
         // Add recent updates (most recent first)
         updatesEmbed.addFields(
           {
-            name: 'Environment & Configuration Improvements (Latest)',
+            name: 'Whitelist Attribution Bug Fix (Latest)',
+            value: '• **Fixed Bulk Donation Attribution** - Steam-only grants no longer incorrectly link to existing Discord users\n' +
+                 '• **Prevented Cross-Contamination** - Standalone Steam ID whitelists remain unattributed\n' +
+                 '• **Enhanced Security** - Explicit validation prevents automatic linking during whitelist operations\n' +
+                 '• **Preserved Functionality** - Steam ID + Discord user grants still work as expected\n' +
+                 '• **Defensive Programming** - Added safeguards against similar attribution issues',
+            inline: false
+          },
+          {
+            name: 'Environment & Configuration Improvements',
             value: '• **Unified Whitelist Endpoint** - New `/combined` endpoint with all groups and users\n' +
                  '• **Centralized Environment Detection** - Single source of truth for dev/prod configs\n' +
                  '• **Enhanced Role Detection** - Fixed environment-specific role mapping issues\n' +
