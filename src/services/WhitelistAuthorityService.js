@@ -1,7 +1,5 @@
-const { Whitelist, PlayerDiscordLink } = require('../database/models');
-const AuditLogger = require('../utils/auditLogger');
+const { Whitelist, PlayerDiscordLink, AuditLog } = require('../database/models');
 const { getHighestPriorityGroup } = require('../utils/environment');
-const { Op } = require('sequelize');
 
 /**
  * WhitelistAuthorityService - Single source of truth for all whitelist validation decisions
@@ -75,7 +73,6 @@ class WhitelistAuthorityService {
 
       // Step 3: Check role-based whitelist with strict validation
       const roleBasedWhitelist = await this._checkRoleBasedWhitelist(
-        discordUserId,
         discordMember,
         linkInfo
       );
@@ -111,19 +108,26 @@ class WhitelistAuthorityService {
 
     } catch (error) {
       // Log validation errors
-      await AuditLogger.log({
-        action: 'whitelist_validation_error',
-        actor_discord_id: 'SYSTEM',
-        target_discord_id: discordUserId,
-        details: {
+      await AuditLog.create({
+        actionType: 'WHITELIST_VALIDATION_ERROR',
+        actorType: 'system',
+        actorId: 'AUTHORITY_SERVICE',
+        actorName: 'WhitelistAuthorityService',
+        targetType: 'discord_user',
+        targetId: discordUserId,
+        targetName: discordUserId,
+        guildId: null,
+        description: `Whitelist validation failed: ${error.message}`,
+        beforeState: null,
+        afterState: null,
+        metadata: {
           error: error.message,
           steamId: steamId,
-          processingTime: Date.now() - startTime
-        },
-        metadata: {
+          processingTime: Date.now() - startTime,
           service: 'WhitelistAuthorityService',
           method: 'getWhitelistStatus'
-        }
+        },
+        severity: 'error'
       });
 
       throw new Error(`Whitelist validation failed: ${error.message}`);
@@ -173,7 +177,7 @@ class WhitelistAuthorityService {
    * Check role-based whitelist with strict confidence validation
    * @private
    */
-  static async _checkRoleBasedWhitelist(discordUserId, discordMember, linkInfo) {
+  static async _checkRoleBasedWhitelist(discordMember, linkInfo) {
     // If no Discord member provided, we can't check roles
     if (!discordMember || !discordMember.roles) {
       return {
@@ -312,27 +316,36 @@ class WhitelistAuthorityService {
    */
   static async _logValidationDecision(discordUserId, validationData) {
     try {
-      await AuditLogger.log({
-        action: 'whitelist_validation_decision',
-        actor_discord_id: 'SYSTEM',
-        target_discord_id: discordUserId,
-        details: {
-          steamId: validationData.steamId,
+      await AuditLog.create({
+        actionType: 'WHITELIST_VALIDATION_DECISION',
+        actorType: 'system',
+        actorId: 'AUTHORITY_SERVICE',
+        actorName: 'WhitelistAuthorityService',
+        targetType: 'discord_user',
+        targetId: discordUserId,
+        targetName: validationData.steamId || discordUserId,
+        guildId: null,
+        description: `Whitelist validation: ${validationData.finalStatus.isWhitelisted ? 'GRANTED' : 'DENIED'} (${validationData.finalStatus.primarySource || validationData.finalStatus.reason})`,
+        beforeState: null,
+        afterState: {
           isWhitelisted: validationData.finalStatus.isWhitelisted,
           primarySource: validationData.finalStatus.primarySource,
+          linkConfidence: validationData.linkInfo?.confidence
+        },
+        metadata: {
+          steamId: validationData.steamId,
           linkConfidence: validationData.linkInfo?.confidence,
           linkSource: validationData.linkInfo?.source,
           databaseActive: validationData.databaseWhitelist?.isActive || false,
           roleBasedActive: validationData.roleBasedWhitelist?.isActive || false,
           roleBasedGroup: validationData.roleBasedWhitelist?.group,
           securityBlocked: validationData.roleBasedWhitelist?.securityBlocked || false,
-          processingTime: validationData.processingTime
-        },
-        metadata: {
+          processingTime: validationData.processingTime,
           service: 'WhitelistAuthorityService',
           version: '1.0.0',
           validatedAt: new Date().toISOString()
-        }
+        },
+        severity: 'info'
       });
     } catch (logError) {
       console.error('Failed to log whitelist validation decision:', logError);

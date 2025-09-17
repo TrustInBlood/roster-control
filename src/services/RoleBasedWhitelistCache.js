@@ -1,4 +1,4 @@
-const { PlayerDiscordLink, AuditLog } = require('../database/models');
+const { AuditLog } = require('../database/models');
 
 const { squadGroups } = require('../utils/environment');
 const { SQUAD_GROUPS, getHighestPriorityGroup } = squadGroups;
