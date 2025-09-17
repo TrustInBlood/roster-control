@@ -135,7 +135,10 @@ class RoleBasedWhitelistCache {
       // Determine if user should have role-based whitelist privileges
       const shouldHaveRolePrivileges = authorityResult.sources.roleBased?.isActive || false;
 
-      if (shouldHaveRolePrivileges && steamId) {
+      // Handle Members differently - they get role-based access purely from Discord role
+      const isMemberWithSteamId = (newGroup === 'Member' && steamId);
+
+      if ((shouldHaveRolePrivileges && steamId) || isMemberWithSteamId) {
         // User has valid role-based whitelist access
         // Remove from unlinked staff cache since they're now properly linked
         this.removeUnlinkedStaff(discordId);
@@ -687,8 +690,21 @@ class RoleBasedWhitelistCache {
         const linkInfo = result.linkInfo;
         const hasRoleBasedAccess = result.sources?.roleBased?.isActive || false;
 
-        if (hasRoleBasedAccess && steamId) {
-          // User has valid role-based whitelist access
+        // Handle Members differently - they get role-based whitelist access purely from Discord role
+        if (highestGroup === 'Member' && steamId) {
+          // Member with Steam account linked - add to members cache
+          // Members don't go through WhitelistAuthorityService validation (they just need the Discord role)
+          const userData = {
+            username: linkInfo?.steam_username || '',
+            discord_username: member.user.username || '',
+            discordId: memberId
+          };
+
+          this.addUser(steamId, highestGroup, userData);
+          processedCount++;
+
+        } else if (hasRoleBasedAccess && steamId) {
+          // Staff user with valid role-based whitelist access (requires high-confidence Steam link)
           const userData = {
             username: linkInfo?.steam_username || '',
             discord_username: member.user.username || '',
