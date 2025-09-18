@@ -6,13 +6,14 @@ const NotificationService = require('../services/NotificationService');
 const { AuditLog } = require('../database/models');
 
 class RoleChangeHandler {
-  constructor(roleBasedCache = null) {
+  constructor(client = null, roleBasedCache = null) {
+    this.client = client; // Store Discord client for cache updates
     this.onDutyRoleId = ON_DUTY_ROLE_ID;
     this.dutyFactory = new DutyStatusFactory();
     this.processingUsers = new Set(); // Prevent duplicate processing
     this.roleBasedCache = roleBasedCache; // Optional role-based whitelist cache
     this.trackedRoles = getAllTrackedRoles(); // Get all staff/member roles
-        
+
     // Set up cross-reference
     this.dutyFactory.setRoleChangeHandler(this);
   }
@@ -145,15 +146,13 @@ class RoleChangeHandler {
         return { success: false, error: 'No role-based cache available' };
       }
 
-      // Get the Discord guild and member
-      const client = require('../index').client || this.client;
-
-      if (!client) {
+      // Get the Discord client
+      if (!this.client) {
         console.log('Discord client not available for cache update');
         return { success: false, error: 'Discord client not available' };
       }
 
-      const guild = await client.guilds.fetch(guildId);
+      const guild = await this.client.guilds.fetch(guildId);
       if (!guild) {
         console.log(`Guild ${guildId} not found for cache update`);
         return { success: false, error: 'Guild not found' };
@@ -233,7 +232,7 @@ let globalRoleChangeHandler = null;
 
 function setupRoleChangeHandler(client, roleBasedCache = null) {
   // Create role change handler instance
-  globalRoleChangeHandler = new RoleChangeHandler(roleBasedCache);
+  globalRoleChangeHandler = new RoleChangeHandler(client, roleBasedCache);
   
   // Set up Discord event listeners
   client.on('guildMemberUpdate', async (oldMember, newMember) => {
