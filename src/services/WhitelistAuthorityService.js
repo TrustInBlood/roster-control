@@ -155,14 +155,11 @@ class WhitelistAuthorityService {
 
     const activeWhitelist = await Whitelist.getActiveWhitelistForUser(steamId);
 
-    if (activeWhitelist.isActive) {
+    if (activeWhitelist.hasWhitelist) {
       return {
         isActive: true,
-        id: activeWhitelist.id,
-        reason: activeWhitelist.reason,
+        reason: activeWhitelist.status,
         expiration: activeWhitelist.expiration,
-        grantedBy: activeWhitelist.granted_by,
-        grantedAt: activeWhitelist.granted_at,
         source: 'database'
       };
     }
