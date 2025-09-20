@@ -31,8 +31,8 @@ module.exports = {
         const syncService = roleChangeHandler.roleWhitelistSync;
 
         const embed = createResponseEmbed({
-          title: dryRun ? '🧪 Whitelist Sync Preview' : '⚡ Starting Whitelist Sync',
-          description: `${dryRun ? 'Analyzing' : 'Syncing'} Discord roles to whitelist database...`,
+          title: dryRun ? 'Whitelist Sync Preview' : 'Starting Whitelist Sync',
+          description: dryRun ? 'Analyzing Discord roles to whitelist database...' : 'Syncing Discord roles to whitelist database...',
           color: dryRun ? 0xFFA500 : 0x3498db
         });
 
@@ -45,16 +45,15 @@ module.exports = {
         });
 
         // Create results embed
+        const resultDescription = dryRun
+          ? `Found ${result.membersToSync || 0} members that would be synced.`
+          : `Successfully synced ${result.successful || 0} members to whitelist database.`;
+
         const resultEmbed = createResponseEmbed({
-          title: dryRun ? '📊 Sync Analysis Results' : '✅ Sync Complete',
+          title: dryRun ? 'Sync Analysis Results' : 'Sync Complete',
+          description: resultDescription,
           color: result.failed > 0 ? 0xFFA500 : 0x00FF00
         });
-
-        if (dryRun) {
-          resultEmbed.setDescription(`Found ${result.membersToSync || 0} members that would be synced.`);
-        } else {
-          resultEmbed.setDescription(`Successfully synced ${result.successful || 0} members to whitelist database.`);
-        }
 
         // Add detailed fields
         const fields = [
