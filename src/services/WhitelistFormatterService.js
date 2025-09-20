@@ -32,55 +32,97 @@ class WhitelistFormatterService {
           type: typeof entries,
           value: entries
         });
-        return '';
+        return '/////////////////////////////////\n////// No entries \n/////////////////////////////////\n';
       }
 
       if (entries.length === 0) {
         this.logger.debug('No entries to format');
-        return '';
+        return '/////////////////////////////////\n////// No entries \n/////////////////////////////////\n';
       }
 
-      const lines = [];
-      const seenIdentifiers = new Set();
-      let duplicateCount = 0;
+      // Group entries by their group
+      const groupMap = new Map();
+      const grouplessEntries = [];
 
-      for (const entry of entries) {
-        if (!entry) {
-          this.logger.warn('Null entry encountered during formatting');
-          continue;
+      entries.forEach(entry => {
+        if (entry.group) {
+          const groupName = entry.group.group_name;
+          if (!groupMap.has(groupName)) {
+            groupMap.set(groupName, {
+              permissions: entry.group.permissions,
+              entries: []
+            });
+          }
+          groupMap.get(groupName).entries.push(entry);
+        } else {
+          grouplessEntries.push(entry);
         }
+      });
 
-        const identifier = this.getIdentifier(entry);
+      let content = '';
 
-        if (!identifier) {
-          this.logger.warn('Entry missing required identifier', {
-            steamid64: entry.steamid64,
-            eosID: entry.eosID,
-            preferEosID: this.preferEosID
-          });
-          continue;
-        }
+      // Format entries with groups
+      for (const [groupName, groupData] of groupMap.entries()) {
+        content += `Group=${groupName}:${groupData.permissions || ''}\n`;
 
-        if (seenIdentifiers.has(identifier)) {
-          duplicateCount++;
-          this.logger.debug('Duplicate identifier found, skipping', {
-            identifier,
-            discord_username: entry.discord_username
-          });
-          continue;
-        }
+        groupData.entries.forEach(entry => {
+          const identifier = this.getIdentifier(entry);
+          const username = entry.username || '';
+          const discordUsername = entry.discord_username || '';
 
-        seenIdentifiers.add(identifier);
-        const formattedLine = this.formatEntry(entry);
-        lines.push(formattedLine);
+          let line = `Admin=${identifier}:${groupName}`;
+
+          // Format: // in-game-name discord-display-name
+          if (username || discordUsername) {
+            line += ' //';
+
+            // If we have in-game name, show it first
+            if (username) {
+              line += ` ${username}`;
+            }
+
+            // If we have Discord name and it's different from in-game name (or no in-game name), show it
+            if (discordUsername && (!username || discordUsername !== username)) {
+              line += ` ${discordUsername}`;
+            }
+          }
+
+          content += line + '\n';
+        });
       }
 
-      const content = lines.join('\n');
+      // Format entries without groups
+      if (grouplessEntries.length > 0) {
+        grouplessEntries.forEach(entry => {
+          const identifier = this.getIdentifier(entry);
+          const username = entry.username || '';
+          const discordUsername = entry.discord_username || '';
+
+          let line = `Admin=${identifier}:`;
+
+          // Format: // in-game-name discord-display-name
+          if (username || discordUsername) {
+            line += ' //';
+
+            // If we have in-game name, show it first
+            if (username) {
+              line += ` ${username}`;
+            }
+
+            // If we have Discord name and it's different from in-game name (or no in-game name), show it
+            if (discordUsername && (!username || discordUsername !== username)) {
+              line += ` ${discordUsername}`;
+            }
+          }
+
+          content += line + '\n';
+        });
+      }
 
       this.logger.info('Whitelist content formatted', {
         totalEntries: entries.length,
-        uniqueEntries: lines.length,
-        duplicatesSkipped: duplicateCount,
+        groupedEntries: entries.length - grouplessEntries.length,
+        grouplessEntries: grouplessEntries.length,
         contentLength: content.length,
         preferEosID: this.preferEosID
       });
