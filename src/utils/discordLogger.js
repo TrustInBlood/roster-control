@@ -138,7 +138,9 @@ function logToConsole(eventType, eventData) {
     if (eventData.user && eventData.steamId) {
       const linkType = eventData.description?.split(' via ')[1] || 'manual';
       const actor = eventData.details?.['Created By'] || eventData.user.tag;
-      console.log(`${actor} created link for ${eventData.user.tag} ${eventData.steamId}`);
+      // Use display name if available, otherwise fall back to username or tag
+      const targetName = eventData.user.displayName || eventData.user.username || eventData.user.tag;
+      console.log(`${actor} created link for ${targetName} ${eventData.steamId}`);
     }
     break;
   case 'ALT_ACCOUNT':

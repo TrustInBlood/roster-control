@@ -294,11 +294,22 @@ async function processTicketSteamId(message, steamId, targetUser) {
     // Log important events to Discord channel
     if (TICKET_CONFIG.LOG_AUTO_LINKS) {
       if (linkResult.created) {
+        // Fetch guild member to get display name
+        let targetMember;
+        try {
+          targetMember = await message.guild?.members.fetch(targetUser.id);
+        } catch (error) {
+          // Fallback to basic user object if member fetch fails
+          targetMember = {
+            id: targetUser.id,
+            tag: targetUser.tag,
+            username: targetUser.username,
+            displayName: targetUser.username
+          };
+        }
+
         // Log new potential link discovery to Discord
-        await logAccountLink(message.client, {
-          id: targetUser.id,
-          tag: targetUser.tag
-        }, steamId, 'ticket', {
+        await logAccountLink(message.client, targetMember, steamId, 'ticket', {
           confidence: '0.3 (Low)',
           'Discovered In': `#${message.channel.name}`,
           'Message ID': message.id

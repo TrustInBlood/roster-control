@@ -81,10 +81,27 @@ module.exports = {
           }
         );
 
-        // Log to Discord
-        await logAccountLink(interaction.client, targetUser, steamId, 'admin', {
+        // Log to Discord - fetch member to get display name
+        let targetMember;
+        try {
+          targetMember = await interaction.guild.members.fetch(targetUser.id);
+        } catch (error) {
+          // Fallback to user if member fetch fails
+          targetMember = targetUser;
+        }
+
+        // Get the admin's display name too
+        let adminMember;
+        try {
+          adminMember = await interaction.guild.members.fetch(interaction.user.id);
+        } catch (error) {
+          adminMember = interaction.user;
+        }
+        const adminDisplayName = adminMember.displayName || adminMember.username || adminMember.tag;
+
+        await logAccountLink(interaction.client, targetMember, steamId, 'admin', {
           confidence: '0.7 (Admin created)',
-          'Created By': `${interaction.user.tag}`,
+          'Created By': adminDisplayName,
           'Reason': reason
         });
 
