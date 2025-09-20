@@ -34,9 +34,16 @@ async function setupWhitelistRoutes(app, _sequelize, logger, discordClient) {
           groups: syncResult.groups
         });
 
-        // Optionally perform the actual sync
-        // const actualSync = await roleWhitelistSync.bulkSyncGuild(primaryGuild.id);
-        // logger.info('Initial sync completed', actualSync);
+        // Perform the actual sync if dry run found members to sync
+        if (syncResult.membersToSync > 0) {
+          logger.info('Starting actual initial sync', { membersToSync: syncResult.membersToSync });
+          const actualSync = await roleWhitelistSync.bulkSyncGuild(primaryGuild.id, { dryRun: false });
+          logger.info('Initial sync completed', {
+            successful: actualSync.successful,
+            failed: actualSync.failed,
+            totalProcessed: actualSync.totalProcessed
+          });
+        }
       } else {
         logger.warn('No Discord guild found for role-based whitelist sync');
       }

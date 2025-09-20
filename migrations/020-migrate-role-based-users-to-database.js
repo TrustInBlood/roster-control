@@ -21,7 +21,18 @@ module.exports = {
 
       if (!discordToken || !guildId) {
         console.log('⚠️  DISCORD_TOKEN or DISCORD_GUILD_ID not set - skipping role migration');
-        console.log('   This is OK for development/test environments');
+        console.log('   This is OK for development/test environments and initial deployments');
+        console.log('   Role-based entries will be created automatically as users interact with the bot');
+        return;
+      }
+
+      // Check if this is a containerized environment (like Pterodactyl)
+      // In production containers, Discord connections during migrations can be problematic
+      const isContainer = process.env.PTERODACTYL || process.env.CONTAINER || process.env.DOCKER;
+      if (isContainer && process.env.NODE_ENV === 'production') {
+        console.log('⚠️  Container environment detected in production - skipping Discord migration');
+        console.log('   Role-based entries will be created automatically when users join/get roles');
+        console.log('   This is the recommended approach for containerized deployments');
         return;
       }
 
