@@ -28,7 +28,27 @@ module.exports = {
       // Load environment-specific squad groups configuration
       const isDevelopment = process.env.NODE_ENV === 'development';
       const configPath = isDevelopment ? '../config/squadGroups.development' : '../config/squadGroups';
-      const { SQUAD_GROUPS, getHighestPriorityGroup } = require(configPath);
+
+      let SQUAD_GROUPS, getHighestPriorityGroup;
+      try {
+        ({ SQUAD_GROUPS, getHighestPriorityGroup } = require(configPath));
+
+        if (!SQUAD_GROUPS || typeof SQUAD_GROUPS !== 'object') {
+          console.log('⚠️  SQUAD_GROUPS configuration not found or invalid - skipping migration');
+          console.log('   This is OK for production environments without role-based configuration');
+          return;
+        }
+
+        if (!getHighestPriorityGroup || typeof getHighestPriorityGroup !== 'function') {
+          console.log('⚠️  getHighestPriorityGroup function not found - skipping migration');
+          return;
+        }
+      } catch (configError) {
+        console.log(`⚠️  Could not load squad groups config from ${configPath} - skipping migration`);
+        console.log('   Error:', configError.message);
+        console.log('   This is OK for production environments without role-based configuration');
+        return;
+      }
 
       // Initialize Discord client
       const client = new Client({
@@ -53,11 +73,25 @@ module.exports = {
 
       // Get all tracked roles for this environment
       const trackedRoles = [];
-      for (const groupConfig of Object.values(SQUAD_GROUPS)) {
-        trackedRoles.push(...groupConfig.roles);
+      try {
+        for (const groupConfig of Object.values(SQUAD_GROUPS)) {
+          if (groupConfig && groupConfig.discordRoles && Array.isArray(groupConfig.discordRoles)) {
+            trackedRoles.push(...groupConfig.discordRoles);
+          }
+        }
+      } catch (configError) {
+        console.error('⚠️  Error loading squad groups configuration:', configError.message);
+        console.log('   Skipping migration - no valid squad groups found');
+        return;
       }
 
       console.log(`🎯 Tracking ${trackedRoles.length} role IDs`);
+
+      if (trackedRoles.length === 0) {
+        console.log('ℹ️  No tracked roles found - skipping migration');
+        await client.destroy();
+        return;
+      }
 
       // Find members with tracked roles
       const membersWithRoles = [];
