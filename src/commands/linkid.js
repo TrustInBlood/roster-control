@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { VerificationCode } = require('../database/models');
 const { config: whitelistConfig } = require('../../config/whitelist');
+const { container } = require('../core/ServiceContainer');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -50,11 +51,8 @@ module.exports = {
       });
 
       // Store the interaction for later update
-      if (!global.pendingVerifications) {
-        global.pendingVerifications = new Map();
-      }
-      
-      global.pendingVerifications.set(verificationCode.code, {
+      const verificationService = container.get('verificationService');
+      verificationService.addPendingVerification(verificationCode.code, {
         interaction,
         discordUserId,
         code: verificationCode.code,
@@ -65,7 +63,7 @@ module.exports = {
       // Set timeout to update the message if code expires unused
       const timeoutCode = verificationCode.code; // Capture the code for the timeout
       setTimeout(async () => {
-        const pending = global.pendingVerifications?.get(timeoutCode);
+        const pending = verificationService.getPendingVerification(timeoutCode);
         if (pending) {
           try {
             const expiredEmbed = {
@@ -86,8 +84,8 @@ module.exports = {
             };
 
             await pending.interaction.editReply({ embeds: [expiredEmbed] });
-            global.pendingVerifications.delete(timeoutCode);
-            
+            verificationService.removePendingVerification(timeoutCode);
+
             interaction.client.logger?.info('Updated expired verification message', {
               code: pending.code,
               discordUserId: pending.discordUserId

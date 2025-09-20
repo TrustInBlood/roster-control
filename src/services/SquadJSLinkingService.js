@@ -1,4 +1,5 @@
 const { VerificationCode, PlayerDiscordLink, Whitelist } = require('../database/models');
+const { container } = require('../core/ServiceContainer');
 
 class SquadJSLinkingService {
   constructor(logger, discordClient, config, whitelistService, connectionManager) {
@@ -232,7 +233,8 @@ class SquadJSLinkingService {
 
   async updateDiscordInteraction(code, player, server, created) {
     try {
-      const pending = global.pendingVerifications?.get(code);
+      const verificationService = container.get('verificationService');
+      const pending = verificationService.getPendingVerification(code);
       if (pending) {
         const successEmbed = {
           color: 0x00ff00,
@@ -262,8 +264,8 @@ class SquadJSLinkingService {
         };
 
         await pending.interaction.editReply({ embeds: [successEmbed] });
-        global.pendingVerifications.delete(code);
-        
+        verificationService.removePendingVerification(code);
+
         this.logger.info('Discord interaction updated with success message', {
           code,
           discordUserId: pending.discordUserId,

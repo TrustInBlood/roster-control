@@ -1,5 +1,25 @@
 // Load environment-specific configuration
 require('../config/config');
+
+// Validate environment variables before starting
+const { validateEnvironment, EnvValidationError } = require('./utils/envValidator');
+try {
+  const validatedEnv = validateEnvironment();
+  console.log('✅ Environment validation passed');
+} catch (error) {
+  if (error instanceof EnvValidationError) {
+    console.error('❌ Environment validation failed:');
+    for (const err of error.errors) {
+      console.error(`  - ${err.variable}: ${err.error}`);
+    }
+    console.error('\n💡 Check your .env file against .env.example for required variables');
+    process.exit(1);
+  } else {
+    console.error('❌ Unexpected error during environment validation:', error.message);
+    process.exit(1);
+  }
+}
+
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const { handleVoiceStateUpdate } = require('./handlers/voiceStateHandler');
 const { setupRoleChangeHandler } = require('./handlers/roleChangeHandler');
