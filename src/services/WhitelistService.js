@@ -348,10 +348,12 @@ class WhitelistService {
           this.roleBasedCache.getCachedMembersWithoutGroups()
         ]);
       } else {
-        // Role-based cache not ready - skip role-based sections for immediate response
-        staffContent = '';
-        membersContent = '';
-        this.logger.debug('Role-based cache not ready, skipping role-based sections for fast response');
+        // Role-based cache not available - fetch role-based entries from database
+        this.logger.debug('Role-based cache not ready, fetching role-based entries from database');
+        [staffContent, membersContent] = await Promise.all([
+          this.getRoleBasedStaffContent(),
+          this.getRoleBasedMembersContent()
+        ]);
       }
 
       // Always get database whitelist (this is already fast due to our optimizations)
@@ -578,6 +580,73 @@ class WhitelistService {
     this.combinedCache = null;
     this.combinedCacheTime = 0;
     this.logger.debug('Combined cache invalidated');
+  }
+
+  /**
+   * Get role-based staff entries from database (fallback when cache not available)
+   */
+  async getRoleBasedStaffContent() {
+    try {
+      const staffEntries = await Whitelist.findAll({
+        where: {
+          source: 'role',
+          type: 'staff',
+          approved: true,
+          revoked: false
+        },
+        order: [['role_name', 'ASC'], ['steamid64', 'ASC']]
+      });
+
+      return this.formatRoleBasedEntries(staffEntries);
+    } catch (error) {
+      this.logger.error('Failed to fetch role-based staff content', { error: error.message });
+      return '';
+    }
+  }
+
+  /**
+   * Get role-based member entries from database (fallback when cache not available)
+   */
+  async getRoleBasedMembersContent() {
+    try {
+      const memberEntries = await Whitelist.findAll({
+        where: {
+          source: 'role',
+          type: 'whitelist',
+          approved: true,
+          revoked: false
+        },
+        order: [['steamid64', 'ASC']]
+      });
+
+      return this.formatRoleBasedEntries(memberEntries);
+    } catch (error) {
+      this.logger.error('Failed to fetch role-based members content', { error: error.message });
+      return '';
+    }
+  }
+
+  /**
+   * Format role-based entries for whitelist output
+   */
+  formatRoleBasedEntries(entries) {
+    if (!entries || entries.length === 0) {
+      return '';
+    }
+
+    let content = '';
+    for (const entry of entries) {
+      // Skip entries without Steam IDs (unlinked users)
+      if (!entry.steamid64 || entry.steamid64 === '00000000000000000') {
+        continue;
+      }
+
+      const groupName = entry.role_name || 'Member';
+      const comment = entry.username ? ` // ${entry.username}` : '';
+      content += `Admin=${entry.steamid64}:${groupName}${comment}\n`;
+    }
+
+    return content;
   }
 }
 
