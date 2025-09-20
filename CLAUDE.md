@@ -201,3 +201,4 @@ The system is designed to support 5 Squad servers through SquadJS instances, wit
 - the ESLint rule wants single quotes instead of template literals for simple strings.
 - adding a discord slash command requires updates in the @config/roles.js file
 - you don't have access to the production server
+- do not commit anything
