@@ -1,19 +1,22 @@
 # Roster Control Discord Bot
 
-A Discord bot designed to manage player rosters for Squad game servers with real-time monitoring, whitelist management, and on-duty admin system.
+A Discord bot with unified whitelist management for Squad game servers, featuring automatic Discord role-based access control, Steam account linking, and comprehensive admin tools.
 
 ## Overview
 
-Roster Control integrates with MariaDB for persistent storage, BattleMetrics API for server/player data, and SquadJS for real-time player events. It enables server administrators to manage whitelist access, monitor player activity, enforce roster rules, and designate on-duty admins through Discord slash commands.
+Roster Control features a unified whitelist system that automatically synchronizes Discord roles with Squad server access. Users with designated Discord roles are automatically granted whitelist access, while administrators can also manually manage individual entries. The system integrates with MariaDB for persistent storage, BattleMetrics API for server/player data, and SquadJS for real-time player events and secure Steam account linking.
 
 ## Features
 
 ### Core Features
+- **Unified Whitelist System**: Automatic Discord role-based Squad server access with database-driven management
+- **Role-Based Access Control**: Discord roles automatically grant/revoke Squad server whitelist access
+- **Steam Account Linking**: Secure in-game verification system for Steam-Discord account connections
 - **On-Duty Admin Management**: Manual `/onduty` and `/offduty` commands with automated triggers
-- **Roster Management**: Add/remove players from whitelist with `/whitelist` commands
+- **Manual Whitelist Management**: Add/remove specific players with `/whitelist` commands
 - **Real-Time Monitoring**: Track player join/leave events via SquadJS integration
 - **Audit Logging**: Complete audit trail of all roster and admin actions
-- **Role-Based Permissions**: Restrict sensitive commands to on-duty admins
+- **Confidence-Based Security**: Staff roles require high-confidence Steam account links
 
 ### Planned Features
 - **RCON Integration**: Automated kicks/bans for roster violations

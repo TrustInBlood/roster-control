@@ -62,7 +62,7 @@ This is a **Discord bot for Squad server roster management** with the following 
 #### Command System (`src/commands/`)
 - **Modular Structure**: Each command is a separate file with `data` (SlashCommandBuilder) and `execute` properties
 - **Error Handling**: Centralized error handling with user-friendly messages
-- **Current Commands**: `/ping`, `/help`, `/onduty`, `/offduty`, `/ondutytutor`, `/offdutytutor`, `/addspecialty`, `/removespecialty`, `/removetutor`, `/whatsnew`, `/linkid`, `/link`, `/unlink`, `/whitelist` (grant/info/extend/revoke), `/unlinkedstaff`
+- **Current Commands**: `/ping`, `/help`, `/onduty`, `/offduty`, `/ondutytutor`, `/offdutytutor`, `/addspecialty`, `/removespecialty`, `/removetutor`, `/whatsnew`, `/linkid`, `/link`, `/unlink`, `/whitelist` (grant/info/extend/revoke), `/unlinkedstaff`, `/checkenv`
 
 #### Event Handling (`src/handlers/`)
 - **Voice State Monitoring**: Automatic notifications when users join monitored voice channels
@@ -73,11 +73,13 @@ This is a **Discord bot for Squad server roster management** with the following 
 #### Unified Whitelist System (`src/services/`)
 - **Single Source of Truth**: All whitelist access is determined by database entries, with Discord roles automatically synced
 - **RoleWhitelistSyncService**: Automatically creates/updates/revokes database entries when Discord roles change
+- **WhitelistService**: Generates comprehensive Squad server whitelists with role-based entries from database
 - **WhitelistAuthorityService**: Validates access by checking database entries and Steam account confidence
 - **Source Tracking**: Entries are categorized by source (role/manual/import) for proper management
 - **Confidence Requirements**: Staff roles require high-confidence (≥1.0) Steam account links for security
 - **Account Linking**: In-game verification system via SquadJS for secure Steam-Discord account connections
-- **Migration Support**: Production migration script (020) converts existing role-based users to database entries
+- **Automatic Sync**: Discord role changes are automatically detected and synced to database whitelist entries
+- **Comprehensive Output**: Squad server whitelist includes group definitions, role-based staff/members, and manual entries
 
 ## Configuration System
 
@@ -150,7 +152,7 @@ const { getHighestPriorityGroup } = require(isDevelopment ? '../../config/squadG
 ## Project Structure Context
 
 ### Current Implementation Status
-- ✅ **Complete**: Discord bot framework, all database models with migrations, role-based on-duty system, tutor system with specialty management, external role change detection, duty status logging, permission system, error handling, unified whitelist system with database-driven architecture, Steam account linking with confidence scoring, role-based automatic synchronization
+- ✅ **Complete**: Discord bot framework, all database models with migrations, role-based on-duty system, tutor system with specialty management, external role change detection, duty status logging, permission system, error handling, **unified whitelist system with automatic Discord role synchronization**, Steam account linking with confidence scoring, comprehensive Squad server whitelist generation
 - 🔄 **In Progress**: SquadJS integration, BattleMetrics API
 - 📋 **Planned**: Player activity tracking, RCON integration, automated reporting
 
@@ -159,7 +161,9 @@ const { getHighestPriorityGroup } = require(isDevelopment ? '../../config/squadG
 - `src/database/models/` - All database models (Player, Admin, Server, AuditLog, DutyStatusChange, Whitelist, PlayerDiscordLink, VerificationCode)
 - `src/handlers/roleChangeHandler.js` - Discord role change detection and processing
 - `src/services/DutyStatusFactory.js` - Duty status management and logging
-- `src/services/RoleWhitelistSyncService.js` - **Discord role to database whitelist synchronization**
+- `src/services/RoleWhitelistSyncService.js` - **Automatic Discord role to database whitelist synchronization**
+- `src/services/WhitelistService.js` - **Squad server whitelist generation with role-based entries**
+- `src/services/WhitelistIntegration.js` - **Unified whitelist system initialization and startup sync**
 - `src/services/WhitelistAuthorityService.js` - **Unified whitelist access validation**
 - `src/services/SquadJSLinkingService.js` - In-game Steam account verification and linking
 - `src/utils/environment.js` - **Centralized environment detection and config loading utility**
@@ -168,10 +172,27 @@ const { getHighestPriorityGroup } = require(isDevelopment ? '../../config/squadG
 - `migrations/` - Database migration files managed by Umzug (see migrations 019-020 for whitelist system)
 - `TASKS.md` - Current implementation status and next steps
 
+### Unified Whitelist System Workflow
+
+The unified whitelist system automatically manages Squad server access based on Discord roles:
+
+1. **Role Monitoring**: `roleChangeHandler.js` detects Discord role changes in real-time
+2. **Database Sync**: `RoleWhitelistSyncService` creates/updates/revokes database entries when roles change
+3. **Whitelist Generation**: `WhitelistService` generates comprehensive Squad server whitelists from database
+4. **Output Format**: Squad servers receive whitelist files with group definitions, role-based entries, and manual entries
+5. **Steam Linking**: Users link Steam accounts via in-game verification for whitelist access
+
+**Key Features**:
+- ✅ **Automatic Sync**: Discord role changes instantly update Squad server access
+- ✅ **Source Tracking**: Entries tagged by source (role/manual/import) for proper management
+- ✅ **Confidence Scoring**: Staff roles require high-confidence Steam account links
+- ✅ **Comprehensive Output**: Single whitelist file includes all access types and group definitions
+- ✅ **Unlinked Handling**: Staff without Steam links get placeholder entries for tracking
+
 ### Integration Points
 - **BattleMetrics API**: Rate-limited HTTP client for server/player data
 - **SquadJS**: WebSocket connection for real-time game events
-- **Discord Events**: Voice state monitoring for admin notifications
+- **Discord Events**: Voice state monitoring for admin notifications, role change detection for whitelist sync
 - **Database**: Automated Umzug migrations on startup, comprehensive logging and audit trails
 
 ## Important Notes
