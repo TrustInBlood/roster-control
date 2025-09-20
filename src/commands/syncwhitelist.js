@@ -66,6 +66,18 @@ module.exports = {
             { name: 'Successfully Processed', value: (result.successful || 0).toString(), inline: true },
             { name: 'Errors', value: (result.failed || 0).toString(), inline: true }
           );
+
+          if (result.withoutSteamLinks > 0) {
+            fields.push(
+              { name: 'Without Steam Links', value: (result.withoutSteamLinks || 0).toString(), inline: true }
+            );
+          }
+
+          if (result.staffWithoutLinks > 0) {
+            fields.push(
+              { name: 'Staff Need Steam Link', value: (result.staffWithoutLinks || 0).toString(), inline: true }
+            );
+          }
         }
 
         if (result.groups && Object.keys(result.groups).length > 0) {
@@ -91,9 +103,22 @@ module.exports = {
         }
 
         if (!dryRun && result.successful > 0) {
+          let databaseText = `${result.successful} role-based whitelist entries created/updated in database.`;
+
+          if (result.withoutSteamLinks > 0) {
+            databaseText += `\n\n${result.withoutSteamLinks} users without Steam links were processed:`;
+            if (result.staffWithoutLinks > 0) {
+              databaseText += `\n- ${result.staffWithoutLinks} staff members created as unlinked entries (need Steam account linking)`;
+            }
+            const membersWithoutLinks = result.withoutSteamLinks - (result.staffWithoutLinks || 0);
+            if (membersWithoutLinks > 0) {
+              databaseText += `\n- ${membersWithoutLinks} regular members skipped (no database entry needed without Steam link)`;
+            }
+          }
+
           resultEmbed.addFields({
             name: 'Database Updated',
-            value: `${result.successful} role-based whitelist entries created/updated in database.`,
+            value: databaseText,
             inline: false
           });
         }

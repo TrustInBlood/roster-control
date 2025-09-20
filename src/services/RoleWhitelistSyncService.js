@@ -436,12 +436,16 @@ class RoleWhitelistSyncService {
 
       const successful = results.filter(r => r.success).length;
       const failed = results.filter(r => !r.success).length;
+      const withoutSteamLinks = results.filter(r => r.success && r.reason === 'no_steam_link').length;
+      const staffWithoutLinks = results.filter(r => r.success && r.reason === 'no_steam_link' && r.hasStaffRole).length;
 
       this.logger.info('Bulk guild sync completed', {
         guildId,
         totalProcessed: results.length,
         successful,
-        failed
+        failed,
+        withoutSteamLinks,
+        staffWithoutLinks
       });
 
       return {
@@ -449,6 +453,8 @@ class RoleWhitelistSyncService {
         totalProcessed: results.length,
         successful,
         failed,
+        withoutSteamLinks,
+        staffWithoutLinks,
         results
       };
 
