@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
-const { VerificationCode } = require('../database/models');
+const { VerificationCode, PlayerDiscordLink } = require('../database/models');
 const { config: whitelistConfig } = require('../../config/whitelist');
 const { container } = require('../core/ServiceContainer');
 
@@ -11,6 +11,55 @@ module.exports = {
   async execute(interaction) {
     try {
       const discordUserId = interaction.user.id;
+
+      // Check if user already has a Steam account linked
+      const existingLink = await PlayerDiscordLink.findOne({
+        where: {
+          discord_user_id: discordUserId,
+          is_primary: true
+        },
+        order: [['confidence_score', 'DESC'], ['created_at', 'DESC']]
+      });
+
+      if (existingLink && existingLink.steamid64) {
+        const alreadyLinkedEmbed = {
+          color: 0xffa500,
+          title: 'Account Already Linked',
+          description: `Your Discord account is already linked to a Steam account.`,
+          fields: [
+            {
+              name: 'Linked Steam ID',
+              value: existingLink.steamid64,
+              inline: true
+            },
+            {
+              name: 'Link Confidence',
+              value: `${(existingLink.confidence_score * 100).toFixed(0)}%`,
+              inline: true
+            },
+            {
+              name: 'Linked Since',
+              value: `<t:${Math.floor(existingLink.created_at.getTime() / 1000)}:R>`,
+              inline: true
+            },
+            {
+              name: 'Need to change your link?',
+              value: 'Use `/unlink` to remove your current link first, then use `/linkid` to create a new one.',
+              inline: false
+            }
+          ],
+          timestamp: new Date().toISOString(),
+          footer: {
+            text: 'Roster Control System'
+          }
+        };
+
+        await interaction.reply({
+          embeds: [alreadyLinkedEmbed],
+          flags: MessageFlags.Ephemeral
+        });
+        return;
+      }
 
       const verificationCode = await VerificationCode.createCode(
         discordUserId,
