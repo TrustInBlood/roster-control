@@ -70,16 +70,49 @@ class EnvironmentValidator {
     });
   }
 
-  optional(name, rule) {
-    const existingRule = this.rules.get(name) || rule;
-    existingRule.optional = true;
-    return this.addRule(name, existingRule);
+  optional(name, rule = {}) {
+    // If called without arguments or with just a rule object, mark the last added rule as optional
+    if (arguments.length === 0 || (arguments.length === 1 && typeof name === 'object')) {
+      const lastRuleName = Array.from(this.rules.keys()).pop();
+      const lastRule = this.rules.get(lastRuleName);
+      if (lastRule) {
+        lastRule.optional = true;
+      }
+      return this;
+    }
+
+    const existingRule = this.rules.get(name);
+    if (existingRule) {
+      existingRule.optional = true;
+      return this;
+    }
+
+    // If no existing rule, create a basic string validation rule
+    const newRule = {
+      type: rule.type || 'string',
+      validator: rule.validator || ((value) => typeof value === 'string'),
+      message: rule.message || `${name} must be a string`,
+      optional: true,
+      ...rule
+    };
+    return this.addRule(name, newRule);
   }
 
   defaultValue(name, defaultVal) {
-    const rule = this.rules.get(name);
-    if (rule) {
-      rule.default = defaultVal;
+    // Support defaultValue called with single argument (assumes last rule)
+    if (arguments.length === 1) {
+      defaultVal = name;
+      // Get the last added rule
+      const lastRuleName = Array.from(this.rules.keys()).pop();
+      const rule = this.rules.get(lastRuleName);
+      if (rule) {
+        rule.default = defaultVal;
+      }
+    } else {
+      const rule = this.rules.get(name);
+      if (rule) {
+        rule.default = defaultVal;
+      }
     }
     return this;
   }
@@ -190,28 +223,44 @@ class EnvironmentValidator {
 }
 
 function createCoreValidator() {
-  return new EnvironmentValidator()
-    .required('DISCORD_TOKEN')
-    .required('DISCORD_CLIENT_ID')
-    .required('DISCORD_GUILD_ID')
-    .required('DB_HOST')
-    .port('DB_PORT').defaultValue(3306)
-    .required('DB_NAME')
-    .required('DB_USER')
-    .required('DB_PASSWORD')
-    .optional('BATTLEMETRICS_TOKEN')
-    .optional('BATTLEMETRICS_BANLIST_ID')
-    .optional('SQUADJS_HOST').defaultValue('localhost')
-    .port('SQUADJS_PORT').optional().defaultValue(3000)
-    .optional('SQUADJS_PASSWORD')
-    .optional('SQUADJS_TOKEN_SERVER1')
-    .optional('SQUADJS_TOKEN_SERVER2')
-    .optional('SQUADJS_TOKEN_SERVER3')
-    .optional('SQUADJS_TOKEN_SERVER4')
-    .optional('SQUADJS_TOKEN_SERVER5')
-    .port('HTTP_PORT').optional().defaultValue(3001)
-    .oneOf('LOG_LEVEL', ['error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly']).optional().defaultValue('info')
-    .oneOf('NODE_ENV', ['development', 'production', 'test']).optional().defaultValue('development');
+  const validator = new EnvironmentValidator();
+
+  // Required Discord configuration
+  validator.required('DISCORD_TOKEN');
+  validator.required('DISCORD_CLIENT_ID');
+  validator.required('DISCORD_GUILD_ID');
+
+  // Required Database configuration
+  validator.required('DB_HOST');
+  validator.port('DB_PORT').defaultValue(3306);
+  validator.required('DB_NAME');
+  validator.required('DB_USER');
+  validator.required('DB_PASSWORD');
+
+  // Optional BattleMetrics configuration
+  validator.optional('BATTLEMETRICS_TOKEN');
+  validator.optional('BATTLEMETRICS_BANLIST_ID');
+
+  // Optional SquadJS configuration
+  validator.optional('SQUADJS_HOST').defaultValue('localhost');
+  validator.port('SQUADJS_PORT').optional().defaultValue(3000);
+  validator.optional('SQUADJS_PASSWORD');
+  validator.optional('SQUADJS_TOKEN_SERVER1');
+  validator.optional('SQUADJS_TOKEN_SERVER2');
+  validator.optional('SQUADJS_TOKEN_SERVER3');
+  validator.optional('SQUADJS_TOKEN_SERVER4');
+  validator.optional('SQUADJS_TOKEN_SERVER5');
+
+  // Optional HTTP configuration
+  validator.port('HTTP_PORT').optional().defaultValue(3001);
+
+  // Optional logging configuration
+  validator.oneOf('LOG_LEVEL', ['error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly']).optional().defaultValue('info');
+
+  // Optional environment configuration
+  validator.oneOf('NODE_ENV', ['development', 'production', 'test']).optional().defaultValue('development');
+
+  return validator;
 }
 
 module.exports = {
