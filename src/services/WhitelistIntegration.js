@@ -24,33 +24,50 @@ async function setupWhitelistRoutes(app, _sequelize, logger, discordClient) {
   // Delay initial sync to ensure guild members are loaded
   setTimeout(async () => {
     try {
-      const primaryGuild = discordClient.guilds.cache.first();
-      if (primaryGuild) {
-        logger.info('Starting initial role-based whitelist sync from Discord guild');
-        const syncResult = await roleWhitelistSync.bulkSyncGuild(primaryGuild.id, { dryRun: true });
-        logger.info('Initial sync analysis completed', {
-          totalMembers: syncResult.totalMembers,
-          membersToSync: syncResult.membersToSync,
-          groups: syncResult.groups
-        });
+      logger.info('Attempting initial role-based whitelist sync...');
 
-        // Perform the actual sync if dry run found members to sync
-        if (syncResult.membersToSync > 0) {
-          logger.info('Starting actual initial sync', { membersToSync: syncResult.membersToSync });
-          const actualSync = await roleWhitelistSync.bulkSyncGuild(primaryGuild.id, { dryRun: false });
-          logger.info('Initial sync completed', {
-            successful: actualSync.successful,
-            failed: actualSync.failed,
-            totalProcessed: actualSync.totalProcessed
-          });
-        }
-      } else {
+      const primaryGuild = discordClient.guilds.cache.first();
+      if (!primaryGuild) {
         logger.warn('No Discord guild found for role-based whitelist sync');
+        logger.info('Available guilds:', {
+          guildCount: discordClient.guilds.cache.size,
+          guildIds: discordClient.guilds.cache.map(g => g.id)
+        });
+        return;
+      }
+
+      logger.info('Starting initial role-based whitelist sync from Discord guild', {
+        guildId: primaryGuild.id,
+        guildName: primaryGuild.name,
+        memberCount: primaryGuild.memberCount
+      });
+
+      const syncResult = await roleWhitelistSync.bulkSyncGuild(primaryGuild.id, { dryRun: true });
+      logger.info('Initial sync analysis completed', {
+        totalMembers: syncResult.totalMembers,
+        membersToSync: syncResult.membersToSync,
+        groups: syncResult.groups
+      });
+
+      // Perform the actual sync if dry run found members to sync
+      if (syncResult.membersToSync > 0) {
+        logger.info('Starting actual initial sync', { membersToSync: syncResult.membersToSync });
+        const actualSync = await roleWhitelistSync.bulkSyncGuild(primaryGuild.id, { dryRun: false });
+        logger.info('Initial sync completed', {
+          successful: actualSync.successful,
+          failed: actualSync.failed,
+          totalProcessed: actualSync.totalProcessed
+        });
+      } else {
+        logger.info('No members found to sync - this is normal if no users have tracked roles');
       }
     } catch (error) {
-      logger.error('Failed to perform initial role-based sync', { error: error.message });
+      logger.error('Failed to perform initial role-based sync', {
+        error: error.message,
+        stack: error.stack
+      });
     }
-  }, 7000); // 7 seconds delay to ensure guild members are loaded
+  }, 10000); // 10 seconds delay to ensure guild members are loaded
 
   const whitelistService = new WhitelistService(logger, whitelistConfig, discordClient);
   
