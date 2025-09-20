@@ -39,12 +39,10 @@ module.exports = {
         await interaction.editReply({ embeds: [embed] });
 
         // Perform the sync
-        console.log(`[SYNC DEBUG] Starting sync: guildId=${guildId}, dryRun=${dryRun}`);
         const result = await syncService.bulkSyncGuild(guildId, {
           dryRun,
           batchSize: 50
         });
-        console.log(`[SYNC DEBUG] Sync completed:`, result);
 
         // Create results embed
         const resultDescription = dryRun

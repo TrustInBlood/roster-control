@@ -58,7 +58,7 @@ class RoleWhitelistSyncService {
           discord_user_id: discordUserId,
           is_primary: true
         },
-        order: [['confidence_score', 'DESC'], ['createdAt', 'DESC']]
+        order: [['confidence_score', 'DESC'], ['created_at', 'DESC']]
       });
 
       if (!primaryLink || !primaryLink.steamid64) {
