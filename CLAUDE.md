@@ -182,3 +182,4 @@ const { getHighestPriorityGroup } = require(isDevelopment ? '../../config/squadG
 ### Multi-Server Architecture
 The system is designed to support 5 Squad servers through SquadJS instances, with centralized Discord bot management and per-server data tracking.
 - the ESLint rule wants single quotes instead of template literals for simple strings.
+- adding a discord slash command requires updates in the @config/roles.js file
