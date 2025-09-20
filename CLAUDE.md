@@ -36,6 +36,8 @@ This is a **Discord bot for Squad server roster management** with the following 
 
 **Tutor System**: Comprehensive tutor management with specialty role assignments (helicopter, armor, infantry, squad expert) restricted to tutor program leads. Includes separate on-duty tracking with visual distinction and complete lifecycle management.
 
+**Unified Whitelist System**: Database-driven whitelist management with automatic Discord role synchronization. The system maintains a single source of truth in the database while automatically creating/revoking entries when Discord roles change. Supports both manual admin-granted whitelists and automatic role-based access with confidence-based Steam account linking requirements.
+
 ### Key Components
 
 #### Permission System (`src/handlers/permissionHandler.js`)
@@ -44,12 +46,15 @@ This is a **Discord bot for Squad server roster management** with the following 
 - Support for multiple role IDs per command
 
 #### Database Architecture (`src/database/`)
-- **Sequelize Models**: 
+- **Sequelize Models**:
   - `Player` - Steam/EOS IDs, username, roster status, activity tracking
   - `Admin` - Discord user info, permission levels (no duty status - roles determine this)
   - `Server` - Squad server configs, health status, connection details
   - `AuditLog` - Comprehensive action tracking with actor/target info
   - `DutyStatusChange` - Duty status change logs with source tracking
+  - `Whitelist` - Unified whitelist entries with source tracking (role/manual/import)
+  - `PlayerDiscordLink` - Steam account to Discord user linking with confidence scores
+  - `VerificationCode` - Temporary codes for in-game Steam account verification
 - **Migration System**: Umzug-powered automated database migrations
 - **Connection Management**: Singleton DatabaseManager with health checks and connection pooling
 - **Configuration**: Charset-aware MariaDB setup (utf8mb4_unicode_ci), flexible TEXT fields instead of ENUMs
@@ -57,13 +62,22 @@ This is a **Discord bot for Squad server roster management** with the following 
 #### Command System (`src/commands/`)
 - **Modular Structure**: Each command is a separate file with `data` (SlashCommandBuilder) and `execute` properties
 - **Error Handling**: Centralized error handling with user-friendly messages
-- **Current Commands**: `/ping`, `/help`, `/onduty`, `/offduty`, `/ondutytutor`, `/offdutytutor`, `/addspecialty`, `/removespecialty`, `/removetutor`, `/whatsnew`, `/linkid`, `/link`, `/whitelist` (grant/info/extend/revoke)
+- **Current Commands**: `/ping`, `/help`, `/onduty`, `/offduty`, `/ondutytutor`, `/offdutytutor`, `/addspecialty`, `/removespecialty`, `/removetutor`, `/whatsnew`, `/linkid`, `/link`, `/unlink`, `/whitelist` (grant/info/extend/revoke), `/unlinkedstaff`
 
 #### Event Handling (`src/handlers/`)
 - **Voice State Monitoring**: Automatic notifications when users join monitored voice channels
 - **Role Change Detection**: Monitors Discord role changes, distinguishes bot vs external changes
 - **Duty Notifications**: Embed-based status updates sent to configured channels
 - **Error Management**: Comprehensive error handling with logging
+
+#### Unified Whitelist System (`src/services/`)
+- **Single Source of Truth**: All whitelist access is determined by database entries, with Discord roles automatically synced
+- **RoleWhitelistSyncService**: Automatically creates/updates/revokes database entries when Discord roles change
+- **WhitelistAuthorityService**: Validates access by checking database entries and Steam account confidence
+- **Source Tracking**: Entries are categorized by source (role/manual/import) for proper management
+- **Confidence Requirements**: Staff roles require high-confidence (≥1.0) Steam account links for security
+- **Account Linking**: In-game verification system via SquadJS for secure Steam-Discord account connections
+- **Migration Support**: Production migration script (020) converts existing role-based users to database entries
 
 ## Configuration System
 
@@ -136,19 +150,22 @@ const { getHighestPriorityGroup } = require(isDevelopment ? '../../config/squadG
 ## Project Structure Context
 
 ### Current Implementation Status
-- ✅ **Complete**: Discord bot framework, all database models with migrations, role-based on-duty system, tutor system with specialty management, external role change detection, duty status logging, permission system, error handling, whitelist management with attribution bug fixes
+- ✅ **Complete**: Discord bot framework, all database models with migrations, role-based on-duty system, tutor system with specialty management, external role change detection, duty status logging, permission system, error handling, unified whitelist system with database-driven architecture, Steam account linking with confidence scoring, role-based automatic synchronization
 - 🔄 **In Progress**: SquadJS integration, BattleMetrics API
 - 📋 **Planned**: Player activity tracking, RCON integration, automated reporting
 
 ### Key Files for Development
 - `src/index.js` - Main bot entry point with event handlers
-- `src/database/models/` - All database models (Player, Admin, Server, AuditLog, DutyStatusChange)
+- `src/database/models/` - All database models (Player, Admin, Server, AuditLog, DutyStatusChange, Whitelist, PlayerDiscordLink, VerificationCode)
 - `src/handlers/roleChangeHandler.js` - Discord role change detection and processing
 - `src/services/DutyStatusFactory.js` - Duty status management and logging
+- `src/services/RoleWhitelistSyncService.js` - **Discord role to database whitelist synchronization**
+- `src/services/WhitelistAuthorityService.js` - **Unified whitelist access validation**
+- `src/services/SquadJSLinkingService.js` - In-game Steam account verification and linking
 - `src/utils/environment.js` - **Centralized environment detection and config loading utility**
 - `config/roles.js` - Permission configuration (contains actual Discord role IDs)
 - `config/channels.js` - Channel configuration (contains actual Discord channel IDs)
-- `migrations/` - Database migration files managed by Umzug
+- `migrations/` - Database migration files managed by Umzug (see migrations 019-020 for whitelist system)
 - `TASKS.md` - Current implementation status and next steps
 
 ### Integration Points

@@ -1,7 +1,9 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { permissionMiddleware } = require('../handlers/permissionHandler');
 const { createResponseEmbed, sendError } = require('../utils/messageHandler');
-const { getRoleChangeHandler } = require('../handlers/roleChangeHandler');
+const { Whitelist, PlayerDiscordLink } = require('../database/models');
+const { getHighestPriorityGroup, squadGroups } = require('../utils/environment');
+const { getAllTrackedRoles } = squadGroups;
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -13,19 +15,42 @@ module.exports = {
       try {
         await interaction.deferReply();
 
-        // Get role change handler to access role-based cache
-        const roleChangeHandler = getRoleChangeHandler();
-
-        if (!roleChangeHandler || !roleChangeHandler.roleBasedCache) {
-          await sendError(interaction, 'Role-based cache not available. Please contact an administrator.');
-          return;
-        }
-
-        // Refresh the cache from Discord before getting unlinked staff
         const guild = interaction.guild;
-        await roleChangeHandler.roleBasedCache.initializeFromGuild(guild);
+        const trackedRoles = getAllTrackedRoles();
 
-        const unlinkedStaff = roleChangeHandler.roleBasedCache.getUnlinkedStaff();
+        // Fetch all guild members
+        const members = await guild.members.fetch();
+
+        // Find staff members (non-Member roles) who lack proper Steam links
+        const unlinkedStaff = [];
+
+        for (const [memberId, member] of members) {
+          if (member.user.bot) continue; // Skip bots
+
+          const userGroup = getHighestPriorityGroup(member.roles.cache);
+
+          // Only check staff members (not regular Members)
+          if (!userGroup || userGroup === 'Member') continue;
+
+          // Check if they have a high-confidence Steam link
+          const primaryLink = await PlayerDiscordLink.findOne({
+            where: {
+              discord_user_id: memberId,
+              is_primary: true,
+              confidence_score: { [require('sequelize').Op.gte]: 1.0 }
+            }
+          });
+
+          // If no high-confidence link, they're considered unlinked staff
+          if (!primaryLink) {
+            unlinkedStaff.push({
+              discordId: memberId,
+              username: member.displayName || member.user.username,
+              userTag: member.user.tag,
+              group: userGroup
+            });
+          }
+        }
         
         if (unlinkedStaff.length === 0) {
           const embed = createResponseEmbed({
@@ -49,7 +74,7 @@ module.exports = {
         
         const embed = createResponseEmbed({
           title: '🔗 Unlinked Staff Members',
-          description: `${unlinkedStaff.length} staff member${unlinkedStaff.length === 1 ? '' : 's'} need to link their Steam accounts`,
+          description: `${unlinkedStaff.length} staff member${unlinkedStaff.length === 1 ? '' : 's'} need to link their Steam accounts with high confidence (≥1.0)`,
           color: 0xFF9800
         });
         

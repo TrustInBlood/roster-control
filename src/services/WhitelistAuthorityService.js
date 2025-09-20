@@ -1,25 +1,23 @@
 const { Whitelist, PlayerDiscordLink, AuditLog } = require('../database/models');
-const { getHighestPriorityGroup } = require('../utils/environment');
 
 /**
  * WhitelistAuthorityService - Single source of truth for all whitelist validation decisions
  *
- * This service centralizes all whitelist validation logic to prevent security vulnerabilities
- * caused by scattered validation code. It enforces strict confidence score requirements
- * and provides consistent validation across all entry points.
+ * This service centralizes all whitelist validation logic using the unified database approach.
+ * All whitelist access is determined by database entries only - no role-based checking.
  *
  * SECURITY REQUIREMENTS:
- * - Staff role-based whitelist requires confidence score >= 1.0
- * - Database whitelist entries are always valid regardless of roles
+ * - All whitelist validation comes from database entries
+ * - Role-based access is handled by RoleWhitelistSyncService writing to database
  * - All validation decisions are logged for audit purposes
- * - No privilege escalation through low-confidence links
+ * - Maintains confidence score validation for security
  */
 class WhitelistAuthorityService {
   /**
    * Get comprehensive whitelist status for a user
    * @param {string} discordUserId - Discord user ID
    * @param {string|null} steamId - Steam ID64 (optional, will be looked up if not provided)
-   * @param {Object|null} discordMember - Discord member object with roles (optional)
+   * @param {Object|null} discordMember - Discord member object (unused in unified system)
    * @returns {Promise<Object>} Whitelist status with detailed breakdown
    */
   static async getWhitelistStatus(discordUserId, steamId = null, discordMember = null) {
@@ -67,68 +65,53 @@ class WhitelistAuthorityService {
         }
       }
 
-      // Step 2: Check database whitelist entries
-      const databaseWhitelist = validatedSteamId ?
-        await this._checkDatabaseWhitelist(validatedSteamId) : null;
+      // Step 2: Check database for whitelist entries (only source of truth)
+      const whitelistStatus = await this._checkDatabaseWhitelist(discordUserId, validatedSteamId);
 
-      // Step 3: Check role-based whitelist with strict validation
-      const roleBasedWhitelist = await this._checkRoleBasedWhitelist(
-        discordMember,
-        linkInfo
-      );
+      // Step 3: Determine final status based on database only
+      const finalStatus = this._determineWhitelistStatus(whitelistStatus, linkInfo);
 
-      // Step 4: Determine final status
-      const finalStatus = this._determineWhitelistStatus(
-        databaseWhitelist,
-        roleBasedWhitelist,
-        linkInfo
-      );
-
-      // Step 5: Log the validation decision (temporarily disabled due to database schema issues)
-      // await this._logValidationDecision(discordUserId, {
-      //   steamId: validatedSteamId,
-      //   linkInfo,
-      //   databaseWhitelist,
-      //   roleBasedWhitelist,
-      //   finalStatus,
-      //   processingTime: Date.now() - startTime
-      // });
+      // Step 4: Log the validation decision
+      await this._logValidationDecision(discordUserId, {
+        steamId: validatedSteamId,
+        linkInfo,
+        whitelistStatus,
+        finalStatus,
+        processingTime: Date.now() - startTime
+      });
 
       return {
         isWhitelisted: finalStatus.isWhitelisted,
         steamId: validatedSteamId,
         linkInfo,
-        sources: {
-          database: databaseWhitelist,
-          roleBased: roleBasedWhitelist
-        },
+        whitelistEntries: whitelistStatus.entries,
         effectiveStatus: finalStatus,
         validatedAt: new Date().toISOString()
       };
 
     } catch (error) {
-      // Log validation errors (temporarily disabled due to database schema issues)
-      // await AuditLog.create({
-      //   actionType: 'WHITELIST_ERROR',
-      //   actorType: 'system',
-      //   actorId: 'AUTHORITY_SERVICE',
-      //   actorName: 'WhitelistAuthorityService',
-      //   targetType: 'discord_user',
-      //   targetId: discordUserId,
-      //   targetName: discordUserId,
-      //   guildId: null,
-      //   description: `Whitelist validation failed: ${error.message}`,
-      //   beforeState: null,
-      //   afterState: null,
-      //   metadata: {
-      //     error: error.message,
-      //     steamId: steamId,
-      //     processingTime: Date.now() - startTime,
-      //     service: 'WhitelistAuthorityService',
-      //     method: 'getWhitelistStatus'
-      //   },
-      //   severity: 'error'
-      // });
+      // Log validation errors
+      await AuditLog.create({
+        actionType: 'WHITELIST_ERROR',
+        actorType: 'system',
+        actorId: 'AUTHORITY_SERVICE',
+        actorName: 'WhitelistAuthorityService',
+        targetType: 'discord_user',
+        targetId: discordUserId,
+        targetName: discordUserId,
+        guildId: null,
+        description: `Whitelist validation failed: ${error.message}`,
+        beforeState: null,
+        afterState: null,
+        metadata: {
+          error: error.message,
+          steamId: steamId,
+          processingTime: Date.now() - startTime,
+          service: 'WhitelistAuthorityService',
+          method: 'getWhitelistStatus'
+        },
+        severity: 'error'
+      });
 
       throw new Error(`Whitelist validation failed: ${error.message}`);
     }
@@ -147,109 +130,122 @@ class WhitelistAuthorityService {
   }
 
   /**
-   * Check database whitelist entries for Steam ID
+   * Check database whitelist entries for user (unified approach)
    * @private
    */
-  static async _checkDatabaseWhitelist(steamId) {
-    if (!steamId) return null;
+  static async _checkDatabaseWhitelist(discordUserId, steamId) {
+    const whereConditions = {
+      approved: true,
+      revoked: false
+    };
 
-    const activeWhitelist = await Whitelist.getActiveWhitelistForUser(steamId);
+    // Check for entries by Discord ID (role-based) or Steam ID (manual grants)
+    const orConditions = [];
+    if (discordUserId) {
+      orConditions.push({ discord_user_id: discordUserId });
+    }
+    if (steamId) {
+      orConditions.push({ steamid64: steamId });
+    }
 
-    if (activeWhitelist.hasWhitelist) {
+    if (orConditions.length === 0) {
       return {
-        isActive: true,
-        reason: activeWhitelist.status,
-        expiration: activeWhitelist.expiration,
-        source: 'database'
+        hasAccess: false,
+        entries: [],
+        reason: 'no_identifiers'
       };
+    }
+
+    whereConditions[require('sequelize').Op.or] = orConditions;
+
+    // Get all active whitelist entries for this user
+    const entries = await Whitelist.findAll({
+      where: whereConditions,
+      order: [['granted_at', 'ASC']]
+    });
+
+    if (entries.length === 0) {
+      return {
+        hasAccess: false,
+        entries: [],
+        reason: 'no_entries_found'
+      };
+    }
+
+    // Check for active entries (considering expiration and stacking)
+    const now = new Date();
+    const activeEntries = [];
+    let hasPermamentAccess = false;
+
+    for (const entry of entries) {
+      // Check if entry has expired
+      if (entry.expiration && new Date(entry.expiration) <= now) {
+        continue; // Skip expired entries
+      }
+
+      // Check if this is a permanent entry (no expiration)
+      if (!entry.expiration) {
+        hasPermamentAccess = true;
+      }
+
+      activeEntries.push(entry);
+    }
+
+    // Process stacking logic for temporary entries
+    let effectiveExpiration = null;
+    if (!hasPermamentAccess && activeEntries.length > 0) {
+      // Calculate stacked expiration from earliest entry
+      const entriesWithDuration = activeEntries.filter(e => e.duration_value && e.duration_type);
+      if (entriesWithDuration.length > 0) {
+        const earliestEntry = entriesWithDuration.sort((a, b) => new Date(a.granted_at) - new Date(b.granted_at))[0];
+        let stackedExpiration = new Date(earliestEntry.granted_at);
+
+        // Add up all durations
+        let totalMonths = 0;
+        let totalDays = 0;
+        entriesWithDuration.forEach(entry => {
+          if (entry.duration_type === 'months') {
+            totalMonths += entry.duration_value;
+          } else if (entry.duration_type === 'days') {
+            totalDays += entry.duration_value;
+          }
+        });
+
+        stackedExpiration.setMonth(stackedExpiration.getMonth() + totalMonths);
+        stackedExpiration.setDate(stackedExpiration.getDate() + totalDays);
+
+        effectiveExpiration = stackedExpiration;
+      }
     }
 
     return {
-      isActive: false,
-      source: 'database'
+      hasAccess: activeEntries.length > 0,
+      entries: activeEntries,
+      isPermanent: hasPermamentAccess,
+      expiration: effectiveExpiration,
+      reason: activeEntries.length > 0 ? 'active_entries_found' : 'all_entries_expired'
     };
   }
 
-  /**
-   * Check role-based whitelist with strict confidence validation
-   * @private
-   */
-  static async _checkRoleBasedWhitelist(discordMember, linkInfo) {
-    // If no Discord member provided, we can't check roles
-    if (!discordMember || !discordMember.roles) {
-      return {
-        isActive: false,
-        reason: 'no_discord_member',
-        source: 'role_based'
-      };
-    }
-
-    // Get user's highest priority group
-    const userGroup = getHighestPriorityGroup(discordMember.roles.cache);
-
-    if (!userGroup || userGroup === 'Member') {
-      return {
-        isActive: false,
-        reason: 'no_staff_role',
-        group: userGroup,
-        source: 'role_based'
-      };
-    }
-
-    // CRITICAL SECURITY CHECK: Staff roles require high-confidence Steam link
-    if (!linkInfo || linkInfo.confidence < 1.0) {
-      return {
-        isActive: false,
-        reason: 'insufficient_link_confidence',
-        group: userGroup,
-        requiredConfidence: 1.0,
-        actualConfidence: linkInfo?.confidence || 0,
-        source: 'role_based',
-        securityBlocked: true
-      };
-    }
-
-    // Staff role with valid high-confidence link
-    return {
-      isActive: true,
-      reason: 'staff_role_with_valid_link',
-      group: userGroup,
-      confidence: linkInfo.confidence,
-      linkSource: linkInfo.source,
-      isPermanent: true, // Staff role-based whitelist is considered permanent
-      source: 'role_based'
-    };
-  }
 
   /**
-   * Determine final whitelist status from all sources
+   * Determine final whitelist status from database only
    * @private
    */
-  static _determineWhitelistStatus(databaseWhitelist, roleBasedWhitelist, linkInfo) {
-    // Database whitelist always takes precedence if active
-    if (databaseWhitelist?.isActive) {
+  static _determineWhitelistStatus(whitelistStatus, linkInfo) {
+    if (whitelistStatus.hasAccess) {
       return {
         isWhitelisted: true,
         primarySource: 'database',
         reason: 'active_database_entry',
-        expiration: databaseWhitelist.expiration,
-        isPermanent: !databaseWhitelist.expiration
-      };
-    }
-
-    // Role-based whitelist if valid
-    if (roleBasedWhitelist?.isActive) {
-      return {
-        isWhitelisted: true,
-        primarySource: 'role_based',
-        reason: 'staff_role_with_valid_link',
-        group: roleBasedWhitelist.group,
-        isPermanent: true
+        expiration: whitelistStatus.expiration,
+        isPermanent: whitelistStatus.isPermanent,
+        entryCount: whitelistStatus.entries.length
       };
     }
 
     // No valid whitelist found
-    const denialReason = this._getDenialReason(roleBasedWhitelist, linkInfo);
+    const denialReason = this._getDenialReason(whitelistStatus, linkInfo);
 
     return {
       isWhitelisted: false,
@@ -263,37 +259,36 @@ class WhitelistAuthorityService {
    * Get detailed reason for whitelist denial
    * @private
    */
-  static _getDenialReason(roleBasedWhitelist, linkInfo) {
-    if (roleBasedWhitelist?.securityBlocked) {
+  static _getDenialReason(whitelistStatus, linkInfo) {
+    if (whitelistStatus.reason === 'no_identifiers') {
       return {
-        reason: 'security_blocked_insufficient_confidence',
+        reason: 'no_identifiers_provided',
         details: {
-          hasStaffRole: true,
-          group: roleBasedWhitelist.group,
-          requiredConfidence: 1.0,
-          actualConfidence: linkInfo?.confidence || 0,
-          linkSource: linkInfo?.source || 'none'
+          hasDiscordId: false,
+          hasSteamId: false,
+          requiresAtLeastOne: true
         }
       };
     }
 
-    if (roleBasedWhitelist?.reason === 'no_staff_role') {
+    if (whitelistStatus.reason === 'no_entries_found') {
       return {
-        reason: 'no_whitelist_access',
+        reason: 'no_whitelist_entries',
         details: {
-          hasStaffRole: false,
-          hasActiveDatabase: false,
-          group: roleBasedWhitelist.group || 'Member'
+          hasLink: !!linkInfo,
+          linkConfidence: linkInfo?.confidence || 0,
+          databaseChecked: true
         }
       };
     }
 
-    if (!linkInfo) {
+    if (whitelistStatus.reason === 'all_entries_expired') {
       return {
-        reason: 'no_steam_account_linked',
+        reason: 'whitelist_expired',
         details: {
-          hasStaffRole: roleBasedWhitelist?.group && roleBasedWhitelist.group !== 'Member',
-          linkRequired: true
+          hadEntries: true,
+          allExpired: true,
+          entryCount: whitelistStatus.entries.length
         }
       };
     }
@@ -301,8 +296,8 @@ class WhitelistAuthorityService {
     return {
       reason: 'no_whitelist_access',
       details: {
-        checkedSources: ['database', 'role_based'],
-        allSourcesInactive: true
+        checkedSource: 'database',
+        statusReason: whitelistStatus.reason
       }
     };
   }
@@ -322,24 +317,25 @@ class WhitelistAuthorityService {
         targetId: discordUserId,
         targetName: validationData.steamId || discordUserId,
         guildId: null,
-        description: `Whitelist validation: ${validationData.finalStatus.isWhitelisted ? 'GRANTED' : 'DENIED'} (${validationData.finalStatus.primarySource || validationData.finalStatus.reason})`,
+        description: `Whitelist validation: ${validationData.finalStatus.isWhitelisted ? 'GRANTED' : 'DENIED'} (${validationData.finalStatus.reason})`,
         beforeState: null,
         afterState: {
           isWhitelisted: validationData.finalStatus.isWhitelisted,
           primarySource: validationData.finalStatus.primarySource,
-          linkConfidence: validationData.linkInfo?.confidence
+          linkConfidence: validationData.linkInfo?.confidence,
+          entryCount: validationData.finalStatus.entryCount || 0
         },
         metadata: {
           steamId: validationData.steamId,
           linkConfidence: validationData.linkInfo?.confidence,
           linkSource: validationData.linkInfo?.source,
-          databaseActive: validationData.databaseWhitelist?.isActive || false,
-          roleBasedActive: validationData.roleBasedWhitelist?.isActive || false,
-          roleBasedGroup: validationData.roleBasedWhitelist?.group,
-          securityBlocked: validationData.roleBasedWhitelist?.securityBlocked || false,
+          databaseEntries: validationData.whitelistStatus?.entries?.length || 0,
+          isPermanent: validationData.finalStatus.isPermanent || false,
+          expiration: validationData.finalStatus.expiration,
           processingTime: validationData.processingTime,
           service: 'WhitelistAuthorityService',
-          version: '1.0.0',
+          version: '2.0.0',
+          unifiedSystem: true,
           validatedAt: new Date().toISOString()
         },
         severity: 'info'
@@ -351,8 +347,8 @@ class WhitelistAuthorityService {
   }
 
   /**
-   * Bulk validate multiple users (for cache operations)
-   * @param {Array} userValidations - Array of {discordUserId, steamId?, discordMember?}
+   * Bulk validate multiple users (simplified for database-only approach)
+   * @param {Array} userValidations - Array of {discordUserId, steamId?}
    * @returns {Promise<Map>} Map of discordUserId -> validation result
    */
   static async bulkValidateUsers(userValidations) {
@@ -363,8 +359,9 @@ class WhitelistAuthorityService {
     }
 
     try {
-      // Step 1: Extract all Discord user IDs for bulk link lookup
+      // Step 1: Extract all Discord user IDs and Steam IDs
       const discordUserIds = userValidations.map(v => v.discordUserId);
+      const providedSteamIds = userValidations.map(v => v.steamId).filter(Boolean);
 
       // Step 2: Bulk fetch all primary links for these Discord users
       const allLinks = await PlayerDiscordLink.findAll({
@@ -387,72 +384,73 @@ class WhitelistAuthorityService {
       }
 
       // Step 4: Get all Steam IDs for database whitelist bulk lookup
-      const steamIds = [...new Set(allLinks.map(link => link.steamid64).filter(Boolean))];
+      const allSteamIds = [...new Set([
+        ...allLinks.map(link => link.steamid64),
+        ...providedSteamIds
+      ].filter(Boolean))];
 
-      // Step 5: Bulk fetch database whitelist entries
-      const databaseWhitelists = new Map();
-      if (steamIds.length > 0) {
-        const activeWhitelists = await Whitelist.findAll({
-          where: {
-            steamid64: steamIds,
-            approved: true,
-            revoked: false
-          },
-          order: [['granted_at', 'ASC']]
-        });
+      // Step 5: Bulk fetch all whitelist entries
+      const allWhitelists = new Map();
+      if (allSteamIds.length > 0 || discordUserIds.length > 0) {
+        const whereConditions = {
+          approved: true,
+          revoked: false
+        };
 
-        for (const whitelist of activeWhitelists) {
-          // Check if this whitelist is currently active
-          const isActive = !whitelist.expiration || new Date(whitelist.expiration) > new Date();
+        const orConditions = [];
+        if (allSteamIds.length > 0) {
+          orConditions.push({ steamid64: allSteamIds });
+        }
+        if (discordUserIds.length > 0) {
+          orConditions.push({ discord_user_id: discordUserIds });
+        }
 
-          databaseWhitelists.set(whitelist.steamid64, {
-            isActive,
-            id: whitelist.id,
-            reason: whitelist.reason,
-            expiration: whitelist.expiration,
-            grantedBy: whitelist.granted_by,
-            grantedAt: whitelist.granted_at,
-            source: 'database'
+        if (orConditions.length > 0) {
+          whereConditions[require('sequelize').Op.or] = orConditions;
+
+          const whitelistEntries = await Whitelist.findAll({
+            where: whereConditions,
+            order: [['granted_at', 'ASC']]
           });
+
+          // Group entries by user (Steam ID or Discord ID)
+          for (const entry of whitelistEntries) {
+            const key = entry.discord_user_id || entry.steamid64;
+            if (!allWhitelists.has(key)) {
+              allWhitelists.set(key, []);
+            }
+            allWhitelists.get(key).push(entry);
+          }
         }
       }
 
       // Step 6: Process each user validation with pre-fetched data
       for (const validation of userValidations) {
         try {
-          const { discordUserId, discordMember } = validation;
+          const { discordUserId, steamId } = validation;
 
           // Get link info from bulk lookup
           const linkInfo = linksByDiscordId.get(discordUserId) || null;
-          const steamId = linkInfo?.steamId || null;
+          const validatedSteamId = steamId || linkInfo?.steamId || null;
 
-          // Get database whitelist from bulk lookup
-          const databaseWhitelist = steamId ?
-            (databaseWhitelists.get(steamId) || { isActive: false, source: 'database' }) :
-            null;
+          // Get whitelist entries from bulk lookup
+          const userEntries = [
+            ...(allWhitelists.get(discordUserId) || []),
+            ...(validatedSteamId ? (allWhitelists.get(validatedSteamId) || []) : [])
+          ];
 
-          // Check role-based whitelist with strict validation
-          const roleBasedWhitelist = await this._checkRoleBasedWhitelist(
-            discordMember,
-            linkInfo
-          );
+          // Process entries to determine status
+          const whitelistStatus = this._processWhitelistEntries(userEntries);
 
           // Determine final status
-          const finalStatus = this._determineWhitelistStatus(
-            databaseWhitelist,
-            roleBasedWhitelist,
-            linkInfo
-          );
+          const finalStatus = this._determineWhitelistStatus(whitelistStatus, linkInfo);
 
           // Store result
           results.set(discordUserId, {
             isWhitelisted: finalStatus.isWhitelisted,
-            steamId: steamId,
+            steamId: validatedSteamId,
             linkInfo,
-            sources: {
-              database: databaseWhitelist,
-              roleBased: roleBasedWhitelist
-            },
+            whitelistEntries: whitelistStatus.entries,
             effectiveStatus: finalStatus,
             validatedAt: new Date().toISOString()
           });
@@ -468,11 +466,9 @@ class WhitelistAuthorityService {
       return results;
 
     } catch (error) {
-      // If bulk operation fails, fall back to individual validation for critical operations
-      console.error('Bulk validation failed, falling back to individual validation:', error.message);
+      console.error('Bulk validation failed:', error.message);
 
-      // For cache initialization, we can't afford to do individual queries, so return empty results
-      // The cache will be populated as users are validated individually through normal operation
+      // Return error results for all users
       for (const validation of userValidations) {
         results.set(validation.discordUserId, {
           isWhitelisted: false,
@@ -482,6 +478,71 @@ class WhitelistAuthorityService {
 
       return results;
     }
+  }
+
+  /**
+   * Process whitelist entries to determine access status
+   * @private
+   */
+  static _processWhitelistEntries(entries) {
+    if (entries.length === 0) {
+      return {
+        hasAccess: false,
+        entries: [],
+        reason: 'no_entries_found'
+      };
+    }
+
+    // Check for active entries (considering expiration)
+    const now = new Date();
+    const activeEntries = entries.filter(entry => {
+      return !entry.expiration || new Date(entry.expiration) > now;
+    });
+
+    if (activeEntries.length === 0) {
+      return {
+        hasAccess: false,
+        entries: entries,
+        reason: 'all_entries_expired'
+      };
+    }
+
+    // Check for permanent access
+    const hasPermamentAccess = activeEntries.some(entry => !entry.expiration);
+
+    // Calculate effective expiration for temporary entries
+    let effectiveExpiration = null;
+    if (!hasPermamentAccess) {
+      const entriesWithDuration = activeEntries.filter(e => e.duration_value && e.duration_type);
+      if (entriesWithDuration.length > 0) {
+        const earliestEntry = entriesWithDuration.sort((a, b) => new Date(a.granted_at) - new Date(b.granted_at))[0];
+        let stackedExpiration = new Date(earliestEntry.granted_at);
+
+        // Add up all durations
+        let totalMonths = 0;
+        let totalDays = 0;
+        entriesWithDuration.forEach(entry => {
+          if (entry.duration_type === 'months') {
+            totalMonths += entry.duration_value;
+          } else if (entry.duration_type === 'days') {
+            totalDays += entry.duration_value;
+          }
+        });
+
+        stackedExpiration.setMonth(stackedExpiration.getMonth() + totalMonths);
+        stackedExpiration.setDate(stackedExpiration.getDate() + totalDays);
+
+        effectiveExpiration = stackedExpiration;
+      }
+    }
+
+    return {
+      hasAccess: true,
+      entries: activeEntries,
+      isPermanent: hasPermamentAccess,
+      expiration: effectiveExpiration,
+      reason: 'active_entries_found'
+    };
   }
 }
 

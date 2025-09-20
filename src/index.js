@@ -101,9 +101,9 @@ client.on('ready', async () => {
   // Initialize whitelist functionality first (includes role-based cache)
   const whitelistServices = await initializeWhitelist();
     
-  // Set up role change handler with role-based cache
-  const roleChangeHandler = setupRoleChangeHandler(client, whitelistServices?.roleBasedCache);
-  console.log('Role change handler initialized with role-based cache');
+  // Set up role change handler with new sync service
+  const roleChangeHandler = setupRoleChangeHandler(client, logger);
+  console.log('Role change handler initialized with unified sync service');
     
   // Wait a moment for all guilds to be loaded
   setTimeout(async () => {
@@ -302,7 +302,7 @@ async function initializeWhitelist() {
       squadJSServers: whitelistServices.config.squadjs.servers.length,
       squadJSConnected: whitelistServices.connectionManager.isConnected(),
       connectionStatus: whitelistServices.connectionManager.getConnectionStatus(),
-      roleBasedCacheEnabled: !!whitelistServices.roleBasedCache
+      roleWhitelistSyncEnabled: !!whitelistServices.roleWhitelistSync
     });
     
     return whitelistServices;

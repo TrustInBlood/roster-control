@@ -96,6 +96,25 @@ module.exports = (sequelize) => {
       type: DataTypes.JSON,
       allowNull: true,
       comment: 'Additional metadata (e.g., BattleMetrics import data, migration info)'
+    },
+    source: {
+      type: DataTypes.STRING(20),
+      allowNull: false,
+      defaultValue: 'manual',
+      validate: {
+        isIn: [['role', 'manual', 'import']]
+      },
+      comment: 'Source of the whitelist: "role", "manual", "import"'
+    },
+    role_name: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      comment: 'Discord role name that granted access (for role-based entries)'
+    },
+    discord_user_id: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      comment: 'Discord user ID for role-based tracking'
     }
   }, {
     tableName: 'whitelists',
@@ -110,6 +129,18 @@ module.exports = (sequelize) => {
       },
       {
         fields: ['eosID']
+      },
+      {
+        fields: ['source', 'revoked']
+      },
+      {
+        fields: ['discord_user_id', 'revoked']
+      },
+      {
+        fields: ['role_name']
+      },
+      {
+        fields: ['discord_user_id', 'source', 'revoked']
       }
     ]
   });

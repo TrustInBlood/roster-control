@@ -1,5 +1,5 @@
 const WhitelistService = require('./WhitelistService');
-const RoleBasedWhitelistCache = require('./RoleBasedWhitelistCache');
+const RoleWhitelistSyncService = require('./RoleWhitelistSyncService');
 const SquadJSConnectionManager = require('./SquadJSConnectionManager');
 const SquadJSLinkingService = require('./SquadJSLinkingService');
 const { VerificationCode } = require('../database/models');
@@ -17,28 +17,35 @@ async function setupWhitelistRoutes(app, _sequelize, logger, discordClient) {
     throw error;
   }
 
-  // Initialize role-based whitelist cache
-  const roleBasedCache = new RoleBasedWhitelistCache(logger, whitelistConfig);
-  logger.info('Role-based whitelist cache created');
-  
-  // Delay cache initialization to ensure guild members are loaded
+  // Initialize role-based whitelist sync service
+  const roleWhitelistSync = new RoleWhitelistSyncService(logger, discordClient);
+  logger.info('Role-based whitelist sync service created');
+
+  // Delay initial sync to ensure guild members are loaded
   setTimeout(async () => {
     try {
       const primaryGuild = discordClient.guilds.cache.first();
       if (primaryGuild) {
-        logger.info('Initializing role-based cache from Discord guild');
-        await roleBasedCache.initializeFromGuild(primaryGuild);
-        const counts = roleBasedCache.getTotalCount();
-        logger.info('Role-based cache initialization completed', counts);
+        logger.info('Starting initial role-based whitelist sync from Discord guild');
+        const syncResult = await roleWhitelistSync.bulkSyncGuild(primaryGuild.id, { dryRun: true });
+        logger.info('Initial sync analysis completed', {
+          totalMembers: syncResult.totalMembers,
+          membersToSync: syncResult.membersToSync,
+          groups: syncResult.groups
+        });
+
+        // Optionally perform the actual sync
+        // const actualSync = await roleWhitelistSync.bulkSyncGuild(primaryGuild.id);
+        // logger.info('Initial sync completed', actualSync);
       } else {
-        logger.warn('No Discord guild found for role-based cache initialization');
+        logger.warn('No Discord guild found for role-based whitelist sync');
       }
     } catch (error) {
-      logger.error('Failed to initialize role-based cache', { error: error.message });
+      logger.error('Failed to perform initial role-based sync', { error: error.message });
     }
   }, 7000); // 7 seconds delay to ensure guild members are loaded
 
-  const whitelistService = new WhitelistService(logger, whitelistConfig, roleBasedCache, discordClient);
+  const whitelistService = new WhitelistService(logger, whitelistConfig, discordClient);
   
   whitelistService.setupRoutes(app);
 
@@ -84,7 +91,7 @@ async function setupWhitelistRoutes(app, _sequelize, logger, discordClient) {
 
   return {
     whitelistService,
-    roleBasedCache,
+    roleWhitelistSync,
     connectionManager,
     squadJSService,
     gracefulShutdown,

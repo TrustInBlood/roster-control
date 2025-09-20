@@ -5,22 +5,19 @@ const { getHighestPriorityGroup } = require('../utils/environment');
 const WhitelistAuthorityService = require('./WhitelistAuthorityService');
 
 class WhitelistService {
-  constructor(logger, config, roleBasedCache = null, discordClient = null) {
+  constructor(logger, config, discordClient = null) {
     this.logger = logger;
     this.config = config;
-    this.roleBasedCache = roleBasedCache; // Optional role-based cache
-    this.discordClient = discordClient; // Optional Discord client for role checking
+    this.discordClient = discordClient; // Optional Discord client
     this.cache = new Map();
     this.lastUpdate = new Map();
-    this.combinedCache = null; // Cache for combined whitelist
-    this.combinedCacheTime = 0;
-    
+
     this.cacheRefreshSeconds = config.cache.refreshSeconds;
     this.preferEosID = config.identifiers.preferEosID;
     this.logConnections = config.logging.logConnections;
     this.logCacheHits = config.logging.logCacheHits;
-    
-    this.logger.info('WhitelistService initialized', {
+
+    this.logger.info('WhitelistService initialized (unified database mode)', {
       cacheRefreshSeconds: this.cacheRefreshSeconds,
       preferEosID: this.preferEosID,
       logConnections: this.logConnections
@@ -28,10 +25,10 @@ class WhitelistService {
 
     this.setupCleanupInterval();
 
-    // Pre-warm the cache after role-based cache initialization (10 seconds to allow Discord cache init at 7s)
+    // Pre-warm the cache
     setTimeout(() => {
       this.prewarmCache();
-    }, 10000);
+    }, 5000);
   }
 
   setupCleanupInterval() {
@@ -39,36 +36,19 @@ class WhitelistService {
     setInterval(() => {
       this.cleanupExpiredCache();
     }, this.cacheRefreshSeconds * 1000);
-
-    // Periodically refresh the combined cache to keep it warm
-    setInterval(() => {
-      this.refreshCombinedCache();
-    }, (this.cacheRefreshSeconds - 5) * 1000); // Refresh 5 seconds before expiry
   }
 
   async prewarmCache() {
     this.logger.info('Pre-warming whitelist cache...');
     try {
-      // Pre-warm the combined cache which is the slowest
-      await this.getCombinedWhitelist();
+      // Pre-warm all cache types
+      await Promise.all([
+        this.getCachedWhitelist('staff'),
+        this.getCachedWhitelist('whitelist')
+      ]);
       this.logger.info('Cache pre-warming completed successfully');
     } catch (error) {
       this.logger.error('Failed to pre-warm cache', { error: error.message });
-    }
-  }
-
-  async refreshCombinedCache() {
-    // Silently refresh the combined cache in the background
-    try {
-      // Force a cache refresh by temporarily clearing it
-      this.combinedCache = null;
-      this.combinedCacheTime = 0;
-
-      await this.getCombinedWhitelist();
-      this.logger.debug('Background cache refresh completed');
-    } catch (error) {
-      // Log error but don't crash - cache will refresh on next request
-      this.logger.error('Background cache refresh failed', { error: error.message });
     }
   }
 
@@ -118,8 +98,7 @@ class WhitelistService {
         });
       }
 
-      // Filter out users who should be handled by role-based system
-      entries = await this.filterRoleBasedUsers(entries, this.discordClient);
+      // All entries are now managed through the unified database system
       
       const formattedContent = await this.formatWhitelistContent(entries);
       
@@ -249,112 +228,6 @@ class WhitelistService {
     return filteredEntries;
   }
 
-  async filterRoleBasedUsers(entries, client) {
-    if (!this.roleBasedCache || !client) {
-      // No role-based system available, return all entries
-      return entries;
-    }
-
-    if (entries.length === 0) {
-      return entries;
-    }
-
-    try {
-      // Step 1: Bulk fetch all Discord links for these Steam IDs
-      const steamIds = entries.map(entry => entry.steamid64).filter(Boolean);
-
-      if (steamIds.length === 0) {
-        return entries;
-      }
-
-      const allLinks = await PlayerDiscordLink.findAll({
-        where: {
-          steamid64: steamIds,
-          is_primary: true
-        }
-      });
-
-      // Step 2: Create a map of Steam ID -> Discord user ID
-      const steamToDiscordMap = new Map();
-      for (const link of allLinks) {
-        steamToDiscordMap.set(link.steamid64, {
-          discordUserId: link.discord_user_id,
-          discordUsername: link.discord_username
-        });
-      }
-
-      // Step 3: Get Discord guild for role checking
-      const guild = client.guilds.cache.first();
-      if (!guild) {
-        // No guild available, include all entries as fallback
-        return entries;
-      }
-
-      // Step 4: Filter entries based on current Discord role status
-      const filteredEntries = [];
-      const excludedEntries = [];
-
-      for (const entry of entries) {
-        let shouldInclude = true;
-        const linkInfo = steamToDiscordMap.get(entry.steamid64);
-
-        if (linkInfo) {
-          try {
-            // Check if user currently has Discord roles that would give them role-based access
-            const member = await guild.members.fetch(linkInfo.discordUserId);
-            const currentGroup = getHighestPriorityGroup(member.roles.cache);
-
-            if (currentGroup) {
-              // User currently has Discord roles and should be handled by role-based system
-              shouldInclude = false;
-              excludedEntries.push({
-                steamid64: entry.steamid64,
-                discordId: linkInfo.discordUserId,
-                discordUsername: member.user.username,
-                currentGroup: currentGroup
-              });
-            }
-          } catch (discordError) {
-            // User may have left server or other Discord error
-            // Include in database whitelist as fallback
-            this.logger.debug('Discord lookup failed, including in database whitelist', {
-              steamid64: entry.steamid64,
-              discordId: linkInfo.discordUserId,
-              error: discordError.message
-            });
-          }
-        }
-
-        if (shouldInclude) {
-          filteredEntries.push(entry);
-        }
-      }
-
-      // Log exclusion summary
-      if (excludedEntries.length > 0) {
-        this.logger.info('Filtered whitelist entries with Discord roles', {
-          originalCount: entries.length,
-          filteredCount: filteredEntries.length,
-          excludedCount: excludedEntries.length
-        });
-
-        // Log details for excluded entries
-        for (const excluded of excludedEntries) {
-          this.logger.debug('Excluding from database whitelist - user has Discord role', excluded);
-        }
-      }
-
-      return filteredEntries;
-
-    } catch (error) {
-      // On any error with bulk processing, fall back to including all entries
-      this.logger.error('Error in bulk role-based filtering, including all entries', {
-        error: error.message,
-        entriesCount: entries.length
-      });
-      return entries;
-    }
-  }
 
   async formatWhitelistContent(entries) {
     // Return default message if no entries
@@ -587,12 +460,8 @@ class WhitelistService {
       try {
         let content;
         
-        // Use role-based cache if available and ready, otherwise fall back to database
-        if (this.roleBasedCache && this.roleBasedCache.isReady()) {
-          content = await this.roleBasedCache.getCachedStaff();
-        } else {
-          content = await this.getCachedWhitelist('staff');
-        }
+        // Get staff whitelist from unified database system
+        content = await this.getCachedWhitelist('staff');
         
         res.set({
           'Content-Type': 'text/plain; charset=utf-8',
@@ -606,7 +475,7 @@ class WhitelistService {
             ip: req.ip,
             userAgent: req.get('User-Agent'),
             contentLength: content.length,
-            source: this.roleBasedCache ? 'role-based' : 'database'
+            source: 'database'
           });
         }
       } catch (error) {
@@ -644,17 +513,27 @@ class WhitelistService {
       }
     });
 
-    // Members endpoint - serves role-based member whitelist
+    // Members endpoint - serves member whitelist from database
     app.get('/members', async (req, res) => {
       try {
-        let content;
-        
-        if (this.roleBasedCache && this.roleBasedCache.isReady()) {
-          content = await this.roleBasedCache.getCachedMembers();
-        } else {
-          // If no role cache or not ready, return empty list
-          content = '/////////////////////////////////\n////// No entries \n/////////////////////////////////\n';
-        }
+        // Get member whitelist entries from database (type='whitelist' with Member role_name)
+        const { Group } = require('../database/models');
+        const memberEntries = await Whitelist.findAll({
+          where: {
+            role_name: 'Member',
+            source: 'role',
+            approved: true,
+            revoked: false
+          },
+          include: [{
+            model: Group,
+            as: 'group',
+            required: false
+          }],
+          order: [['steamid64', 'ASC']]
+        });
+
+        const content = await this.formatWhitelistContent(memberEntries);
         
         res.set({
           'Content-Type': 'text/plain; charset=utf-8',
