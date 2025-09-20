@@ -12,6 +12,7 @@ const COMMAND_PERMISSIONS = {
   // Admin commands
   'whitelist': getAllAdminRoles(),  // All admin roles can use whitelist commands
   'syncwhitelist': getAllAdminRoles(), // All admin roles can sync whitelist
+  'checkenv': getAllAdminRoles(),   // All admin roles can check environment
   'duty': getAllAdminRoles(),       // All admin roles can use duty commands
   'link': getAllAdminRoles(),       // All admin roles can use link commands
   'whatsnew': getAllAdminRoles(),   // All admin roles can use whatsnew command
