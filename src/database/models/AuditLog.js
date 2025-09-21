@@ -50,7 +50,7 @@ const AuditLog = sequelize.define('AuditLog', {
   
   // Target Information - What was acted upon
   targetType: {
-    type: DataTypes.STRING(50),
+    type: DataTypes.STRING(100),
     allowNull: true,
     comment: 'Type of entity that was acted upon'
   },
