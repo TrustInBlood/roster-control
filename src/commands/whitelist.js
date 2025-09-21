@@ -694,7 +694,7 @@ async function processWhitelistGrant(interaction, grantData) {
     }
 
     const successEmbed = createResponseEmbed({
-      title: '✅ Whitelist Granted Successfully',
+      title: 'Whitelist Granted Successfully',
       description: `Whitelist access has been granted successfully${roleAssigned ? ' and Discord role assigned' : ''}!`,
       fields: [
         { name: 'Discord User', value: discordUser ? `<@${discordUser.id}>` : 'Not linked', inline: true },
@@ -708,8 +708,13 @@ async function processWhitelistGrant(interaction, grantData) {
     });
 
     if (roleAssigned) {
+      const roleId = getRoleForReason(reason);
       const roleName = reason.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase());
-      successEmbed.addFields({ name: 'Discord Role', value: `✅ ${roleName} role assigned`, inline: true });
+      successEmbed.addFields({
+        name: 'Discord Role Granted',
+        value: roleId ? `<@&${roleId}> role has been assigned` : `${roleName} role assigned`,
+        inline: false
+      });
     }
 
     if (userInfo.linkedAccount) {
@@ -744,14 +749,23 @@ async function processWhitelistGrant(interaction, grantData) {
     // Send a public announcement embed (non-ephemeral)
     try {
       const publicEmbed = createResponseEmbed({
-        title: '✅ Whitelist Granted',
-        description: `${discordUser ? `<@${discordUser.id}>` : `Steam ID \`${userInfo.steamid64}\``} has been granted **${reason.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}** whitelist access`,
+        title: roleAssigned ? 'Whitelist & Role Granted' : 'Whitelist Granted',
+        description: `${discordUser ? `<@${discordUser.id}>` : `Steam ID \`${userInfo.steamid64}\``} has been granted **${reason.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}** whitelist access${roleAssigned ? ' and Discord role' : ''}`,
         fields: [
           { name: 'Duration', value: durationText, inline: true },
           { name: 'Granted By', value: `<@${grantData.originalUser.id}>`, inline: true }
         ],
         color: 0x00ff00
       });
+
+      if (roleAssigned) {
+        const roleId = getRoleForReason(reason);
+        publicEmbed.addFields({
+          name: 'Discord Role',
+          value: roleId ? `<@&${roleId}> role has been assigned` : `${reason.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())} role assigned`,
+          inline: true
+        });
+      }
 
       await interaction.followUp({
         embeds: [publicEmbed]
