@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { console: loggerConsole } = require('../utils/logger');
 
 class BattleMetricsService {
   constructor() {
@@ -43,11 +44,11 @@ class BattleMetricsService {
         params = {}; // Next URL already has all params
       }
       
-      console.log('Fetching BattleMetrics data:', { url, params });
+      loggerConsole.log('Fetching BattleMetrics data:', { url, params });
       
       const response = await this.axiosInstance.get(url, { params });
 
-      console.log('BattleMetrics API response:', {
+      loggerConsole.log('BattleMetrics API response:', {
         status: response.status,
         dataCount: response.data.data?.length || 0,
         includedCount: response.data.included?.length || 0,
@@ -63,12 +64,12 @@ class BattleMetricsService {
         hasMore: !!response.data.links?.next
       };
     } catch (error) {
-      console.error('Error fetching BattleMetrics whitelists:');
-      console.error('Error message:', error.message);
-      console.error('Error response:', error.response?.data);
-      console.error('Error status:', error.response?.status);
-      console.error('Request URL:', error.config?.url);
-      console.error('Request params:', error.config?.params);
+      loggerConsole.error('Error fetching BattleMetrics whitelists:');
+      loggerConsole.error('Error message:', error.message);
+      loggerConsole.error('Error response:', error.response?.data);
+      loggerConsole.error('Error status:', error.response?.status);
+      loggerConsole.error('Request URL:', error.config?.url);
+      loggerConsole.error('Request params:', error.config?.params);
       throw new Error(`Failed to fetch whitelists: ${error.message}`);
     }
   }
@@ -175,7 +176,7 @@ class BattleMetricsService {
       
       // Debug logging for entries without Steam ID
       if (!steamId) {
-        console.log(`BM Entry Missing Steam ID: ${ban.id} - ${ban.meta?.player || 'Unknown'} - Identifiers: ${ban.attributes?.identifiers?.map(id => id.type).join(', ') || 'none'}`);
+        loggerConsole.log(`BM Entry Missing Steam ID: ${ban.id} - ${ban.meta?.player || 'Unknown'} - Identifiers: ${ban.attributes?.identifiers?.map(id => id.type).join(', ') || 'none'}`);
       }
       
       return {
@@ -275,9 +276,9 @@ class BattleMetricsService {
    */
   async testConnection() {
     try {
-      console.log('Testing BattleMetrics connection...');
-      console.log('Token:', this.token ? `${this.token.substring(0, 10)}...` : 'NOT SET');
-      console.log('Ban List ID:', this.banListId || 'NOT SET');
+      loggerConsole.log('Testing BattleMetrics connection...');
+      loggerConsole.log('Token:', this.token ? `${this.token.substring(0, 10)}...` : 'NOT SET');
+      loggerConsole.log('Ban List ID:', this.banListId || 'NOT SET');
       
       // Test with a small request to the ban list
       const response = await this.axiosInstance.get('/bans', {
@@ -285,13 +286,13 @@ class BattleMetricsService {
           'filter[banList]': this.banListId
         }
       });
-      console.log('BattleMetrics API response status:', response.status);
+      loggerConsole.log('BattleMetrics API response status:', response.status);
       return response.status === 200;
     } catch (error) {
-      console.error('BattleMetrics connection test failed:');
-      console.error('Error message:', error.message);
-      console.error('Error response:', error.response?.data);
-      console.error('Error status:', error.response?.status);
+      loggerConsole.error('BattleMetrics connection test failed:');
+      loggerConsole.error('Error message:', error.message);
+      loggerConsole.error('Error response:', error.response?.data);
+      loggerConsole.error('Error status:', error.response?.status);
       return false;
     }
   }

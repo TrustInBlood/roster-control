@@ -2,6 +2,7 @@ const { ON_DUTY_ROLE_ID, TUTOR_ON_DUTY_ROLE_ID } = require('../../config/discord
 const { sendDutyNotification } = require('../utils/dutyNotifications');
 const { DutyStatusChange } = require('../database/models');
 const notificationService = require('./NotificationService');
+const { console: loggerConsole } = require('../utils/logger');
 
 class DutyStatusFactory {
   constructor() {
@@ -123,7 +124,7 @@ class DutyStatusFactory {
         result.data.roleChanged = true;
       } else {
         result.data.roleChanged = false; // Role was changed externally
-        console.log('📝 External role change detected - logging the change');
+        loggerConsole.log('📝 External role change detected - logging the change');
       }
 
       // Send notification (unless explicitly skipped)
@@ -139,14 +140,14 @@ class DutyStatusFactory {
       const dbResult = await this._logStatusChange(member, isOnDuty, options);
       result.data.dbRecordCreated = dbResult.success;
       if (!dbResult.success) {
-        console.warn('Failed to log duty status change to database:', dbResult.error);
+        loggerConsole.warn('Failed to log duty status change to database:', dbResult.error);
       }
 
       result.success = true;
       return result;
 
     } catch (error) {
-      console.error('Error in duty status change:', error);
+      loggerConsole.error('Error in duty status change:', error);
       result.error = this._getErrorMessage(error);
       return result;
     }
@@ -222,7 +223,7 @@ class DutyStatusFactory {
         warning: success ? null : 'Failed to send notification via NotificationService'
       };
     } catch (error) {
-      console.error('Failed to send direct notification:', error);
+      loggerConsole.error('Failed to send direct notification:', error);
       return {
         success: false,
         warning: 'Failed to send notification to duty logs channel'
@@ -233,7 +234,7 @@ class DutyStatusFactory {
   async _logStatusChange(member, isOnDuty, options) {
     try {
       const dutyType = options.dutyType || 'admin';
-      console.log(`📝 Logging ${dutyType} duty status change: ${member.user.tag} -> ${isOnDuty ? 'ON' : 'OFF'} duty (${options.source || 'command'})`);
+      loggerConsole.log(`📝 Logging ${dutyType} duty status change: ${member.user.tag} -> ${isOnDuty ? 'ON' : 'OFF'} duty (${options.source || 'command'})`);
             
       const changeRecord = await DutyStatusChange.create({
         discordUserId: member.user.id,
@@ -258,7 +259,7 @@ class DutyStatusFactory {
             
       return { success: true, record: changeRecord };
     } catch (error) {
-      console.error('❌ Failed to log duty status change:', error);
+      loggerConsole.error('❌ Failed to log duty status change:', error);
       return {
         success: false,
         error: error.message

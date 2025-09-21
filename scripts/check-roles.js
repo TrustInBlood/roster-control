@@ -11,6 +11,7 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 const { Client, GatewayIntentBits } = require('discord.js');
+const { console: loggerConsole } = require('../src/utils/logger');
 
 // Load environment-specific role config
 const isDevelopment = process.env.NODE_ENV === 'development';
@@ -24,23 +25,23 @@ const client = new Client({
 });
 
 client.once('ready', async () => {
-  console.log(`Logged in as ${client.user.tag}`);
+  loggerConsole.log(`Logged in as ${client.user.tag}`);
   
   const guildId = process.env.DISCORD_GUILD_ID;
   if (!guildId) {
-    console.error('DISCORD_GUILD_ID not set in environment');
+    loggerConsole.error('DISCORD_GUILD_ID not set in environment');
     process.exit(1);
   }
   
   try {
     const guild = await client.guilds.fetch(guildId);
-    console.log(`\nChecking roles in guild: ${guild.name}\n`);
-    console.log('='.repeat(80));
+    loggerConsole.log(`\nChecking roles in guild: ${guild.name}\n`);
+    loggerConsole.log('='.repeat(80));
     
     // Check each configured role
     for (const [roleName, roleId] of Object.entries(DISCORD_ROLES)) {
       if (!roleId) {
-        console.log(`❌ ${roleName.padEnd(20)} -> NOT CONFIGURED`);
+        loggerConsole.log(`❌ ${roleName.padEnd(20)} -> NOT CONFIGURED`);
         continue;
       }
       
@@ -48,18 +49,18 @@ client.once('ready', async () => {
         const role = guild.roles.cache.get(roleId);
         if (role) {
           const memberCount = role.members.size;
-          console.log(`✅ ${roleName.padEnd(20)} -> "${role.name}" (${memberCount} members)`);
+          loggerConsole.log(`✅ ${roleName.padEnd(20)} -> "${role.name}" (${memberCount} members)`);
         } else {
-          console.log(`⚠️  ${roleName.padEnd(20)} -> Role ID ${roleId} NOT FOUND in guild`);
+          loggerConsole.log(`⚠️  ${roleName.padEnd(20)} -> Role ID ${roleId} NOT FOUND in guild`);
         }
       } catch (error) {
-        console.log(`❌ ${roleName.padEnd(20)} -> Error: ${error.message}`);
+        loggerConsole.log(`❌ ${roleName.padEnd(20)} -> Error: ${error.message}`);
       }
     }
     
-    console.log('\n' + '='.repeat(80));
-    console.log('\nRole Group Summaries:');
-    console.log('-'.repeat(40));
+    loggerConsole.log('\n' + '='.repeat(80));
+    loggerConsole.log('\nRole Group Summaries:');
+    loggerConsole.log('-'.repeat(40));
     
     // Show admin roles
     const adminRoles = [
@@ -70,11 +71,11 @@ client.once('ready', async () => {
       DISCORD_ROLES.ADMIN
     ].filter(Boolean);
     
-    console.log('\nAdmin Roles (have command permissions):');
+    loggerConsole.log('\nAdmin Roles (have command permissions):');
     for (const roleId of adminRoles) {
       const role = guild.roles.cache.get(roleId);
       if (role) {
-        console.log(`  • ${role.name} (${role.members.size} members)`);
+        loggerConsole.log(`  • ${role.name} (${role.members.size} members)`);
       }
     }
     
@@ -85,11 +86,11 @@ client.once('ready', async () => {
       DISCORD_ROLES.TUTOR_ON_DUTY
     ].filter(Boolean);
     
-    console.log('\nTutor Roles:');
+    loggerConsole.log('\nTutor Roles:');
     for (const roleId of tutorRoles) {
       const role = guild.roles.cache.get(roleId);
       if (role) {
-        console.log(`  • ${role.name} (${role.members.size} members)`);
+        loggerConsole.log(`  • ${role.name} (${role.members.size} members)`);
       }
     }
     
@@ -100,42 +101,42 @@ client.once('ready', async () => {
       DISCORD_ROLES.SERVICE_MEMBER
     ].filter(Boolean);
     
-    console.log('\nWhitelist Award Roles:');
+    loggerConsole.log('\nWhitelist Award Roles:');
     for (const roleId of whitelistRoles) {
       const role = guild.roles.cache.get(roleId);
       if (role) {
-        console.log(`  • ${role.name} (${role.members.size} members)`);
+        loggerConsole.log(`  • ${role.name} (${role.members.size} members)`);
       }
     }
     
-    console.log('\n' + '='.repeat(80));
-    console.log('\nSquad Group Mappings:');
-    console.log('-'.repeat(40));
+    loggerConsole.log('\n' + '='.repeat(80));
+    loggerConsole.log('\nSquad Group Mappings:');
+    loggerConsole.log('-'.repeat(40));
     
     const { SQUAD_GROUPS } = require(isDevelopment ? '../config/squadGroups.development' : '../config/squadGroups');
     
     for (const [groupName, groupData] of Object.entries(SQUAD_GROUPS)) {
-      console.log(`\n${groupName}:`);
+      loggerConsole.log(`\n${groupName}:`);
       if (groupData.discordRoles.length === 0) {
-        console.log('  No roles configured');
+        loggerConsole.log('  No roles configured');
       } else {
         for (const roleId of groupData.discordRoles) {
           if (roleId) {
             const role = guild.roles.cache.get(roleId);
             if (role) {
-              console.log(`  • ${role.name}`);
+              loggerConsole.log(`  • ${role.name}`);
             } else {
-              console.log(`  • Role ${roleId} not found`);
+              loggerConsole.log(`  • Role ${roleId} not found`);
             }
           }
         }
       }
     }
     
-    console.log('\n' + '='.repeat(80));
+    loggerConsole.log('\n' + '='.repeat(80));
     
   } catch (error) {
-    console.error('Error fetching guild or roles:', error);
+    loggerConsole.error('Error fetching guild or roles:', error);
   }
   
   client.destroy();
@@ -143,12 +144,12 @@ client.once('ready', async () => {
 });
 
 client.on('error', error => {
-  console.error('Discord client error:', error);
+  loggerConsole.error('Discord client error:', error);
   process.exit(1);
 });
 
 // Login to Discord
 client.login(process.env.DISCORD_TOKEN).catch(error => {
-  console.error('Failed to login:', error);
+  loggerConsole.error('Failed to login:', error);
   process.exit(1);
 });

@@ -4,6 +4,7 @@ const { sendError, sendSuccess } = require('../utils/messageHandler');
 const { Whitelist } = require('../database/models');
 const BattleMetricsService = require('../services/BattleMetricsService');
 const NotificationService = require('../services/NotificationService');
+const { console: loggerConsole } = require('../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -67,7 +68,7 @@ module.exports = {
           
           // Stop fetching if we've reached the limit
           if (limit && totalFetched >= limit) {
-            console.log(`Reached limit of ${limit} entries, stopping fetch...`);
+            loggerConsole.log(`Reached limit of ${limit} entries, stopping fetch...`);
             return false; // Signal to stop fetching
           }
           
@@ -80,13 +81,13 @@ module.exports = {
           try {
             await interaction.editReply({ embeds: [progressEmbed] });
           } catch (editError) {
-            console.error('Failed to update progress:', editError.message);
+            loggerConsole.error('Failed to update progress:', editError.message);
           }
         }, searchFilter);
 
         // Server-side filtering already applied via search parameter
         if (targetFilter) {
-          console.log(`Server-side search for "${targetFilter}" returned ${whitelists.length} entries`);
+          loggerConsole.log(`Server-side search for "${targetFilter}" returned ${whitelists.length} entries`);
         }
 
         // Apply limit if specified (as a safety net)
@@ -131,7 +132,7 @@ module.exports = {
           for (const entry of category.entries) {
             try {
               if (!entry.player?.steamId) {
-                console.log(`SKIP (No Steam ID): ${entry.id} - Player: ${entry.player?.name || 'Unknown'}`);
+                loggerConsole.log(`SKIP (No Steam ID): ${entry.id} - Player: ${entry.player?.name || 'Unknown'}`);
                 skippedEntries.noSteamId++;
                 skippedCount++;
                 processedCount++;
@@ -148,7 +149,7 @@ module.exports = {
               const combined = `${reason} ${note}`;
               if (membershipKeywords.some(keyword => combined.includes(keyword)) || 
                   membershipPatterns.some(pattern => combined.includes(pattern))) {
-                console.log(`SKIP (Membership): ${entry.id} - ${entry.player.name} - "${entry.reason || entry.note}"`);
+                loggerConsole.log(`SKIP (Membership): ${entry.id} - ${entry.player.name} - "${entry.reason || entry.note}"`);
                 skippedEntries.membership++;
                 skippedCount++;
                 processedCount++;
@@ -158,7 +159,7 @@ module.exports = {
               // Also skip entries with no expiration (permanent) unless they're clearly temporary rewards
               const temporaryKeywords = ['seedpoint', 'reward', 'event', 'promo', 'temporary', 'temp'];
               if (!entry.expiresAt && !temporaryKeywords.some(keyword => reason.includes(keyword) || note.includes(keyword))) {
-                console.log(`SKIP (Permanent): ${entry.id} - ${entry.player.name} - "${entry.reason || entry.note}"`);
+                loggerConsole.log(`SKIP (Permanent): ${entry.id} - ${entry.player.name} - "${entry.reason || entry.note}"`);
                 skippedEntries.permanent++;
                 skippedCount++;
                 processedCount++;
@@ -244,7 +245,7 @@ module.exports = {
               }
 
             } catch (error) {
-              console.error(`Error processing whitelist entry ${entry.id}:`, error);
+              loggerConsole.error(`Error processing whitelist entry ${entry.id}:`, error);
               errorCount++;
             }
           }
@@ -310,7 +311,7 @@ module.exports = {
         });
 
       } catch (error) {
-        console.error('Migration command error:', error);
+        loggerConsole.error('Migration command error:', error);
         await sendError(interaction, `Migration failed: ${error.message}`);
         
         // Log error to bot logs

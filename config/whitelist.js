@@ -1,3 +1,5 @@
+const { console: loggerConsole } = require('../src/utils/logger');
+
 const config = {
   // HTTP server configuration
   http: {
@@ -116,7 +118,7 @@ function validateConfig() {
 
   // Validate SquadJS servers
   if (config.squadjs.servers.length === 0) {
-    console.warn('No SquadJS servers configured or enabled - account linking will not work');
+    loggerConsole.warn('No SquadJS servers configured or enabled - account linking will not work');
   }
 
   config.squadjs.servers.forEach((server, index) => {

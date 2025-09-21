@@ -1,4 +1,5 @@
 const { DataTypes, Op } = require('sequelize');
+const { console: loggerConsole } = require('../../utils/logger');
 
 module.exports = (sequelize) => {
   const Whitelist = sequelize.define('Whitelist', {
@@ -291,7 +292,7 @@ module.exports = (sequelize) => {
       }
 
     } catch (error) {
-      console.error('Failed to bulk load group info for entries:', error.message);
+      loggerConsole.error('Failed to bulk load group info for entries:', error.message);
     }
   };
 
@@ -303,7 +304,7 @@ module.exports = (sequelize) => {
         const group = await Group.findByPk(entry.group_id);
         entry.group = group;
       } catch (error) {
-        console.error('Failed to load group for entry:', error.message);
+        loggerConsole.error('Failed to load group for entry:', error.message);
       }
     }
   };

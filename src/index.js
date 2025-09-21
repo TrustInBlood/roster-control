@@ -3,19 +3,20 @@ require('../config/config');
 
 // Validate environment variables before starting
 const { validateEnvironment, EnvValidationError } = require('./utils/envValidator');
+const { console: loggerConsole } = require('./utils/logger');
 try {
   const validatedEnv = validateEnvironment();
-  console.log('✅ Environment validation passed');
+  loggerConsole.log('✅ Environment validation passed');
 } catch (error) {
   if (error instanceof EnvValidationError) {
-    console.error('❌ Environment validation failed:');
+    loggerConsole.error('❌ Environment validation failed:');
     for (const err of error.errors) {
-      console.error(`  - ${err.variable}: ${err.error}`);
+      loggerConsole.error(`  - ${err.variable}: ${err.error}`);
     }
-    console.error('\n💡 Check your .env file against .env.example for required variables');
+    loggerConsole.error('\n💡 Check your .env file against .env.example for required variables');
     process.exit(1);
   } else {
-    console.error('❌ Unexpected error during environment validation:', error.message);
+    loggerConsole.error('❌ Unexpected error during environment validation:', error.message);
     process.exit(1);
   }
 }
@@ -31,7 +32,7 @@ const { migrationManager } = require('./database/migrator');
 const notificationService = require('./services/NotificationService');
 const fs = require('fs');
 const path = require('path');
-const winston = require('winston');
+const { logger } = require('./utils/logger');
 const express = require('express');
 
 // Initialize the Discord client with necessary intents
@@ -59,28 +60,8 @@ for (const file of commandFiles) {
   if ('data' in command && 'execute' in command) {
     client.commands.set(command.data.name, command);
   } else {
-    console.warn(`The command at ${filePath} is missing a required "data" or "execute" property.`);
+    loggerConsole.warn(`The command at ${filePath} is missing a required "data" or "execute" property.`);
   }
-}
-
-// Set up Winston logger
-const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'logs/combined.log' })
-  ]
-});
-
-// Add console transport in development
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(new winston.transports.Console({
-    format: winston.format.simple()
-  }));
 }
 
 // Make logger available to commands
@@ -89,21 +70,21 @@ client.logger = logger;
 // Event handler
 client.on('ready', async () => {
   logger.info(`Logged in as ${client.user.tag}`);
-  console.log(`Bot logged in as ${client.user.tag}`);
-    
+  loggerConsole.log(`Bot logged in as ${client.user.tag}`);
+
   // Initialize NotificationService
   notificationService.initialize(client);
-  console.log('NotificationService initialized');
-    
+  loggerConsole.log('NotificationService initialized');
+
   // Log legacy command handler initialization
-  console.log('Legacy command handler initialized (messageCreate event)');
+  loggerConsole.log('Legacy command handler initialized (messageCreate event)');
     
   // Initialize whitelist functionality first (includes role-based cache)
   const whitelistServices = await initializeWhitelist();
     
   // Set up role change handler with new sync service
   const roleChangeHandler = setupRoleChangeHandler(client, logger);
-  console.log('Role change handler initialized with unified sync service');
+  loggerConsole.log('Role change handler initialized with unified sync service');
     
   // Wait a moment for all guilds to be loaded
   setTimeout(async () => {
@@ -119,7 +100,7 @@ client.on('messageCreate', async (message) => {
   try {
     await handleLegacyCommands(message);
   } catch (error) {
-    console.error('Error in messageCreate handler:', error);
+    loggerConsole.error('Error in messageCreate handler:', error);
     logger.error('messageCreate handler failed', {
       error: error.message,
       stack: error.stack,
@@ -132,7 +113,7 @@ client.on('messageCreate', async (message) => {
 // Startup sync function
 async function performStartupSync(client) {
   try {
-    console.log('Starting bot startup sync...');
+    loggerConsole.log('Starting bot startup sync...');
         
     // First, ensure database is connected and run migrations
     await ensureDatabaseReady();
@@ -140,13 +121,13 @@ async function performStartupSync(client) {
     const syncService = new DutyStatusSyncService();
         
     for (const [guildId, guild] of client.guilds.cache) {
-      console.log(`Syncing guild: ${guild.name}`);
+      loggerConsole.log(`Syncing guild: ${guild.name}`);
             
       try {
         const syncResults = await syncService.syncGuildDutyStatus(guild);
                 
         // Log sync summary
-        console.log(`Sync completed for ${guild.name}:`, {
+        loggerConsole.log(`Sync completed for ${guild.name}:`, {
           scanned: syncResults.scanned,
           roleHolders: syncResults.discordRoleHolders,
           recordsCreated: syncResults.recordsCreated,
@@ -154,13 +135,13 @@ async function performStartupSync(client) {
           resolved: syncResults.discrepanciesResolved,
           errors: syncResults.errors.length
         });
-                
+
         if (syncResults.errors.length > 0) {
-          console.warn(`⚠️ Sync errors for ${guild.name}:`, syncResults.errors);
+          loggerConsole.warn(`⚠️ Sync errors for ${guild.name}:`, syncResults.errors);
         }
                 
       } catch (error) {
-        console.error(`❌ Failed to sync guild ${guild.name}:`, error);
+        loggerConsole.error(`❌ Failed to sync guild ${guild.name}:`, error);
         logger.error('Guild sync failed', {
           guildId: guild.id,
           guildName: guild.name,
@@ -170,10 +151,10 @@ async function performStartupSync(client) {
       }
     }
         
-    console.log('Startup sync completed for all guilds');
-        
+    loggerConsole.log('Startup sync completed for all guilds');
+
   } catch (error) {
-    console.error('❌ Startup sync failed:', error);
+    loggerConsole.error('❌ Startup sync failed:', error);
     logger.error('Startup sync failed', {
       error: error.message,
       stack: error.stack
@@ -184,22 +165,22 @@ async function performStartupSync(client) {
 // Database initialization function using migrations
 async function ensureDatabaseReady() {
   try {
-    console.log('Initializing database connection and schema...');
+    loggerConsole.log('Initializing database connection and schema...');
         
     // Connect to database and set up associations
     const connected = await databaseManager.connect();
     if (!connected) {
       throw new Error('Failed to establish database connection');
     }
-    console.log('Database connection established successfully.');
-        
+    loggerConsole.log('Database connection established successfully.');
+
     // Run all pending migrations
     const migrationResult = await migrationManager.runMigrations();
-        
+
     if (migrationResult.migrationsRun > 0) {
-      console.log(`Applied ${migrationResult.migrationsRun} database migration(s)`);
+      loggerConsole.log(`Applied ${migrationResult.migrationsRun} database migration(s)`);
     } else {
-      console.log('Database schema is up to date');
+      loggerConsole.log('Database schema is up to date');
     }
         
     // Verify database health
@@ -210,37 +191,37 @@ async function ensureDatabaseReady() {
         
     // Get migration status for logging
     const status = await migrationManager.getStatus();
-    console.log(`Database status: ${status.executed.length} migrations executed, ${status.pending.length} pending`);
-        
+    loggerConsole.log(`Database status: ${status.executed.length} migrations executed, ${status.pending.length} pending`);
+
     // Verify critical tables exist
     const sequelize = databaseManager.getSequelize();
     const tables = await sequelize.getQueryInterface().showAllTables();
     const tableNames = tables.map(t => t.tableName || t).sort();
-    console.log(`Active tables: ${tableNames.length} (${tableNames.join(', ')})`);
-        
+    loggerConsole.log(`Active tables: ${tableNames.length} (${tableNames.join(', ')})`);
+
     const requiredTables = ['players', 'duty_status_changes', 'admins', 'servers', 'audit_logs', 'groups', 'whitelists', 'player_discord_links', 'verification_codes', 'unlink_history'];
     const missingTables = requiredTables.filter(table => !tableNames.includes(table));
-        
+
     if (missingTables.length > 0) {
-      console.warn(`⚠️ Warning: Expected tables not found: ${missingTables.join(', ')}`);
-      console.warn('This might indicate a migration issue or fresh installation');
+      loggerConsole.warn(`⚠️ Warning: Expected tables not found: ${missingTables.join(', ')}`);
+      loggerConsole.warn('This might indicate a migration issue or fresh installation');
     }
-        
-    console.log('Database initialization complete');
+
+    loggerConsole.log('Database initialization complete');
         
   } catch (error) {
-    console.error('❌ Database initialization failed:', error);
-        
+    loggerConsole.error('❌ Database initialization failed:', error);
+
     // Log additional migration status information for debugging
     try {
       const status = await migrationManager.getStatus();
-      console.error('📋 Migration status at failure:', {
+      loggerConsole.error('📋 Migration status at failure:', {
         executed: status.executed,
         pending: status.pending,
         total: status.total
       });
     } catch (statusError) {
-      console.error('❌ Could not retrieve migration status:', statusError.message);
+      loggerConsole.error('❌ Could not retrieve migration status:', statusError.message);
     }
         
     throw error;
@@ -271,7 +252,7 @@ client.on('interactionCreate', async interaction => {
 // Initialize whitelist functionality
 async function initializeWhitelist() {
   try {
-    console.log('Initializing whitelist integration...');
+    loggerConsole.log('Initializing whitelist integration...');
         
     // Setup HTTP server
     const app = express();
@@ -290,14 +271,14 @@ async function initializeWhitelist() {
         
     const server = app.listen(port, host, () => {
       logger.info(`Whitelist HTTP server listening on ${host}:${port}`);
-      console.log(`Whitelist HTTP server started on ${host}:${port}`);
+      loggerConsole.log(`Whitelist HTTP server started on ${host}:${port}`);
     });
 
     // Store for graceful shutdown
     global.whitelistServices = whitelistServices;
     global.httpServer = server;
 
-    console.log('Whitelist integration initialized successfully');
+    loggerConsole.log('Whitelist integration initialized successfully');
     logger.info('Whitelist integration initialized successfully', {
       squadJSServers: whitelistServices.config.squadjs.servers.length,
       squadJSConnected: whitelistServices.connectionManager.isConnected(),
@@ -308,7 +289,7 @@ async function initializeWhitelist() {
     return whitelistServices;
         
   } catch (error) {
-    console.error('❌ Failed to initialize whitelist integration:', error);
+    loggerConsole.error('❌ Failed to initialize whitelist integration:', error);
     logger.error('Failed to initialize whitelist integration', { error: error.message });
     return null;
   }
@@ -316,15 +297,15 @@ async function initializeWhitelist() {
 
 // Graceful shutdown handler
 process.on('SIGINT', () => {
-  console.log('\n🛑 Received SIGINT, shutting down gracefully...');
-    
+  loggerConsole.log('\n🛑 Received SIGINT, shutting down gracefully...');
+
   if (global.whitelistServices) {
     global.whitelistServices.gracefulShutdown();
   }
-    
+
   if (global.httpServer) {
     global.httpServer.close(() => {
-      console.log('HTTP server closed');
+      loggerConsole.log('HTTP server closed');
     });
   }
     
@@ -333,15 +314,15 @@ process.on('SIGINT', () => {
 });
 
 process.on('SIGTERM', () => {
-  console.log('\n🛑 Received SIGTERM, shutting down gracefully...');
-    
+  loggerConsole.log('\n🛑 Received SIGTERM, shutting down gracefully...');
+
   if (global.whitelistServices) {
     global.whitelistServices.gracefulShutdown();
   }
-    
+
   if (global.httpServer) {
     global.httpServer.close(() => {
-      console.log('HTTP server closed');
+      loggerConsole.log('HTTP server closed');
     });
   }
     

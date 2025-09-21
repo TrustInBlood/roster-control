@@ -1,12 +1,13 @@
 const path = require('path');
 const dotenv = require('dotenv');
+const { console: loggerConsole } = require('../src/utils/logger');
 
 // Load environment config based on NODE_ENV (default to production for safety)
 const env = process.env.NODE_ENV === 'development' ? 'development' : 'production';
 const envFile = env === 'development' ? '.env.development' : '.env';
 const envPath = path.join(__dirname, `../${envFile}`);
 
-console.log(`Loading environment config from: ${envFile} (NODE_ENV: ${env})`);
+loggerConsole.log(`Loading environment config from: ${envFile} (NODE_ENV: ${env})`);
 dotenv.config({ path: envPath });
 
 const config = {
@@ -28,7 +29,7 @@ const config = {
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     dialect: 'mariadb',
-    logging: process.env.NODE_ENV === 'development' ? console.log : false,
+    logging: process.env.NODE_ENV === 'development' ? loggerConsole.log : false,
     pool: {
       max: 5,
       min: 0,

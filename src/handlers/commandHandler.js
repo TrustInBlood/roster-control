@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { console: loggerConsole } = require('../utils/logger');
 
 module.exports = (client) => {
   const commandsPath = path.join(__dirname, '..', 'commands');
@@ -12,7 +13,7 @@ module.exports = (client) => {
     if ('data' in command && 'execute' in command) {
       client.commands.set(command.data.name, command);
     } else {
-      console.warn(`The command at ${filePath} is missing a required "data" or "execute" property.`);
+      loggerConsole.warn(`The command at ${filePath} is missing a required "data" or "execute" property.`);
     }
   }
 };

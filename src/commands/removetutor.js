@@ -4,6 +4,7 @@ const { sendSuccess, sendError, createResponseEmbed } = require('../utils/messag
 const { TUTOR_ROLE_ID, TUTOR_ON_DUTY_ROLE_ID, TUTOR_LEAD_ROLE_ID, SPECIALTY_ROLES } = require('../../config/discord');
 const { AuditLog } = require('../database/models');
 const notificationService = require('../services/NotificationService');
+const { console: loggerConsole } = require('../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -66,7 +67,7 @@ module.exports = {
                 await targetMember.roles.remove(role, `All tutor roles removed by ${interaction.user.tag}: ${reason}`);
                 removedRoles.push(roleName);
               } catch (error) {
-                console.error(`Failed to remove ${roleName} role:`, error);
+                loggerConsole.error(`Failed to remove ${roleName} role:`, error);
                 failedRoles.push(roleName);
               }
             }
@@ -97,7 +98,7 @@ module.exports = {
             }
           });
         } catch (dbError) {
-          console.error('Failed to log tutor removal:', dbError);
+          loggerConsole.error('Failed to log tutor removal:', dbError);
         // Continue - roles were removed successfully
         }
 
@@ -114,7 +115,7 @@ module.exports = {
             thumbnail: targetUser.displayAvatarURL({ dynamic: true })
           });
         } catch (notifyError) {
-          console.error('Failed to send tutor removal notification:', notifyError);
+          loggerConsole.error('Failed to send tutor removal notification:', notifyError);
         // Non-critical error - continue
         }
 
@@ -157,12 +158,12 @@ module.exports = {
             embeds: [publicEmbed]
           });
         } catch (followUpError) {
-          console.error('Failed to send public announcement:', followUpError);
+          loggerConsole.error('Failed to send public announcement:', followUpError);
         // Non-critical error
         }
 
       } catch (error) {
-        console.error('Error in removetutor command:', error);
+        loggerConsole.error('Error in removetutor command:', error);
         return sendError(interaction, 'An error occurred while removing tutor status.');
       }
     });

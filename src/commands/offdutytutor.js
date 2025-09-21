@@ -2,6 +2,7 @@ const { SlashCommandBuilder } = require('discord.js');
 const { permissionMiddleware } = require('../handlers/permissionHandler');
 const { sendSuccess, sendError } = require('../utils/messageHandler');
 const DutyStatusFactory = require('../services/DutyStatusFactory');
+const { console: loggerConsole } = require('../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -47,7 +48,7 @@ module.exports = {
           embed
         );
       } catch (error) {
-        console.error('Error in offdutytutor command:', error);
+        loggerConsole.error('Error in offdutytutor command:', error);
         return sendError(interaction, 'Failed to set you as off duty tutor. Please try again or contact a server administrator.');
       }
     });

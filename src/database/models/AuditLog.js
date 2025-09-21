@@ -1,5 +1,6 @@
 const { DataTypes, Op } = require('sequelize');
 const { sequelize } = require('../../../config/database');
+const { console: loggerConsole } = require('../../utils/logger');
 
 const AuditLog = sequelize.define('AuditLog', {
   // Auto-increment primary key
@@ -274,7 +275,7 @@ AuditLog.logAction = async function(actionData) {
     });
     return log;
   } catch (error) {
-    console.error('Failed to create audit log entry:', error);
+    loggerConsole.error('Failed to create audit log entry:', error);
     throw error;
   }
 };

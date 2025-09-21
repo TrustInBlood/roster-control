@@ -3,6 +3,7 @@ const { permissionMiddleware } = require('../handlers/permissionHandler');
 const { sendSuccess, sendError } = require('../utils/messageHandler');
 const DutyStatusFactory = require('../services/DutyStatusFactory');
 const { TUTOR_ROLE_ID } = require('../../config/discord');
+const { console: loggerConsole } = require('../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -48,7 +49,7 @@ module.exports = {
           embed
         );
       } catch (error) {
-        console.error('Error in ondutytutor command:', error);
+        loggerConsole.error('Error in ondutytutor command:', error);
         return sendError(interaction, 'Failed to set you as on duty tutor. Please try again or contact a server administrator.');
       }
     });

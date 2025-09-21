@@ -4,6 +4,7 @@ const { sendSuccess, sendError, createResponseEmbed } = require('../utils/messag
 const { PlayerDiscordLink } = require('../database/models');
 const { isValidSteamId } = require('../utils/steamId');
 const { logAccountLink } = require('../utils/discordLogger');
+const { console: loggerConsole } = require('../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -142,7 +143,7 @@ module.exports = {
         });
 
       } catch (error) {
-        console.error('Link command error:', error);
+        loggerConsole.error('Link command error:', error);
         await sendError(interaction, `Failed to create link: ${error.message}`);
       }
     });

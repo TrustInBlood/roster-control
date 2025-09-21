@@ -1,5 +1,6 @@
 const { Sequelize } = require('sequelize');
 require('dotenv').config();
+const { console: loggerConsole } = require('../src/utils/logger');
 
 // Database configuration
 const dbConfig = {
@@ -23,7 +24,7 @@ const dbConfig = {
   },
   
   // Logging configuration
-  logging: (process.env.NODE_ENV === 'development' && process.env.DB_LOGGING !== 'false') ? console.log : false,
+  logging: (process.env.NODE_ENV === 'development' && process.env.DB_LOGGING !== 'false') ? loggerConsole.log : false,
   
   // Additional MariaDB-specific options
   dialectOptions: {
@@ -41,10 +42,10 @@ const sequelize = new Sequelize(dbConfig);
 const testConnection = async () => {
   try {
     await sequelize.authenticate();
-    console.log('Database connection established successfully.');
+    loggerConsole.log('Database connection established successfully.');
     return true;
   } catch (error) {
-    console.error('❌ Unable to connect to the database:', error);
+    loggerConsole.error('❌ Unable to connect to the database:', error);
     return false;
   }
 };

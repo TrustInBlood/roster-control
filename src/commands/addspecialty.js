@@ -4,6 +4,7 @@ const { sendSuccess, sendError, createResponseEmbed } = require('../utils/messag
 const { SPECIALTY_ROLES } = require('../../config/discord');
 const { AuditLog } = require('../database/models');
 const notificationService = require('../services/NotificationService');
+const { console: loggerConsole } = require('../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -82,7 +83,7 @@ module.exports = {
         try {
           await targetMember.roles.add(role, `Specialty assigned by ${interaction.user.tag}`);
         } catch (error) {
-          console.error('Failed to add specialty role:', error);
+          loggerConsole.error('Failed to add specialty role:', error);
           return sendError(interaction, 'Failed to assign the specialty role. Please check bot permissions.');
         }
 
@@ -106,7 +107,7 @@ module.exports = {
             }
           });
         } catch (dbError) {
-          console.error('Failed to log specialty assignment:', dbError);
+          loggerConsole.error('Failed to log specialty assignment:', dbError);
         // Continue - role was assigned successfully
         }
 
@@ -122,7 +123,7 @@ module.exports = {
             thumbnail: targetUser.displayAvatarURL({ dynamic: true })
           });
         } catch (notifyError) {
-          console.error('Failed to send tutor specialty notification:', notifyError);
+          loggerConsole.error('Failed to send tutor specialty notification:', notifyError);
         // Non-critical error - continue
         }
 
@@ -152,12 +153,12 @@ module.exports = {
             embeds: [publicEmbed]
           });
         } catch (followUpError) {
-          console.error('Failed to send public announcement:', followUpError);
+          loggerConsole.error('Failed to send public announcement:', followUpError);
         // Non-critical error
         }
 
       } catch (error) {
-        console.error('Error in addspecialty command:', error);
+        loggerConsole.error('Error in addspecialty command:', error);
         return sendError(interaction, 'An error occurred while assigning the specialty.');
       }
     });

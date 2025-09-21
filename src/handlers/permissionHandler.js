@@ -1,5 +1,6 @@
 const { COMMAND_PERMISSIONS } = require('../../config/discord');
 const { sendError } = require('../utils/messageHandler');
+const { console: loggerConsole } = require('../utils/logger');
 
 /**
  * Checks if a user has permission to use a command
@@ -12,7 +13,7 @@ function checkPermissions(interaction, commandName) {
 
   // If command is not in permissions config, deny by default for safety
   if (allowedRoles === undefined) {
-    console.error(`WARNING: Command '${commandName}' has no permission configuration. Denying access by default.`);
+    loggerConsole.error(`WARNING: Command '${commandName}' has no permission configuration. Denying access by default.`);
     return false;
   }
 
@@ -27,7 +28,7 @@ function checkPermissions(interaction, commandName) {
     // Log a warning for admin command names with empty permissions
     const adminCommands = ['link', 'unlink', 'whitelist', 'duty', 'onduty', 'offduty', 'admin', 'mod', 'ban', 'kick'];
     if (adminCommands.includes(commandName.toLowerCase())) {
-      console.error(`SECURITY WARNING: Admin command '${commandName}' has empty permission array! This allows everyone access!`);
+      loggerConsole.error(`SECURITY WARNING: Admin command '${commandName}' has empty permission array! This allows everyone access!`);
     }
     return true;
   }

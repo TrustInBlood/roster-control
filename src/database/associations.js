@@ -1,4 +1,5 @@
 const { Player, DutyStatusChange, Admin, Server, AuditLog, Group, Whitelist, PlayerDiscordLink, VerificationCode, UnlinkHistory } = require('./models');
+const { console: loggerConsole } = require('../utils/logger');
 
 // Define model associations/relationships
 function defineAssociations() {
@@ -103,7 +104,7 @@ function defineAssociations() {
   // Note: These are handled through constraints: false and scopes above
   // since Sequelize doesn't have native polymorphic support
 
-  console.log('Database model associations defined successfully');
+  loggerConsole.log('Database model associations defined successfully');
 }
 
 module.exports = {

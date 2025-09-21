@@ -3,6 +3,7 @@
 require('dotenv').config();
 const { databaseManager } = require('../src/database');
 const { Player, Admin, Server, AuditLog, DutyStatusChange } = require('../src/database/models');
+const { console: loggerConsole } = require('../src/utils/logger');
 
 async function testAllModels() {
   console.log('🧪 Testing all database models comprehensively...\n');

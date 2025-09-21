@@ -8,6 +8,7 @@ const { looksLikeSteamId, isValidSteamId } = require('../utils/steamId');
 const { PlayerDiscordLink } = require('../database/models');
 const { TICKET_CONFIG } = require('../../config/channels');
 const { logAccountLink } = require('../utils/discordLogger');
+const { console: loggerConsole } = require('../utils/logger');
 
 /**
  * Handles message scanning in ticket channels for Steam ID auto-linking
@@ -100,7 +101,7 @@ async function handleTicketAutoLink(message) {
 
   } catch (error) {
     // Don't let ticket auto-linking crash the bot
-    console.error('Error in ticket auto-link handler:', error);
+    loggerConsole.error('Error in ticket auto-link handler:', error);
   }
 }
 
@@ -263,7 +264,7 @@ async function findTicketCreator(message) {
     return humanUsers.length > 0 ? humanUsers[0] : null;
     
   } catch (error) {
-    console.error('Error fetching channel messages for ticket creator lookup:', error.message);
+    loggerConsole.error('Error fetching channel messages for ticket creator lookup:', error.message);
     return null;
   }
 }
@@ -319,7 +320,7 @@ async function processTicketSteamId(message, steamId, targetUser) {
     }
 
   } catch (error) {
-    console.error('Error processing ticket Steam ID:', error);
+    loggerConsole.error('Error processing ticket Steam ID:', error);
   }
 }
 
@@ -341,7 +342,7 @@ async function getTicketLinkStats() {
         ticketLinks.reduce((sum, link) => sum + parseFloat(link.confidence_score), 0) / ticketLinks.length : 0
     };
   } catch (error) {
-    console.error('Error getting ticket link stats:', error);
+    loggerConsole.error('Error getting ticket link stats:', error);
     return { totalTicketLinks: 0, recentLinks: 0, averageConfidence: 0 };
   }
 }

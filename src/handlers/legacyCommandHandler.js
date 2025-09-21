@@ -7,6 +7,7 @@ const { createResponseEmbed } = require('../utils/messageHandler');
 const { looksLikeSteamId } = require('../utils/steamId');
 const { handleTicketAutoLink } = require('./ticketAutoLinkHandler');
 const { logLegacyCommand } = require('../utils/discordLogger');
+const { console: loggerConsole } = require('../utils/logger');
 
 /**
  * Handles messageCreate events to detect and warn about legacy commands
@@ -41,7 +42,7 @@ async function handleLegacyCommands(message) {
     
   } catch (error) {
     // Don't let legacy command handling crash the bot
-    console.error('Error in legacy command handler:', error);
+    loggerConsole.error('Error in legacy command handler:', error);
   }
 }
 
@@ -119,7 +120,7 @@ async function handleAddsmDeprecation(message, content) {
     );
 
   } catch (error) {
-    console.error('Error sending deprecation warning:', error);
+    loggerConsole.error('Error sending deprecation warning:', error);
   }
 }
 
@@ -197,7 +198,7 @@ async function handleAddfrDeprecation(message, content) {
     );
 
   } catch (error) {
-    console.error('Error sending deprecation warning:', error);
+    loggerConsole.error('Error sending deprecation warning:', error);
   }
 }
 

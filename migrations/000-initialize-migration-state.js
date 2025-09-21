@@ -1,17 +1,18 @@
 const { DataTypes } = require('sequelize');
+const { console: loggerConsole } = require('../src/utils/logger');
 
 module.exports = {
   async up(queryInterface, Sequelize) {
     // This migration handles the transition from sequelize.sync() to proper migrations
     // It checks if tables already exist and marks the corresponding migrations as executed
     
-    console.log('🔄 Checking for existing database schema...');
+    loggerConsole.log('🔄 Checking for existing database schema...');
     
     // Get list of existing tables
     const tables = await queryInterface.showAllTables();
     const existingTables = Array.isArray(tables) ? tables : [];
     
-    console.log(`📋 Found ${existingTables.length} existing tables: ${existingTables.join(', ')}`);
+    loggerConsole.log(`📋 Found ${existingTables.length} existing tables: ${existingTables.join(', ')}`);
     
     // Define which migrations correspond to which tables
     const tableMigrations = {
@@ -26,12 +27,12 @@ module.exports = {
     for (const [tableName, migrationName] of Object.entries(tableMigrations)) {
       if (existingTables.includes(tableName)) {
         migrationsToMark.push(migrationName);
-        console.log(`✅ Table '${tableName}' exists - will mark ${migrationName} as executed`);
+        loggerConsole.log(`✅ Table '${tableName}' exists - will mark ${migrationName} as executed`);
       }
     }
     
     if (migrationsToMark.length > 0) {
-      console.log(`📝 Marking ${migrationsToMark.length} migration(s) as already executed`);
+      loggerConsole.log(`📝 Marking ${migrationsToMark.length} migration(s) as already executed`);
       
       // Insert the migration records manually
       for (const migrationName of migrationsToMark) {
@@ -43,20 +44,20 @@ module.exports = {
               type: queryInterface.sequelize.QueryTypes.INSERT
             }
           );
-          console.log(`  ✅ Marked ${migrationName} as executed`);
+          loggerConsole.log(`  ✅ Marked ${migrationName} as executed`);
         } catch (error) {
-          console.warn(`  ⚠️ Could not mark ${migrationName}: ${error.message}`);
+          loggerConsole.warn(`  ⚠️ Could not mark ${migrationName}: ${error.message}`);
         }
       }
     } else {
-      console.log('ℹ️ No existing tables found - this appears to be a fresh installation');
+      loggerConsole.log('ℹ️ No existing tables found - this appears to be a fresh installation');
     }
     
-    console.log('✅ Migration state initialization complete');
+    loggerConsole.log('✅ Migration state initialization complete');
   },
 
   async down(queryInterface, Sequelize) {
     // This migration cannot be rolled back as it's an initialization step
-    console.log('⚠️ Cannot rollback migration state initialization');
+    loggerConsole.log('⚠️ Cannot rollback migration state initialization');
   }
 };

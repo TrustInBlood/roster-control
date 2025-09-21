@@ -2,6 +2,7 @@
  * Centralized Discord Role ID definitions
  * All Discord role IDs should be defined here to avoid duplication
  */
+const { console: loggerConsole } = require('../src/utils/logger');
 
 const DISCORD_ROLES = {
   // Administrative Roles (actual Discord role names shown in comments)
@@ -48,7 +49,7 @@ function getAllAdminRoles() {
   // SECURITY: If no admin roles are configured, return a special marker
   // This prevents accidentally allowing everyone to use admin commands
   if (adminRoles.length === 0) {
-    console.error('CRITICAL: No admin roles configured! Admin commands will be disabled.');
+    loggerConsole.error('CRITICAL: No admin roles configured! Admin commands will be disabled.');
     return ['NO_ADMIN_ROLES_CONFIGURED']; // This ID will never match a real role
   }
 

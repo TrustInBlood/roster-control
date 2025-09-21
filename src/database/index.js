@@ -1,5 +1,6 @@
 const { sequelize, testConnection } = require('../../config/database');
 const { defineAssociations } = require('./associations');
+const { console: loggerConsole } = require('../utils/logger');
 
 // Database connection manager
 class DatabaseManager {
@@ -23,7 +24,7 @@ class DatabaseManager {
       
       return connected;
     } catch (error) {
-      console.error('Failed to connect to database:', error);
+      loggerConsole.error('Failed to connect to database:', error);
       this.isConnected = false;
       return false;
     }
@@ -34,9 +35,9 @@ class DatabaseManager {
     try {
       await this.sequelize.close();
       this.isConnected = false;
-      console.log('Database connection closed successfully.');
+      loggerConsole.log('Database connection closed successfully.');
     } catch (error) {
-      console.error('Error closing database connection:', error);
+      loggerConsole.error('Error closing database connection:', error);
     }
   }
 

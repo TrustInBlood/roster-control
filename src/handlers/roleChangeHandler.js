@@ -5,6 +5,7 @@ const { squadGroups } = require('../utils/environment');
 const { getAllTrackedRoles, getHighestPriorityGroup } = squadGroups;
 const NotificationService = require('../services/NotificationService');
 const { AuditLog } = require('../database/models');
+const { console: loggerConsole } = require('../utils/logger');
 
 class RoleChangeHandler {
   constructor(client = null, logger = console) {
@@ -43,7 +44,7 @@ class RoleChangeHandler {
           this.processingUsers.add(userId);
 
           try {
-            console.log(`🔔 External duty role change detected: ${newMember.user.tag} -> ${newHasDutyRole ? 'ON' : 'OFF'} duty`);
+            loggerConsole.log(`🔔 External duty role change detected: ${newMember.user.tag} -> ${newHasDutyRole ? 'ON' : 'OFF'} duty`);
 
             // Use the factory to handle the duty role change
             const result = await this.dutyFactory._handleDutyStatusChange(null, newHasDutyRole, {
@@ -152,7 +153,7 @@ class RoleChangeHandler {
         }
       }
     } catch (error) {
-      console.error('Error handling role change:', error);
+      loggerConsole.error('Error handling role change:', error);
     }
   }
 
@@ -350,7 +351,7 @@ class RoleChangeHandler {
         return { success: true, message: 'Already in sync' };
       }
     } catch (error) {
-      console.error(`❌ Failed to sync ${member.user.tag}:`, error);
+      loggerConsole.error(`❌ Failed to sync ${member.user.tag}:`, error);
       return { success: false, error: error.message };
     }
   }

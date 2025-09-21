@@ -4,6 +4,7 @@
  * Uses environment-specific files only for development
  */
 const path = require('path');
+const { console: loggerConsole } = require('../src/utils/logger');
 
 // Get current environment
 const env = process.env.NODE_ENV || 'development';
@@ -14,15 +15,15 @@ if (env === 'development') {
   try {
     // Try development-specific config first
     roles = require(path.join(__dirname, 'roles.development.js'));
-    console.log('Loaded development roles configuration');
+    loggerConsole.log('Loaded development roles configuration');
   } catch (error) {
     // Fallback to standard roles.js
     try {
       roles = require(path.join(__dirname, 'roles.js'));
-      console.log('Loaded standard roles configuration (development fallback)');
+      loggerConsole.log('Loaded standard roles configuration (development fallback)');
     } catch (fallbackError) {
-      console.error('❌ Failed to load roles configuration:', fallbackError.message);
-      console.error('Please create config/roles.development.js or config/roles.js');
+      loggerConsole.error('❌ Failed to load roles configuration:', fallbackError.message);
+      loggerConsole.error('Please create config/roles.development.js or config/roles.js');
       process.exit(1);
     }
   }
@@ -30,10 +31,10 @@ if (env === 'development') {
   try {
     // Production: use standard roles.js
     roles = require(path.join(__dirname, 'roles.js'));
-    console.log('Loaded standard roles configuration');
+    loggerConsole.log('Loaded standard roles configuration');
   } catch (error) {
-    console.error('❌ Failed to load roles configuration:', error.message);
-    console.error('Please create config/roles.js');
+    loggerConsole.error('❌ Failed to load roles configuration:', error.message);
+    loggerConsole.error('Please create config/roles.js');
     process.exit(1);
   }
 }
@@ -44,15 +45,15 @@ if (env === 'development') {
   try {
     // Try development-specific config first
     channels = require(path.join(__dirname, 'channels.development.js'));
-    console.log('✅ Loaded development channels configuration');
+    loggerConsole.log('✅ Loaded development channels configuration');
   } catch (error) {
     // Fallback to standard channels.js
     try {
       channels = require(path.join(__dirname, 'channels.js'));
-      console.log('✅ Loaded standard channels configuration (development fallback)');
+      loggerConsole.log('✅ Loaded standard channels configuration (development fallback)');
     } catch (fallbackError) {
-      console.error('❌ Failed to load channels configuration:', fallbackError.message);
-      console.error('Please create config/channels.development.js or config/channels.js');
+      loggerConsole.error('❌ Failed to load channels configuration:', fallbackError.message);
+      loggerConsole.error('Please create config/channels.development.js or config/channels.js');
       process.exit(1);
     }
   }
@@ -60,10 +61,10 @@ if (env === 'development') {
   try {
     // Production: use standard channels.js
     channels = require(path.join(__dirname, 'channels.js'));
-    console.log('✅ Loaded standard channels configuration');
+    loggerConsole.log('✅ Loaded standard channels configuration');
   } catch (error) {
-    console.error('❌ Failed to load channels configuration:', error.message);
-    console.error('Please create config/channels.js');
+    loggerConsole.error('❌ Failed to load channels configuration:', error.message);
+    loggerConsole.error('Please create config/channels.js');
     process.exit(1);
   }
 }

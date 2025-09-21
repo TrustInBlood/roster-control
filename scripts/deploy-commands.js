@@ -2,6 +2,7 @@ const { REST, Routes } = require('discord.js');
 const config = require('../config/config');
 const fs = require('fs');
 const path = require('path');
+const { console: loggerConsole } = require('../src/utils/logger');
 
 // Validate configuration
 config.validate();
@@ -17,7 +18,7 @@ for (const file of commandFiles) {
   if ('data' in command && 'execute' in command) {
     commands.push(command.data.toJSON());
   } else {
-    console.log(`[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`);
+    loggerConsole.log(`[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`);
   }
 }
 
@@ -27,18 +28,18 @@ const rest = new REST().setToken(config.discord.token);
 // Deploy commands to the configured guild
 (async () => {
   try {
-    console.log(`Started refreshing ${commands.length} application (/) commands for ${config.env} environment.`);
-    console.log(`Deploying commands to guild: ${config.discord.guildId}`);
+    loggerConsole.log(`Started refreshing ${commands.length} application (/) commands for ${config.env} environment.`);
+    loggerConsole.log(`Deploying commands to guild: ${config.discord.guildId}`);
     
     const data = await rest.put(
       Routes.applicationGuildCommands(config.discord.clientId, config.discord.guildId),
       { body: commands },
     );
 
-    console.log(`Successfully reloaded ${data.length} application (/) commands for guild ${config.discord.guildId}.`);
-    console.log('Commands deployed successfully!');
+    loggerConsole.log(`Successfully reloaded ${data.length} application (/) commands for guild ${config.discord.guildId}.`);
+    loggerConsole.log('Commands deployed successfully!');
   } catch (error) {
-    console.error('Error deploying commands:', error);
+    loggerConsole.error('Error deploying commands:', error);
     process.exit(1);
   }
 })();

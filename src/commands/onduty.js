@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { sendSuccess, sendError } = require('../utils/messageHandler');
 const DutyStatusFactory = require('../services/DutyStatusFactory');
+const { console: loggerConsole } = require('../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -44,7 +45,7 @@ module.exports = {
         embed
       );
     } catch (error) {
-      console.error('Error in onduty command:', error);
+      loggerConsole.error('Error in onduty command:', error);
       return sendError(interaction, 'Failed to set you as on duty. Please try again or contact a server administrator.');
     }
   },

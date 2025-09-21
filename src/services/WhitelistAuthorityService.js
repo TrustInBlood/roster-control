@@ -1,4 +1,5 @@
 const { Whitelist, PlayerDiscordLink, AuditLog } = require('../database/models');
+const { console: loggerConsole } = require('../utils/logger');
 
 /**
  * WhitelistAuthorityService - Single source of truth for all whitelist validation decisions
@@ -341,7 +342,7 @@ class WhitelistAuthorityService {
         severity: 'info'
       });
     } catch (logError) {
-      console.error('Failed to log whitelist validation decision:', logError);
+      loggerConsole.error('Failed to log whitelist validation decision:', logError);
       // Don't throw - logging failures shouldn't break validation
     }
   }
@@ -466,7 +467,7 @@ class WhitelistAuthorityService {
       return results;
 
     } catch (error) {
-      console.error('Bulk validation failed:', error.message);
+      loggerConsole.error('Bulk validation failed:', error.message);
 
       // Return error results for all users
       for (const validation of userValidations) {

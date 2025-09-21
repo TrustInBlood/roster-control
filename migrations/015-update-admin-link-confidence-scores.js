@@ -2,13 +2,14 @@
 
 /**
  * Migration: Update confidence scores for existing admin-created links
- * 
+ *
  * Changes:
  * - Updates admin-created links from 1.0 to 0.7 confidence
  * - Updates whitelist-created links from 1.0 to 0.5 confidence
  * - Preserves self-verified links at 1.0 confidence
  * - Preserves ticket-extracted links at 0.3 confidence
  */
+const { console: loggerConsole } = require('../src/utils/logger');
 
 module.exports = {
   async up(queryInterface, Sequelize) {
@@ -35,8 +36,8 @@ module.exports = {
       //   { transaction }
       // );
       
-      console.log('✅ Updated admin-created links to 0.7 confidence');
-      console.log('✅ Updated whitelist-created links to 0.5 confidence');
+      loggerConsole.log('✅ Updated admin-created links to 0.7 confidence');
+      loggerConsole.log('✅ Updated whitelist-created links to 0.5 confidence');
       
       await transaction.commit();
       

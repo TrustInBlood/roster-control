@@ -4,15 +4,16 @@ const { withLoadingMessage, createResponseEmbed, sendSuccess, sendError } = requ
 const { Whitelist } = require('../database/models');
 const { WHITELIST_AWARD_ROLES } = require('../../config/discord');
 const { getHighestPriorityGroup } = require('../utils/environment');
-const { 
-  createOrUpdateLink, 
-  resolveSteamIdFromDiscord, 
-  resolveDiscordFromSteamId, 
-  getUserInfo 
+const {
+  createOrUpdateLink,
+  resolveSteamIdFromDiscord,
+  resolveDiscordFromSteamId,
+  getUserInfo
 } = require('../utils/accountLinking');
 const { isValidSteamId } = require('../utils/steamId');
 const { logWhitelistOperation, logCommand } = require('../utils/discordLogger');
 const notificationService = require('../services/NotificationService');
+const { console: loggerConsole } = require('../utils/logger');
 const WhitelistAuthorityService = require('../services/WhitelistAuthorityService');
 
 
@@ -71,7 +72,7 @@ async function resolveUserInfo(steamid, discordUser, createLink = false) {
       linkedAccount = linkResult.created ? 'created' : 'updated';
     } else {
       // Log the error but don't fail the whitelist operation
-      console.error(`Failed to create/update account link for ${discordUser.id} <-> ${resolvedSteamId}:`, linkResult.error);
+      loggerConsole.error(`Failed to create/update account link for ${discordUser.id} <-> ${resolvedSteamId}:`, linkResult.error);
 
       // Send error notification using NotificationService
       try {
@@ -85,7 +86,7 @@ async function resolveUserInfo(steamid, discordUser, createLink = false) {
           ]
         });
       } catch (logError) {
-        console.error('Failed to send error notification:', logError);
+        loggerConsole.error('Failed to send error notification:', logError);
       }
 
       // Still continue with the whitelist, just note that linking failed
@@ -233,7 +234,7 @@ module.exports = {
           await sendError(interaction, 'Unknown subcommand.');
         }
       } catch (error) {
-        console.error('Whitelist command error:', error);
+        loggerConsole.error('Whitelist command error:', error);
         await sendError(interaction, error.message || 'An error occurred while processing the whitelist command.');
       }
     });
@@ -310,7 +311,7 @@ async function handleGrant(interaction) {
           originalUser: interaction.user
         });
       } catch (error) {
-        console.error('Error handling reason selection:', error);
+        loggerConsole.error('Error handling reason selection:', error);
         if (!reasonInteraction.replied && !reasonInteraction.deferred) {
           try {
             await reasonInteraction.reply({
@@ -318,7 +319,7 @@ async function handleGrant(interaction) {
               flags: MessageFlags.Ephemeral
             });
           } catch (replyError) {
-            console.error('Failed to send error reply:', replyError);
+            loggerConsole.error('Failed to send error reply:', replyError);
           }
         }
       }
@@ -335,7 +336,7 @@ async function handleGrant(interaction) {
     });
 
   } catch (error) {
-    console.error('Whitelist grant error:', error);
+    loggerConsole.error('Whitelist grant error:', error);
     await sendError(interaction, error.message);
   }
 }
@@ -422,7 +423,7 @@ async function showDonatorDurationSelection(interaction, grantData) {
         durationText: duration.text
       });
     } catch (error) {
-      console.error('Error handling donator duration selection:', error);
+      loggerConsole.error('Error handling donator duration selection:', error);
     }
   });
 }
@@ -533,7 +534,7 @@ async function showReportingDurationSelection(interaction, grantData) {
         });
 
       } catch (error) {
-        console.error('Modal submission error:', error);
+        loggerConsole.error('Modal submission error:', error);
         // Modal timed out or errored
       }
       
@@ -561,7 +562,7 @@ async function showReportingDurationSelection(interaction, grantData) {
         durationText: duration.text
       });
     } catch (error) {
-      console.error('Error handling reporting duration selection:', error);
+      loggerConsole.error('Error handling reporting duration selection:', error);
     }
   });
 }
@@ -631,7 +632,7 @@ async function handleConfirmation(interaction, grantData) {
         durationText
       });
     } catch (error) {
-      console.error('Error handling confirmation:', error);
+      loggerConsole.error('Error handling confirmation:', error);
     }
   });
 }
@@ -687,7 +688,7 @@ async function processWhitelistGrant(interaction, grantData) {
           }
         }
       } catch (error) {
-        console.error(`Failed to assign ${reason} role:`, error);
+        loggerConsole.error(`Failed to assign ${reason} role:`, error);
       }
     }
 
@@ -755,12 +756,12 @@ async function processWhitelistGrant(interaction, grantData) {
         embeds: [publicEmbed]
       });
     } catch (publicError) {
-      console.error('Failed to send public whitelist announcement:', publicError);
+      loggerConsole.error('Failed to send public whitelist announcement:', publicError);
       // Don't let this failure affect the main process
     }
 
   } catch (error) {
-    console.error('Whitelist grant processing error:', error);
+    loggerConsole.error('Whitelist grant processing error:', error);
     await interaction.editReply({
       content: `❌ Failed to grant whitelist: ${error.message}`,
       embeds: [],
@@ -791,7 +792,7 @@ async function handleInfo(interaction) {
           member
         );
       } catch (error) {
-        console.error('WhitelistAuthorityService validation failed:', error);
+        loggerConsole.error('WhitelistAuthorityService validation failed:', error);
         // Continue with limited validation if authority service fails
       }
     }
@@ -1040,7 +1041,7 @@ async function handleInfo(interaction) {
       embeds: [embed]
     });
   } catch (error) {
-    console.error('Whitelist info error:', error);
+    loggerConsole.error('Whitelist info error:', error);
     await interaction.editReply({
       content: `❌ Failed to retrieve whitelist status: ${error.message}`
     });
@@ -1138,7 +1139,7 @@ async function handleRevoke(interaction) {
           }
         }
       } catch (error) {
-        console.error('Failed to remove whitelist roles:', error);
+        loggerConsole.error('Failed to remove whitelist roles:', error);
         // Continue without failing the command
       }
     }

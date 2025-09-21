@@ -4,6 +4,7 @@ const { sendSuccess, sendError, createResponseEmbed } = require('../utils/messag
 const { SPECIALTY_ROLES } = require('../../config/discord');
 const { AuditLog } = require('../database/models');
 const notificationService = require('../services/NotificationService');
+const { console: loggerConsole } = require('../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -95,7 +96,7 @@ module.exports = {
         try {
           await targetMember.roles.remove(role, `Specialty removed by ${interaction.user.tag}`);
         } catch (error) {
-          console.error('Failed to remove specialty role:', error);
+          loggerConsole.error('Failed to remove specialty role:', error);
           return sendError(interaction, 'Failed to remove the specialty role. Please check bot permissions.');
         }
 
@@ -119,7 +120,7 @@ module.exports = {
             }
           });
         } catch (dbError) {
-          console.error('Failed to log specialty removal:', dbError);
+          loggerConsole.error('Failed to log specialty removal:', dbError);
         // Continue - role was removed successfully
         }
 
@@ -135,7 +136,7 @@ module.exports = {
             thumbnail: targetUser.displayAvatarURL({ dynamic: true })
           });
         } catch (notifyError) {
-          console.error('Failed to send tutor specialty notification:', notifyError);
+          loggerConsole.error('Failed to send tutor specialty notification:', notifyError);
         // Non-critical error - continue
         }
 
@@ -165,12 +166,12 @@ module.exports = {
             embeds: [publicEmbed]
           });
         } catch (followUpError) {
-          console.error('Failed to send public announcement:', followUpError);
+          loggerConsole.error('Failed to send public announcement:', followUpError);
         // Non-critical error
         }
 
       } catch (error) {
-        console.error('Error in removespecialty command:', error);
+        loggerConsole.error('Error in removespecialty command:', error);
         return sendError(interaction, 'An error occurred while removing the specialty.');
       }
     });
@@ -190,7 +191,7 @@ async function handleRemoveAll(interaction, targetMember, targetUser) {
           await targetMember.roles.remove(role, `All specialties removed by ${interaction.user.tag}`);
           removedRoles.push(specialtyKey.toLowerCase().replace('_', ' '));
         } catch (error) {
-          console.error(`Failed to remove ${specialtyKey} role:`, error);
+          loggerConsole.error(`Failed to remove ${specialtyKey} role:`, error);
           failedRoles.push(specialtyKey.toLowerCase().replace('_', ' '));
         }
       }
@@ -220,7 +221,7 @@ async function handleRemoveAll(interaction, targetMember, targetUser) {
       }
     });
   } catch (dbError) {
-    console.error('Failed to log all specialties removal:', dbError);
+    loggerConsole.error('Failed to log all specialties removal:', dbError);
     // Continue - roles were removed successfully
   }
 
@@ -236,7 +237,7 @@ async function handleRemoveAll(interaction, targetMember, targetUser) {
       thumbnail: targetUser.displayAvatarURL({ dynamic: true })
     });
   } catch (notifyError) {
-    console.error('Failed to send tutor specialty notification:', notifyError);
+    loggerConsole.error('Failed to send tutor specialty notification:', notifyError);
     // Non-critical error - continue
   }
 
@@ -277,7 +278,7 @@ async function handleRemoveAll(interaction, targetMember, targetUser) {
       embeds: [publicEmbed]
     });
   } catch (followUpError) {
-    console.error('Failed to send public announcement:', followUpError);
+    loggerConsole.error('Failed to send public announcement:', followUpError);
     // Non-critical error
   }
 }

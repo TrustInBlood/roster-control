@@ -2,22 +2,23 @@
 
 /**
  * Migration: Update confidence scores for existing whitelist-linked accounts
- * 
+ *
  * This migration finds PlayerDiscordLink records that were created for users
  * who have whitelist entries, and updates their confidence scores appropriately:
  * - Links created through whitelist operations should have 0.5 confidence
  * - Links that were manually verified should remain at 1.0 confidence
  * - Admin-created links should have 0.7 confidence
  */
+const { console: loggerConsole } = require('../src/utils/logger');
 
 module.exports = {
   async up(queryInterface, Sequelize) {
     const transaction = await queryInterface.sequelize.transaction();
     
     try {
-      console.log('🔍 Finding whitelist entries with associated Discord links...');
+      loggerConsole.log('🔍 Finding whitelist entries with associated Discord links...');
       
-      console.log('🔍 Processing Discord links associated with active whitelist entries...');
+      loggerConsole.log('🔍 Processing Discord links associated with active whitelist entries...');
       
       // Update links that were created through whitelist operations
       // These should have confidence 0.5 if they don't already have appropriate scores
@@ -33,7 +34,7 @@ module.exports = {
         { transaction }
       );
       
-      console.log('✅ Updated whitelist-created links to 0.5 confidence');
+      loggerConsole.log('✅ Updated whitelist-created links to 0.5 confidence');
       
       // Only downgrade links that were clearly not self-verified
       // (those with link_source = 'manual' or 'whitelist', not '' or 'verification')
@@ -49,16 +50,16 @@ module.exports = {
         { transaction }
       );
       
-      console.log('✅ Processed high-confidence links associated with whitelists');
+      loggerConsole.log('✅ Processed high-confidence links associated with whitelists');
       
-      console.log('📊 Migration completed - confidence scores updated for whitelist-associated links');
+      loggerConsole.log('📊 Migration completed - confidence scores updated for whitelist-associated links');
       
       await transaction.commit();
-      console.log('✅ Migration completed successfully');
+      loggerConsole.log('✅ Migration completed successfully');
       
     } catch (error) {
       await transaction.rollback();
-      console.error('❌ Migration failed:', error);
+      loggerConsole.error('❌ Migration failed:', error);
       throw error;
     }
   },
@@ -67,7 +68,7 @@ module.exports = {
     const transaction = await queryInterface.sequelize.transaction();
     
     try {
-      console.log('🔄 Reverting whitelist-linked confidence score changes...');
+      loggerConsole.log('🔄 Reverting whitelist-linked confidence score changes...');
       
       // This is a conservative rollback - we'll set all whitelist-associated links back to 1.0
       // if they were modified by this migration (confidence 0.5)
@@ -82,14 +83,14 @@ module.exports = {
         { transaction }
       );
       
-      console.log('✅ Reverted whitelist-associated links back to 1.0 confidence');
+      loggerConsole.log('✅ Reverted whitelist-associated links back to 1.0 confidence');
       
       await transaction.commit();
-      console.log('✅ Rollback completed successfully');
+      loggerConsole.log('✅ Rollback completed successfully');
       
     } catch (error) {
       await transaction.rollback();
-      console.error('❌ Rollback failed:', error);
+      loggerConsole.error('❌ Rollback failed:', error);
       throw error;
     }
   }

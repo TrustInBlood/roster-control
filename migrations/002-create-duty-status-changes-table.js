@@ -1,4 +1,5 @@
 const { DataTypes } = require('sequelize');
+const { console: loggerConsole } = require('../src/utils/logger');
 
 // Helper function to safely create indexes
 async function safeAddIndex(queryInterface, tableName, fields, options) {
@@ -6,7 +7,7 @@ async function safeAddIndex(queryInterface, tableName, fields, options) {
     await queryInterface.addIndex(tableName, fields, options);
   } catch (error) {
     if (error.original?.code === 'ER_DUP_KEYNAME') {
-      console.log(`  ℹ️ Index ${options.name} already exists on ${tableName}`);
+      loggerConsole.log(`  ℹ️ Index ${options.name} already exists on ${tableName}`);
     } else {
       throw error;
     }

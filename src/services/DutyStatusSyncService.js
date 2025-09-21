@@ -1,6 +1,7 @@
 const { ON_DUTY_ROLE_ID } = require('../../config/discord');
 const { DutyStatusChange } = require('../database/models');
 const DutyStatusFactory = require('./DutyStatusFactory');
+const { console: loggerConsole } = require('../utils/logger');
 
 class DutyStatusSyncService {
   constructor() {
@@ -10,7 +11,7 @@ class DutyStatusSyncService {
 
   async syncGuildDutyStatus(guild) {
     try {
-      console.log('Starting duty status sync for guild:', guild.name);
+      loggerConsole.log('Starting duty status sync for guild:', guild.name);
             
       const syncResults = {
         scanned: 0,
@@ -26,32 +27,32 @@ class DutyStatusSyncService {
             
       const onDutyRole = guild.roles.cache.get(this.onDutyRoleId);
       if (!onDutyRole) {
-        console.warn('On-duty role not found in guild:', guild.name);
-        console.warn('Role ID being searched:', this.onDutyRoleId);
-        console.warn('Available role IDs:', Array.from(guild.roles.cache.keys()).slice(0, 10));
+        loggerConsole.warn('On-duty role not found in guild:', guild.name);
+        loggerConsole.warn('Role ID being searched:', this.onDutyRoleId);
+        loggerConsole.warn('Available role IDs:', Array.from(guild.roles.cache.keys()).slice(0, 10));
         return syncResults;
       }
 
-      console.log(`Found on-duty role: ${onDutyRole.name} (${onDutyRole.id})`);
+      loggerConsole.log(`Found on-duty role: ${onDutyRole.name} (${onDutyRole.id})`);
 
       // Get all members who currently have the on-duty role in Discord
       let discordRoleHolders = onDutyRole.members;
       syncResults.discordRoleHolders = discordRoleHolders.size;
-      console.log(`Found ${discordRoleHolders.size} members with on-duty role in Discord`);
+      loggerConsole.log(`Found ${discordRoleHolders.size} members with on-duty role in Discord`);
 
       // Try to fetch guild members if cache is incomplete and no role holders found
       if (discordRoleHolders.size === 0 && guild.members.cache.size < 100) {
         try {
           await guild.members.fetch();
           const updatedRoleHolders = onDutyRole.members;
-          console.log(`After member fetch: Found ${updatedRoleHolders.size} members with on-duty role`);
+          loggerConsole.log(`After member fetch: Found ${updatedRoleHolders.size} members with on-duty role`);
 
           if (updatedRoleHolders.size > 0) {
             syncResults.discordRoleHolders = updatedRoleHolders.size;
             discordRoleHolders = updatedRoleHolders;
           }
         } catch (fetchError) {
-          console.error('Failed to fetch guild members:', fetchError.message);
+          loggerConsole.error('Failed to fetch guild members:', fetchError.message);
         }
       }
 
@@ -71,14 +72,14 @@ class DutyStatusSyncService {
             await this._createMissingRecord(member, syncResults);
           } else if (!latestStatus.status) {
             // User has role but database shows off-duty - potential discrepancy
-            console.log(`Discrepancy found: ${member.user.tag} has role but database shows off-duty`);
+            loggerConsole.log(`Discrepancy found: ${member.user.tag} has role but database shows off-duty`);
             await this._handleDiscrepancy(member, latestStatus, syncResults);
           } else {
             // User has role and database shows on-duty - all good
             syncResults.databaseRecordsFound++;
           }
         } catch (error) {
-          console.error(`Error processing ${member.user.tag}:`, error);
+          loggerConsole.error(`Error processing ${member.user.tag}:`, error);
           syncResults.errors.push(`${member.user.tag}: ${error.message}`);
         }
       }
@@ -86,11 +87,11 @@ class DutyStatusSyncService {
       // Check for users in database who are marked on-duty but don't have the role
       await this._checkForMissingRoles(guild, latestStatusByUser, discordRoleHolders, syncResults);
 
-      console.log('Duty status sync completed:', syncResults);
+      loggerConsole.log('Duty status sync completed:', syncResults);
       return syncResults;
 
     } catch (error) {
-      console.error('Failed to sync duty status:', error);
+      loggerConsole.error('Failed to sync duty status:', error);
       throw error;
     }
   }
@@ -108,7 +109,7 @@ class DutyStatusSyncService {
       });
     } catch (error) {
       if (error.name === 'SequelizeDatabaseError' && error.original?.code === 'ER_NO_SUCH_TABLE') {
-        console.log('DutyStatusChange table does not exist yet - returning empty array');
+        loggerConsole.log('DutyStatusChange table does not exist yet - returning empty array');
         return [];
       }
       throw error;
@@ -144,7 +145,7 @@ class DutyStatusSyncService {
 
         // Check if the existing record matches current Discord state
         if (existingRecord.status === false) {
-          console.log(`${member.user.tag} has role but database shows OFF duty - will handle as discrepancy`);
+          loggerConsole.log(`${member.user.tag} has role but database shows OFF duty - will handle as discrepancy`);
         }
         return; // Don't create a new record
       }
@@ -173,7 +174,7 @@ class DutyStatusSyncService {
       syncResults.recordsCreated++;
             
     } catch (error) {
-      console.error(`Failed to process database record for ${member.user.tag}:`, error);
+      loggerConsole.error(`Failed to process database record for ${member.user.tag}:`, error);
       syncResults.errors.push(`${member.user.tag}: Failed to process database record - ${error.message}`);
     }
   }
@@ -188,7 +189,7 @@ class DutyStatusSyncService {
 
       if (hoursAgo < 1) {
         // Very recent change - might be a race condition, update database to match Discord
-        console.log(`Recent discrepancy (${Math.round(hoursAgo * 60)} minutes ago), updating database to match Discord`);
+        loggerConsole.log(`Recent discrepancy (${Math.round(hoursAgo * 60)} minutes ago), updating database to match Discord`);
                 
         const result = await this.dutyFactory.setOnDuty(null, {
           member,
@@ -207,7 +208,7 @@ class DutyStatusSyncService {
         }
       } else {
         // Older discrepancy - log it but don't auto-resolve
-        console.log(`Older discrepancy (${Math.round(hoursAgo)} hours ago), logging for manual review`);
+        loggerConsole.log(`Older discrepancy (${Math.round(hoursAgo)} hours ago), logging for manual review`);
                 
         await DutyStatusChange.create({
           discordUserId: member.user.id,
@@ -229,7 +230,7 @@ class DutyStatusSyncService {
         syncResults.discrepanciesFound++; // Count as unresolved
       }
     } catch (error) {
-      console.error(`Failed to handle discrepancy for ${member.user.tag}:`, error);
+      loggerConsole.error(`Failed to handle discrepancy for ${member.user.tag}:`, error);
       syncResults.errors.push(`${member.user.tag}: Discrepancy handling failed - ${error.message}`);
     }
   }
@@ -243,7 +244,7 @@ class DutyStatusSyncService {
           const timeSinceChange = Date.now() - latestStatus.createdAt.getTime();
           const hoursAgo = timeSinceChange / (1000 * 60 * 60);
 
-          console.log(`User ${member.user.tag} marked on-duty in database but missing role (${Math.round(hoursAgo)}h ago)`);
+          loggerConsole.log(`User ${member.user.tag} marked on-duty in database but missing role (${Math.round(hoursAgo)}h ago)`);
                     
           // Log this discrepancy
           await DutyStatusChange.create({
@@ -265,7 +266,7 @@ class DutyStatusSyncService {
 
           syncResults.discrepanciesFound++;
         } catch (error) {
-          console.error(`Failed to check user ${userId}:`, error);
+          loggerConsole.error(`Failed to check user ${userId}:`, error);
         }
       }
     }

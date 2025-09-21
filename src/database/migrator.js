@@ -1,6 +1,7 @@
 const { Umzug, SequelizeStorage } = require('umzug');
 const { sequelize } = require('./index');
 const path = require('path');
+const { console: loggerConsole } = require('../utils/logger');
 
 // Create Umzug instance for database migrations
 const umzug = new Umzug({
@@ -21,34 +22,34 @@ const umzug = new Umzug({
     tableName: 'schema_migrations',
     modelName: 'SchemaMigration'
   }),
-  logger: console,
+  logger: loggerConsole,
 });
 
 // Migration management functions
 const migrationManager = {
   // Run all pending migrations
   async runMigrations() {
-    console.log('Checking for pending database migrations...');
+    loggerConsole.log('Checking for pending database migrations...');
     
     try {
       const migrations = await umzug.pending();
       
       if (migrations.length === 0) {
-        console.log('No pending migrations found. Database is up to date.');
+        loggerConsole.log('No pending migrations found. Database is up to date.');
         return { success: true, migrationsRun: 0 };
       }
       
-      console.log(`Found ${migrations.length} pending migration(s):`, 
+      loggerConsole.log(`Found ${migrations.length} pending migration(s):`, 
         migrations.map(m => m.name).join(', '));
       
       // Run migrations
       const results = await umzug.up();
       
-      console.log(`Successfully executed ${results.length} migration(s).`);
+      loggerConsole.log(`Successfully executed ${results.length} migration(s).`);
       return { success: true, migrationsRun: results.length, migrations: results.map(m => m.name) };
       
     } catch (error) {
-      console.error('❌ Migration failed:', error);
+      loggerConsole.error('❌ Migration failed:', error);
       throw error;
     }
   },
@@ -65,26 +66,26 @@ const migrationManager = {
         total: executed.length + pending.length
       };
     } catch (error) {
-      console.error('❌ Failed to get migration status:', error);
+      loggerConsole.error('❌ Failed to get migration status:', error);
       throw error;
     }
   },
 
   // Rollback last migration (use with caution)
   async rollbackLast() {
-    console.log('Rolling back last migration...');
+    loggerConsole.log('Rolling back last migration...');
     
     try {
       const result = await umzug.down();
       if (result.length > 0) {
-        console.log(`Successfully rolled back migration: ${result[0].name}`);
+        loggerConsole.log(`Successfully rolled back migration: ${result[0].name}`);
         return { success: true, rolledBack: result[0].name };
       } else {
-        console.log('No migrations to roll back.');
+        loggerConsole.log('No migrations to roll back.');
         return { success: true, rolledBack: null };
       }
     } catch (error) {
-      console.error('❌ Rollback failed:', error);
+      loggerConsole.error('❌ Rollback failed:', error);
       throw error;
     }
   },
@@ -95,14 +96,14 @@ const migrationManager = {
       throw new Error('Cannot reset migrations in production environment');
     }
     
-    console.log('DANGER: Resetting all migrations (development only)...');
+    loggerConsole.log('DANGER: Resetting all migrations (development only)...');
     
     try {
       await umzug.down({ to: 0 });
-      console.log('All migrations have been rolled back.');
+      loggerConsole.log('All migrations have been rolled back.');
       return { success: true };
     } catch (error) {
-      console.error('❌ Reset failed:', error);
+      loggerConsole.error('❌ Reset failed:', error);
       throw error;
     }
   }

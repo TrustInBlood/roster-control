@@ -139,10 +139,41 @@ const { getHighestPriorityGroup } = require(isDevelopment ? '../../config/squadG
 - Database schema uses flexible TEXT fields instead of ENUMs for future-proofing
 - **IMPORTANT**: `PlayerDiscordLink.link_source` is an ENUM with only these values: `'manual'`, `'ticket'`, `'squadjs'`, `'import'`. Use `'manual'` for admin-initiated links (including whitelist operations). Do NOT use `'whitelist'` or `'admin'` as these will cause database errors.
 
+### Centralized Logging System
+The application uses a unified Winston-based logging system with consistent timestamps across all environments:
+
+- **Location**: `src/utils/logger.js` - Centralized logging utility
+- **Format**: `[HH:mm:ss] level: [service] message` with timestamps in all environments
+- **Usage**: Replace `console.log` with `const { console: loggerConsole } = require('../utils/logger');` then use `loggerConsole.log()`
+- **Service Contexts**: Use `createServiceLogger('ServiceName')` for categorized logging
+- **Global Override**: Available via `overrideGlobalConsole()` to catch any missed console calls
+- **Log Levels**: error, warn, info, debug (configurable via `LOG_LEVEL` environment variable)
+- **File Logging**: Automatic file output to `logs/` directory with rotation (5MB max, 5 files)
+- **Environment Behavior**:
+  - **Development**: All log levels to console with timestamps and colors
+  - **Production**: Info level and above to console with timestamps
+
+**Key Methods**:
+```javascript
+const { console: loggerConsole, createServiceLogger, logger } = require('../utils/logger');
+
+// Basic logging (replaces console.log)
+loggerConsole.log('Message with timestamp');
+loggerConsole.error('Error with timestamp');
+
+// Service-specific logging
+const serviceLogger = createServiceLogger('WhitelistService');
+serviceLogger.info('Service message');
+
+// Direct logger access
+logger.info('Direct winston logger access');
+```
+
 ### Error Handling
 - Use `sendError()` and `sendSuccess()` from `src/utils/messageHandler.js`
 - Implement proper try-catch blocks in all async operations
-- Log errors using Winston logger (configured in `src/index.js`)
+- Use centralized logger from `src/utils/logger.js` (not direct Winston logger)
+- All error logging includes timestamps automatically
 
 ### Testing
 - Database tests use `scripts/test-db-connection.js` and `scripts/test-player-model.js`
@@ -152,12 +183,13 @@ const { getHighestPriorityGroup } = require(isDevelopment ? '../../config/squadG
 ## Project Structure Context
 
 ### Current Implementation Status
-- ✅ **Complete**: Discord bot framework, all database models with migrations, role-based on-duty system, tutor system with specialty management, external role change detection, duty status logging, permission system, error handling, **unified whitelist system with automatic Discord role synchronization**, Steam account linking with confidence scoring, comprehensive Squad server whitelist generation
+- ✅ **Complete**: Discord bot framework, all database models with migrations, role-based on-duty system, tutor system with specialty management, external role change detection, duty status logging, permission system, error handling, **centralized logging system with timestamps**, **unified whitelist system with automatic Discord role synchronization**, Steam account linking with confidence scoring, comprehensive Squad server whitelist generation
 - 🔄 **In Progress**: SquadJS integration, BattleMetrics API
 - 📋 **Planned**: Player activity tracking, RCON integration, automated reporting
 
 ### Key Files for Development
 - `src/index.js` - Main bot entry point with event handlers
+- `src/utils/logger.js` - **Centralized logging system with timestamps for all environments**
 - `src/database/models/` - All database models (Player, Admin, Server, AuditLog, DutyStatusChange, Whitelist, PlayerDiscordLink, VerificationCode)
 - `src/handlers/roleChangeHandler.js` - Discord role change detection and processing
 - `src/services/DutyStatusFactory.js` - Duty status management and logging
@@ -223,3 +255,4 @@ The system is designed to support 5 Squad servers through SquadJS instances, wit
 - adding a discord slash command requires updates in the @config/roles.js file
 - you don't have access to the production server
 - do not commit anything
+- Never start the production instance

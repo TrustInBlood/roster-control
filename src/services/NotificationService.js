@@ -1,6 +1,7 @@
 const { EmbedBuilder } = require('discord.js');
 const { CHANNELS, NOTIFICATION_ROUTES } = require('../../config/channels');
 const { isDevelopment } = require('../utils/environment');
+const { console: loggerConsole } = require('../utils/logger');
 
 /**
  * Default colors for different notification types
@@ -48,7 +49,7 @@ class NotificationService {
    */
   initialize(client) {
     this.client = client;
-    console.log('NotificationService initialized');
+    loggerConsole.log('NotificationService initialized');
   }
 
   /**
@@ -61,7 +62,7 @@ class NotificationService {
     try {
       // Validate initialization
       if (!this.client) {
-        console.error('NotificationService not initialized. Call initialize(client) first.');
+        loggerConsole.error('NotificationService not initialized. Call initialize(client) first.');
         return false;
       }
 
@@ -70,7 +71,7 @@ class NotificationService {
       const channelId = CHANNELS[channelKey];
       
       if (!channelId) {
-        console.error(`No channel configured for ${channelKey}`);
+        loggerConsole.error(`No channel configured for ${channelKey}`);
         return false;
       }
 
@@ -78,7 +79,7 @@ class NotificationService {
       let channel = this.channelCache.get(channelId);
       if (!channel) {
         channel = await this.client.channels.fetch(channelId).catch(err => {
-          console.error(`Failed to fetch channel ${channelId}:`, err.message);
+          loggerConsole.error(`Failed to fetch channel ${channelId}:`, err.message);
           return null;
         });
         
@@ -90,7 +91,7 @@ class NotificationService {
       if (!channel) {
         // Store failed notification for potential retry
         this.failedNotifications.push({ type, options, timestamp: Date.now() });
-        console.error(`Channel ${channelId} not found. Notification queued.`);
+        loggerConsole.error(`Channel ${channelId} not found. Notification queued.`);
         return false;
       }
 
@@ -105,7 +106,7 @@ class NotificationService {
       
       return true;
     } catch (error) {
-      console.error(`Failed to send notification (${type}):`, error);
+      loggerConsole.error(`Failed to send notification (${type}):`, error);
       
       // Store failed notification
       this.failedNotifications.push({ 
@@ -309,7 +310,7 @@ class NotificationService {
       // Extract member name and status from description
       const dutyMatch = description?.match(/(.+) is now (on|off) duty/);
       if (dutyMatch) {
-        console.log(`${dutyMatch[1]} went ${dutyMatch[2]} duty`);
+        loggerConsole.log(`${dutyMatch[1]} went ${dutyMatch[2]} duty`);
       }
       break;
     }
@@ -317,42 +318,42 @@ class NotificationService {
     case 'whitelist':
       // Log whitelist actions from title/description
       if (title?.includes('Grant')) {
-        console.log(`Whitelist granted: ${description}`);
+        loggerConsole.log(`Whitelist granted: ${description}`);
       } else if (title?.includes('Revoke')) {
-        console.log(`Whitelist revoked: ${description}`);
+        loggerConsole.log(`Whitelist revoked: ${description}`);
       } else {
-        console.log(`Whitelist action: ${description}`);
+        loggerConsole.log(`Whitelist action: ${description}`);
       }
       break;
 
     case 'account_link':
       // Log account linking
       if (title?.includes('Link')) {
-        console.log(`Account link: ${description}`);
+        loggerConsole.log(`Account link: ${description}`);
       }
       break;
 
     case 'tutor_management':
       // Log tutor actions
-      console.log(`Tutor action: ${description}`);
+      loggerConsole.log(`Tutor action: ${description}`);
       break;
 
     case 'error':
       // Log errors
-      console.log(`Error notification: ${title} - ${description}`);
+      loggerConsole.log(`Error notification: ${title} - ${description}`);
       break;
 
     case 'command_usage':
       // Log command usage if present
       if (description) {
-        console.log(`Command: ${description}`);
+        loggerConsole.log(`Command: ${description}`);
       }
       break;
 
     default:
       // Generic log for other types
       if (description) {
-        console.log(`Notification: ${description}`);
+        loggerConsole.log(`Notification: ${description}`);
       }
     }
   }
@@ -383,7 +384,7 @@ class NotificationService {
     this.failedNotifications = stillFailed;
     
     if (successCount > 0) {
-      console.log(`Successfully retried ${successCount} notifications`);
+      loggerConsole.log(`Successfully retried ${successCount} notifications`);
     }
     
     return successCount;

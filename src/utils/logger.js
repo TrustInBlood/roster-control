@@ -60,18 +60,11 @@ const logger = winston.createLogger({
   ]
 });
 
-// Add console transport for development
-if (nodeEnv === 'development') {
-  logger.add(new winston.transports.Console({
-    format: consoleFormat
-  }));
-} else {
-  // In production, only log warnings and errors to console
-  logger.add(new winston.transports.Console({
-    level: 'warn',
-    format: consoleFormat
-  }));
-}
+// Add console transport for all environments with timestamps
+logger.add(new winston.transports.Console({
+  level: nodeEnv === 'development' ? logLevel : 'info', // Development: all levels, Production: info and above
+  format: consoleFormat
+}));
 
 /**
  * Create a child logger with a specific service context
@@ -154,6 +147,52 @@ function logPerformance(operation, duration, meta = {}) {
   });
 }
 
+/**
+ * Console replacement methods for easy migration from console.log
+ * These methods provide the exact same interface as console but with timestamps
+ */
+const console_replacement = {
+  log: (message, ...args) => {
+    if (args.length > 0) {
+      logger.info(message, { args });
+    } else {
+      logger.info(message);
+    }
+  },
+
+  error: (message, ...args) => {
+    if (args.length > 0) {
+      logger.error(message, { args });
+    } else {
+      logger.error(message);
+    }
+  },
+
+  warn: (message, ...args) => {
+    if (args.length > 0) {
+      logger.warn(message, { args });
+    } else {
+      logger.warn(message);
+    }
+  },
+
+  info: (message, ...args) => {
+    if (args.length > 0) {
+      logger.info(message, { args });
+    } else {
+      logger.info(message);
+    }
+  },
+
+  debug: (message, ...args) => {
+    if (args.length > 0) {
+      logger.debug(message, { args });
+    } else {
+      logger.debug(message);
+    }
+  }
+};
+
 // Export the main logger and utility functions
 module.exports = {
   // Main logger instance
@@ -175,11 +214,23 @@ module.exports = {
   error: (message, meta = {}) => logger.error(message, meta),
   debug: (message, meta = {}) => logger.debug(message, meta),
 
+  // Console replacement methods for easy migration
+  console: console_replacement,
+
   // Migration-specific logger (for console.log replacement in migrations)
   migration: {
     info: (message) => logger.info(`🔧 ${message}`, { service: 'Migration' }),
     warn: (message) => logger.warn(`⚠️ ${message}`, { service: 'Migration' }),
     error: (message) => logger.error(`❌ ${message}`, { service: 'Migration' }),
     success: (message) => logger.info(`✅ ${message}`, { service: 'Migration' })
+  },
+
+  // Global console override function
+  overrideGlobalConsole: () => {
+    global.console.log = console_replacement.log;
+    global.console.error = console_replacement.error;
+    global.console.warn = console_replacement.warn;
+    global.console.info = console_replacement.info;
+    global.console.debug = console_replacement.debug;
   }
 };

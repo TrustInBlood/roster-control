@@ -1,4 +1,5 @@
 const { Sequelize } = require('sequelize');
+const { console: loggerConsole } = require('../src/utils/logger');
 
 module.exports = {
   async up(queryInterface, Sequelize) {
@@ -17,7 +18,7 @@ module.exports = {
         type: queryInterface.sequelize.QueryTypes.SELECT
       });
 
-      console.log(`Found ${usersWithMultipleLinks.length} users with multiple links`);
+      loggerConsole.log(`Found ${usersWithMultipleLinks.length} users with multiple links`);
 
       // Step 2: For each user with multiple links, ensure only the highest confidence link is primary
       for (const user of usersWithMultipleLinks) {
@@ -79,9 +80,9 @@ module.exports = {
       });
 
       if (lowConfidencePrimaries.length > 0) {
-        console.log('WARNING: Found staff members with low-confidence primary links:');
+        loggerConsole.log('WARNING: Found staff members with low-confidence primary links:');
         lowConfidencePrimaries.forEach(link => {
-          console.log(`  - Discord: ${link.discord_user_id}, Steam: ${link.steamid64}, ` +
+          loggerConsole.log(`  - Discord: ${link.discord_user_id}, Steam: ${link.steamid64}, ` +
                       `Confidence: ${link.confidence_score}, Source: ${link.link_source}`);
         });
       }
@@ -111,16 +112,16 @@ module.exports = {
 
       if (auditEntries.length > 0) {
         await queryInterface.bulkInsert('audit_logs', auditEntries, { transaction });
-        console.log(`Created ${auditEntries.length} audit log entries for security fix`);
+        loggerConsole.log(`Created ${auditEntries.length} audit log entries for security fix`);
       }
 
-      console.log('Migration completed: Fixed low-confidence primary links');
+      loggerConsole.log('Migration completed: Fixed low-confidence primary links');
     });
   },
 
   async down(queryInterface, Sequelize) {
     // This migration is not reversible as it fixes a security issue
     // We don't want to restore the vulnerable state
-    console.log('This migration cannot be reversed (security fix)');
+    loggerConsole.log('This migration cannot be reversed (security fix)');
   }
 };

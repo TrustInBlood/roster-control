@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 const { permissionMiddleware } = require('../handlers/permissionHandler');
+const { console: loggerConsole } = require('../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -150,7 +151,7 @@ module.exports = {
         });
 
       } catch (error) {
-        console.error('Whatsnew command error:', error);
+        loggerConsole.error('Whatsnew command error:', error);
       
         // Simple fallback response
         await interaction.reply({

@@ -2,6 +2,7 @@
  * Development Environment Discord Role ID definitions
  * For Testing Zone Discord server
  */
+const { console: loggerConsole } = require('../src/utils/logger');
 
 const DISCORD_ROLES_DEV = {
   // Administrative Roles - Using available and suggested new roles
@@ -48,7 +49,7 @@ function getAllAdminRoles() {
   // SECURITY: If no admin roles are configured, return a special marker
   // This prevents accidentally allowing everyone to use admin commands
   if (adminRoles.length === 0) {
-    console.error('CRITICAL: No admin roles configured! Admin commands will be disabled.');
+    loggerConsole.error('CRITICAL: No admin roles configured! Admin commands will be disabled.');
     return ['NO_ADMIN_ROLES_CONFIGURED']; // This ID will never match a real role
   }
 

@@ -1,6 +1,7 @@
 const { EmbedBuilder } = require('discord.js');
 const { CHANNELS } = require('../../config/discord');
 const { ON_DUTY_ROLE_ID } = require('../../config/discord');
+const { console: loggerConsole } = require('../utils/logger');
 // const DutyStatusFactory = require('../services/DutyStatusFactory'); // Available for future automatic duty management
 
 /**
@@ -53,7 +54,7 @@ async function handleVoiceStateUpdate(oldState, newState) {
     //     });
     // }
   } catch (error) {
-    console.error('Error handling voice state update:', error);
+    loggerConsole.error('Error handling voice state update:', error);
   }
 }
 

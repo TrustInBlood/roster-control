@@ -4,6 +4,7 @@ const { createResponseEmbed, sendError } = require('../utils/messageHandler');
 const { Whitelist, PlayerDiscordLink } = require('../database/models');
 const { getHighestPriorityGroup, squadGroups } = require('../utils/environment');
 const { getAllTrackedRoles } = squadGroups;
+const { console: loggerConsole } = require('../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -123,7 +124,7 @@ module.exports = {
         await interaction.editReply({ embeds: [embed] });
         
       } catch (error) {
-        console.error('Unlinked staff command error:', error);
+        loggerConsole.error('Unlinked staff command error:', error);
         await sendError(interaction, error.message || 'An error occurred while retrieving unlinked staff.');
       }
     });
