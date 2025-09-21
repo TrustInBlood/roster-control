@@ -24,7 +24,29 @@ const consoleFormat = winston.format.combine(
   winston.format.colorize(),
   winston.format.printf(({ timestamp, level, message, service, ...meta }) => {
     const servicePrefix = service ? `[${service}] ` : '';
-    const metaString = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : '';
+    let metaString = '';
+
+    if (Object.keys(meta).length) {
+      try {
+        // Try to stringify, but handle circular references
+        metaString = ` ${JSON.stringify(meta, (key, value) => {
+          // Handle circular references by returning a placeholder
+          if (typeof value === 'object' && value !== null) {
+            if (value.constructor && value.constructor.name === 'Sequelize') {
+              return '[Sequelize Instance]';
+            }
+            if (value.constructor && value.constructor.name.includes('Dialect')) {
+              return '[Database Dialect]';
+            }
+          }
+          return value;
+        })}`;
+      } catch (error) {
+        // Fallback if JSON.stringify still fails
+        metaString = ` [Complex Object]`;
+      }
+    }
+
     return `${timestamp} ${level}: ${servicePrefix}${message}${metaString}`;
   })
 );
