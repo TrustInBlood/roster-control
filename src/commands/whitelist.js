@@ -65,7 +65,8 @@ async function resolveUserInfo(steamid, discordUser, createLink = false) {
       resolvedSteamId,
       null, // eosID
       username,
-      0.5  // Whitelist operations create 0.5 confidence links
+      0.5,  // Whitelist operations create 0.5 confidence links
+      discordUser // Pass Discord user object for display name logging
     );
 
     if (!linkResult.error) {

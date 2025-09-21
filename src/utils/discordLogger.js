@@ -5,6 +5,7 @@
 
 const { createResponseEmbed } = require('./messageHandler');
 const { CHANNELS } = require('../../config/channels');
+const { console: loggerConsole } = require('./logger');
 
 /**
  * Event types and their corresponding colors and icons
@@ -39,18 +40,18 @@ async function logToDiscord(client, eventType, eventData) {
 
     const eventConfig = EVENT_TYPES[eventType];
     if (!eventConfig) {
-      console.warn(`Unknown event type for Discord logging: ${eventType}`);
+      loggerConsole.warn(`Unknown event type for Discord logging: ${eventType}`);
       return;
     }
 
     // Get the log channel
     const logChannel = await client.channels.fetch(CHANNELS.BOT_LOGS).catch(error => {
-      console.error('Failed to fetch Discord log channel:', error.message);
+      loggerConsole.error('Failed to fetch Discord log channel:', error.message);
       return null;
     });
     
     if (!logChannel) {
-      console.warn(`Discord log channel not found: ${CHANNELS.BOT_LOGS}`);
+      loggerConsole.warn(`Discord log channel not found: ${CHANNELS.BOT_LOGS}`);
       return;
     }
 
@@ -122,7 +123,7 @@ async function logToDiscord(client, eventType, eventData) {
     logToConsole(eventType, eventData);
 
   } catch (error) {
-    console.error('Failed to log event to Discord:', error);
+    loggerConsole.error('Failed to log event to Discord:', error);
     // Don't let Discord logging failures affect the main functionality
   }
 }
@@ -140,62 +141,63 @@ function logToConsole(eventType, eventData) {
       const actor = eventData.details?.['Created By'] || eventData.user.tag;
       // Use display name if available, otherwise fall back to username or tag
       const targetName = eventData.user.displayName || eventData.user.username || eventData.user.tag;
-      console.log(`${actor} created link for ${targetName} ${eventData.steamId}`);
+      loggerConsole.log(`${actor} created link for ${targetName} ${eventData.steamId}`);
     }
     break;
   case 'ALT_ACCOUNT':
     if (eventData.user && eventData.steamId) {
-      console.log(`Alt account discovered: ${eventData.user.tag} ${eventData.steamId}`);
+      loggerConsole.log(`Alt account discovered: ${eventData.user.tag} ${eventData.steamId}`);
     }
     break;
   case 'WHITELIST_GRANT':
     if (eventData.steamId) {
       const grantedBy = eventData.details?.['Granted By'] || 'System';
-      const target = eventData.user?.tag || 'Unknown';
-      console.log(`${grantedBy} granted whitelist to ${target} ${eventData.steamId}`);
+      const target = eventData.user?.displayName || eventData.user?.username || eventData.user?.tag || 'Unknown';
+      loggerConsole.log(`${grantedBy} granted whitelist to ${target} ${eventData.steamId}`);
     }
     break;
   case 'WHITELIST_REVOKE':
     if (eventData.steamId) {
       const revokedBy = eventData.details?.['Granted By'] || 'System';
-      const target = eventData.user?.tag || 'Unknown';
-      console.log(`${revokedBy} revoked whitelist from ${target} ${eventData.steamId}`);
+      const target = eventData.user?.displayName || eventData.user?.username || eventData.user?.tag || 'Unknown';
+      loggerConsole.log(`${revokedBy} revoked whitelist from ${target} ${eventData.steamId}`);
     }
     break;
   case 'WHITELIST_EXTEND':
     if (eventData.user && eventData.steamId) {
-      console.log(`Whitelist extended for ${eventData.user.tag} ${eventData.steamId}`);
+      const target = eventData.user?.displayName || eventData.user?.username || eventData.user?.tag || 'Unknown';
+      loggerConsole.log(`Whitelist extended for ${target} ${eventData.steamId}`);
     }
     break;
   case 'COMMAND_USED':
     if (eventData.user && eventData.details?.Command) {
       const status = eventData.details.Status?.includes('Success') ? 'executed' : 'failed';
-      console.log(`${eventData.user.tag} ${status} ${eventData.details.Command}`);
+      loggerConsole.log(`${eventData.user.tag} ${status} ${eventData.details.Command}`);
     }
     break;
   case 'DUTY_CHANGE':
     if (eventData.description) {
-      console.log(eventData.description);
+      loggerConsole.log(eventData.description);
     }
     break;
   case 'LEGACY_COMMAND':
     if (eventData.user && eventData.details?.['Old Command']) {
-      console.log(`${eventData.user.tag} used legacy command ${eventData.details['Old Command']}`);
+      loggerConsole.log(`${eventData.user.tag} used legacy command ${eventData.details['Old Command']}`);
     }
     break;
   case 'ERROR':
     if (eventData.description) {
-      console.log(`Error: ${eventData.description}`);
+      loggerConsole.log(`Error: ${eventData.description}`);
     }
     break;
   case 'WARNING':
     if (eventData.description) {
-      console.log(`Warning: ${eventData.description}`);
+      loggerConsole.log(`Warning: ${eventData.description}`);
     }
     break;
   case 'INFO':
     if (eventData.description) {
-      console.log(`Info: ${eventData.description}`);
+      loggerConsole.log(`Info: ${eventData.description}`);
     }
     break;
   }

@@ -1,4 +1,5 @@
 const { PlayerDiscordLink, Whitelist } = require('../database/models');
+const { console: loggerConsole } = require('./logger');
 
 /**
  * Generic account linking utilities
@@ -12,9 +13,10 @@ const { PlayerDiscordLink, Whitelist } = require('../database/models');
  * @param {string} eosID - Optional EOS ID
  * @param {string} username - Optional username
  * @param {number} confidenceScore - Confidence score for the link (default 0.5 for whitelist operations)
+ * @param {Object} discordUser - Optional Discord user object for display name (for logging)
  * @returns {Object} The created or updated link
  */
-async function createOrUpdateLink(discordUserId, steamid64, eosID = null, username = null, confidenceScore = 0.5) {
+async function createOrUpdateLink(discordUserId, steamid64, eosID = null, username = null, confidenceScore = 0.5, discordUser = null) {
   try {
     const { link, created } = await PlayerDiscordLink.createOrUpdateLink(
       discordUserId, 
@@ -28,10 +30,11 @@ async function createOrUpdateLink(discordUserId, steamid64, eosID = null, userna
       }
     );
     
-    console.log(`Account link ${created ? 'created' : 'updated'}: Discord ${discordUserId} <-> Steam ${steamid64}`);
+    const userIdentifier = discordUser?.displayName || discordUser?.username || discordUser?.tag || discordUserId;
+    loggerConsole.log(`Account link ${created ? 'created' : 'updated'}: Discord ${userIdentifier} <-> Steam ${steamid64}`);
     return { link, created, error: null };
   } catch (error) {
-    console.error('Failed to create/update account link:', error);
+    loggerConsole.error('Failed to create/update account link:', error);
     return { link: null, created: false, error: error.message };
   }
 }
@@ -66,7 +69,7 @@ async function resolveSteamIdFromDiscord(discordUserId) {
 
     return null;
   } catch (error) {
-    console.error('Error resolving Steam ID from Discord:', error);
+    loggerConsole.error('Error resolving Steam ID from Discord:', error);
     return null;
   }
 }
@@ -101,7 +104,7 @@ async function resolveDiscordFromSteamId(steamid64) {
 
     return null;
   } catch (error) {
-    console.error('Error resolving Discord ID from Steam:', error);
+    loggerConsole.error('Error resolving Discord ID from Steam:', error);
     return null;
   }
 }
@@ -158,7 +161,7 @@ async function getUserInfo(identifiers = {}) {
 
     return result;
   } catch (error) {
-    console.error('Error getting user info:', error);
+    loggerConsole.error('Error getting user info:', error);
     return result;
   }
 }
@@ -175,7 +178,7 @@ async function getAllLinkedAccounts(limit = 100) {
       order: [['created_at', 'DESC']]
     });
   } catch (error) {
-    console.error('Error getting linked accounts:', error);
+    loggerConsole.error('Error getting linked accounts:', error);
     return [];
   }
 }

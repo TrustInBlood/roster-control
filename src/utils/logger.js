@@ -47,7 +47,7 @@ const consoleFormat = winston.format.combine(
       }
     }
 
-    return `${timestamp} ${level}: ${servicePrefix}${message}${metaString}`;
+    return `[ ${timestamp} ] ${level}: ${servicePrefix}${message}${metaString}`;
   })
 );
 
