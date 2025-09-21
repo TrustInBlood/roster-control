@@ -61,49 +61,9 @@ module.exports = {
         return;
       }
 
-      // If user has a low-confidence link, show info but allow re-linking
-      if (existingLink && existingLink.steamid64 && existingLink.confidence_score < 1.0) {
-        const lowConfidenceEmbed = {
-          color: 0xffaa00,
-          title: 'Improving Your Account Link',
-          description: 'You have an existing Steam account link with low confidence. You can verify in-game to improve your link confidence.',
-          fields: [
-            {
-              name: 'Current Steam ID',
-              value: existingLink.steamid64,
-              inline: true
-            },
-            {
-              name: 'Current Confidence',
-              value: `${(existingLink.confidence_score * 100).toFixed(0)}%`,
-              inline: true
-            },
-            {
-              name: 'Why improve confidence?',
-              value: 'Higher confidence links provide better whitelist access and are required for staff roles.',
-              inline: false
-            }
-          ],
-          timestamp: new Date().toISOString(),
-          footer: {
-            text: 'Proceeding to generate verification code...'
-          }
-        };
-
-        await interaction.reply({
-          embeds: [lowConfidenceEmbed],
-          flags: MessageFlags.Ephemeral
-        });
-
-        // Brief delay to show the message before updating
-        setTimeout(async () => {
-          try {
-            await interaction.editReply({ embeds: [lowConfidenceEmbed] });
-          } catch (error) {
-            // Ignore edit errors, proceed with verification code generation
-          }
-        }, 2000);
-      }
+      // If user has a low-confidence link, note it but don't reply yet
+      // Only show improvement context for confidence >= 0.5, otherwise treat as new link
+      const hasLowConfidenceLink = existingLink && existingLink.steamid64 && existingLink.confidence_score >= 0.5 && existingLink.confidence_score < 1.0;
 
       const verificationCode = await VerificationCode.createCode(
         discordUserId,
@@ -111,16 +71,14 @@ module.exports = {
         whitelistConfig.verification.expirationMinutes
       );
 
-      const isImproving = existingLink && existingLink.steamid64 && existingLink.confidence_score < 1.0;
-
       const embed = {
         color: 0x00ff00,
-        title: isImproving ? 'Account Link Improvement Code Generated' : 'Account Linking Code Generated',
+        title: hasLowConfidenceLink ? 'Account Link Improvement Code Generated' : 'Account Linking Code Generated',
         description: `Your verification code is: **${verificationCode.code}**`,
         fields: [
           {
             name: 'Instructions',
-            value: `Type this code in Squad game chat to ${isImproving ? 'improve your link confidence' : 'link your accounts'}:\n\`${verificationCode.code}\``,
+            value: `Type this code in Squad game chat to ${hasLowConfidenceLink ? 'improve your link confidence' : 'link your accounts'}:\n\`${verificationCode.code}\``,
             inline: false
           },
           {
@@ -130,7 +88,7 @@ module.exports = {
           },
           {
             name: 'What happens next?',
-            value: isImproving
+            value: hasLowConfidenceLink
               ? 'Once you type the code in-game, your link confidence will be improved and you\'ll have better access!'
               : 'Once you type the code in-game, you\'ll receive a confirmation message in Squad and your account will be linked!',
             inline: false
@@ -142,23 +100,31 @@ module.exports = {
         }
       };
 
-      if (isImproving) {
-        // If we already showed the low confidence message, edit the reply
-        try {
-          await interaction.editReply({ embeds: [embed] });
-        } catch (error) {
-          // If edit fails (e.g., timing issue), just reply normally
-          await interaction.reply({
-            embeds: [embed],
-            flags: MessageFlags.Ephemeral
-          });
-        }
-      } else {
-        await interaction.reply({
-          embeds: [embed],
-          flags: MessageFlags.Ephemeral
-        });
+      // Add additional context for low confidence links
+      if (hasLowConfidenceLink) {
+        embed.fields.unshift(
+          {
+            name: 'Current Steam ID',
+            value: existingLink.steamid64,
+            inline: true
+          },
+          {
+            name: 'Current Confidence',
+            value: `${(existingLink.confidence_score * 100).toFixed(0)}%`,
+            inline: true
+          },
+          {
+            name: 'Why improve confidence?',
+            value: 'Higher confidence links provide better whitelist access and are required for staff roles.',
+            inline: false
+          }
+        );
       }
+
+      await interaction.reply({
+        embeds: [embed],
+        flags: MessageFlags.Ephemeral
+      });
 
       // Store the interaction for later update
       const verificationService = container.get('verificationService');
@@ -168,7 +134,7 @@ module.exports = {
         code: verificationCode.code,
         expiration: verificationCode.expiration,
         timestamp: Date.now(),
-        isImproving
+        isImproving: hasLowConfidenceLink
       });
 
       // Set timeout to update the message if code expires unused
