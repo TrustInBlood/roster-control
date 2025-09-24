@@ -87,11 +87,27 @@ function getAllMemberRoles() {
   ].filter(Boolean);
 }
 
+function getAllStaffRoles() {
+  const staffRoles = [
+    ...getAllAdminRoles(),
+    DISCORD_ROLES_DEV.MODERATOR
+  ].filter(Boolean);
+
+  // SECURITY: If no staff roles are configured, return a special marker
+  if (staffRoles.length === 0) {
+    loggerConsole.error('CRITICAL: No staff roles configured! Staff commands will be disabled.');
+    return ['NO_STAFF_ROLES_CONFIGURED'];
+  }
+
+  return staffRoles;
+}
+
 module.exports = {
   DISCORD_ROLES: DISCORD_ROLES_DEV,
   getAllAdminRoles,
   getAllTutorRoles,
   getAllSpecialtyRoles,
   getAllWhitelistAwardRoles,
-  getAllMemberRoles
+  getAllMemberRoles,
+  getAllStaffRoles
 };

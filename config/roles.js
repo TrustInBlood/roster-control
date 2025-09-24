@@ -6,11 +6,11 @@
 
 // Import centralized role definitions and squad groups (environment-specific)
 const isDevelopment = process.env.NODE_ENV === 'development';
-const { DISCORD_ROLES, getAllAdminRoles } = require(isDevelopment ? './discordRoles.development' : './discordRoles');
+const { DISCORD_ROLES, getAllAdminRoles, getAllStaffRoles } = require(isDevelopment ? './discordRoles.development' : './discordRoles');
 const { SQUAD_GROUPS, getAllTrackedRoles } = require(isDevelopment ? './squadGroups.development' : './squadGroups');
 const COMMAND_PERMISSIONS = {
   // Admin commands
-  'whitelist': getAllAdminRoles(),  // All admin roles can use whitelist commands
+  'whitelist': getAllStaffRoles(),  // All staff roles can use whitelist commands
   'checkenv': getAllAdminRoles(),   // All admin roles can check environment
   'duty': getAllAdminRoles(),       // All admin roles can use duty commands
   'link': getAllAdminRoles(),       // All admin roles can use link commands
