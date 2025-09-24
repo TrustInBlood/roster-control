@@ -76,7 +76,7 @@ module.exports = {
           },
           {
             name: 'Account Linking System',
-            value: '• **`/link`** - Admins can manually link Steam IDs to Discord users\n' +
+            value: '• **`/adminlink`** - Admins can manually link Steam IDs to Discord users\n' +
                  '• **Confidence-based security** - Only self-verified links can access staff whitelist\n' +
                  '• **Ticket auto-linking** - Automatically detects Steam IDs in ticket channels\n' +
                  '• **Multiple linking methods** - Self-verification, admin linking, whitelist linking',

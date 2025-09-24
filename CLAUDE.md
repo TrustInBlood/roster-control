@@ -62,7 +62,7 @@ This is a **Discord bot for Squad server roster management** with the following 
 #### Command System (`src/commands/`)
 - **Modular Structure**: Each command is a separate file with `data` (SlashCommandBuilder) and `execute` properties
 - **Error Handling**: Centralized error handling with user-friendly messages
-- **Current Commands**: `/ping`, `/help`, `/onduty`, `/offduty`, `/ondutytutor`, `/offdutytutor`, `/addspecialty`, `/removespecialty`, `/removetutor`, `/whatsnew`, `/linkid`, `/link`, `/unlink`, `/whitelist` (grant/info/extend/revoke), `/unlinkedstaff`, `/checkenv`
+- **Current Commands**: `/ping`, `/help`, `/onduty`, `/offduty`, `/ondutytutor`, `/offdutytutor`, `/addspecialty`, `/removespecialty`, `/removetutor`, `/whatsnew`, `/linkid`, `/adminlink`, `/unlink`, `/whitelist` (grant/info/extend/revoke), `/unlinkedstaff`, `/checkenv`
 
 #### Event Handling (`src/handlers/`)
 - **Voice State Monitoring**: Automatic notifications when users join monitored voice channels

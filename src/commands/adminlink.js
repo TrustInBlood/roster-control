@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 const { permissionMiddleware } = require('../handlers/permissionHandler');
-const { sendSuccess, sendError, createResponseEmbed } = require('../utils/messageHandler');
+const { sendError, createResponseEmbed } = require('../utils/messageHandler');
 const { PlayerDiscordLink } = require('../database/models');
 const { isValidSteamId } = require('../utils/steamId');
 const { logAccountLink } = require('../utils/discordLogger');
