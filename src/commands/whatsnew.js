@@ -24,7 +24,17 @@ module.exports = {
         // Add recent updates (most recent first)
         updatesEmbed.addFields(
           {
-            name: 'Whitelist Attribution Bug Fix (Latest)',
+            name: 'Improved Whitelist UX & Security (Latest)',
+            value: '• **Required Discord User** - `/whitelist grant` now requires Discord user for better linking\n' +
+                 '• **Steam ID Only Mode** - New `/whitelist grant-steamid` for admin-only edge cases\n' +
+                 '• **Button-Based UI** - Replaced dropdown with intuitive button interface\n' +
+                 '• **Enhanced Security** - Steam-only grants restricted to admin roles with warnings\n' +
+                 '• **Better Audit Trail** - Logs distinguish between normal and steam-only grants\n' +
+                 '• **Consistent Experience** - All selections now use button interface',
+            inline: false
+          },
+          {
+            name: 'Whitelist Attribution Bug Fix',
             value: '• **Fixed Bulk Donation Attribution** - Steam-only grants no longer incorrectly link to existing Discord users\n' +
                  '• **Prevented Cross-Contamination** - Standalone Steam ID whitelists remain unattributed\n' +
                  '• **Enhanced Security** - Explicit validation prevents automatic linking during whitelist operations\n' +
@@ -113,7 +123,8 @@ module.exports = {
             {
               name: 'Admin Commands',
               value: '`/link` - Link Steam ID to Discord user\n' +
-                   '`/whitelist grant` - Grant whitelist access\n' +
+                   '`/whitelist grant` - Grant whitelist access (requires Discord user)\n' +
+                   '`/whitelist grant-steamid` - Grant by Steam ID only (admin-only)\n' +
                    '`/whitelist extend` - Extend whitelist duration\n' +
                    '`/whitelist revoke` - Remove whitelist access\n' +
                    '`/onduty` & `/offduty` - Manage admin duty status\n' +

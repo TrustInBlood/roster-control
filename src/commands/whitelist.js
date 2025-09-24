@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle, ComponentType, ModalBuilder, TextInputBuilder, TextInputStyle, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, ModalBuilder, TextInputBuilder, TextInputStyle, MessageFlags } = require('discord.js');
 const { permissionMiddleware } = require('../handlers/permissionHandler');
 const { withLoadingMessage, createResponseEmbed, sendSuccess, sendError } = require('../utils/messageHandler');
 const { Whitelist } = require('../database/models');
@@ -7,11 +7,10 @@ const { getHighestPriorityGroup } = require('../utils/environment');
 const {
   createOrUpdateLink,
   resolveSteamIdFromDiscord,
-  resolveDiscordFromSteamId,
   getUserInfo
 } = require('../utils/accountLinking');
 const { isValidSteamId } = require('../utils/steamId');
-const { logWhitelistOperation, logCommand } = require('../utils/discordLogger');
+const { logWhitelistOperation } = require('../utils/discordLogger');
 const notificationService = require('../services/NotificationService');
 const { console: loggerConsole } = require('../utils/logger');
 const WhitelistAuthorityService = require('../services/WhitelistAuthorityService');
@@ -152,13 +151,27 @@ module.exports = {
       subcommand
         .setName('grant')
         .setDescription('Grant whitelist access to a user')
+        .addUserOption(option =>
+          option.setName('user')
+            .setDescription('Discord user to grant whitelist to')
+            .setRequired(true))
+        .addStringOption(option =>
+          option.setName('steamid')
+            .setDescription('Steam ID64 of the user (required)')
+            .setRequired(true)))
+
+    // Grant Steam ID only subcommand (admin-restricted)
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('grant-steamid')
+        .setDescription('Grant whitelist access by Steam ID only (admin use)')
         .addStringOption(option =>
           option.setName('steamid')
             .setDescription('Steam ID64 of the user')
             .setRequired(true))
-        .addUserOption(option =>
-          option.setName('user')
-            .setDescription('Discord user to link with the Steam ID (optional)')
+        .addStringOption(option =>
+          option.setName('username')
+            .setDescription('Username for audit trail (optional but recommended)')
             .setRequired(false)))
     
     // Info subcommand
@@ -222,6 +235,9 @@ module.exports = {
         case 'grant':
           await handleGrant(interaction);
           break;
+        case 'grant-steamid':
+          await handleGrantSteamId(interaction);
+          break;
         case 'info':
           await handleInfo(interaction);
           break;
@@ -243,93 +259,100 @@ module.exports = {
 };
 
 async function handleGrant(interaction) {
+  const discordUser = interaction.options.getUser('user'); // Now required
   const steamid = interaction.options.getString('steamid');
-  const discordUser = interaction.options.getUser('user');
 
   try {
-    // Step 1: Resolve user information first (steamid is now required)
+    // Step 1: Resolve user information first (both user and steamid are now required)
     const userInfo = await resolveUserInfo(steamid, discordUser, true);
 
-    // Step 2: Show reason selection embed
-    const reasonEmbed = createResponseEmbed({
-      title: '🎯 Select Whitelist Type',
-      description: `**Steam ID:** ${userInfo.steamid64}\n${discordUser ? `**Discord User:** <@${discordUser.id}>` : '**Discord User:** Not linked'}\n\nPlease select the type of whitelist to grant:`,
-      color: 0x3498db
+    // Step 2: Show reason selection with buttons
+    await showReasonSelectionButtons(interaction, {
+      discordUser,
+      userInfo,
+      originalUser: interaction.user,
+      isSteamIdOnly: false
     });
 
-    const reasonSelect = new StringSelectMenuBuilder()
-      .setCustomId('whitelist_reason_select')
-      .setPlaceholder('Choose whitelist type...')
-      .addOptions([
-        {
-          label: '🎖️ Service Member',
-          description: 'Automatic 6 months whitelist',
-          value: 'service-member'
-        },
-        {
-          label: '🚑 First Responder', 
-          description: 'Automatic 6 months whitelist',
-          value: 'first-responder'
-        },
-        {
-          label: '💎 Donator',
-          description: 'Custom duration whitelist',
-          value: 'donator'
-        },
-        {
-          label: '📋 Reporting',
-          description: 'Custom days whitelist',
-          value: 'reporting'
-        }
-      ]);
+  } catch (error) {
+    loggerConsole.error('Whitelist grant error:', error);
+    await sendError(interaction, error.message);
+  }
+}
 
-    const reasonRow = new ActionRowBuilder().addComponents(reasonSelect);
+async function handleGrantSteamId(interaction) {
+  const steamid = interaction.options.getString('steamid');
+  const username = interaction.options.getString('username');
+
+  try {
+    // Step 1: Show warning about Steam ID only grant
+    const warningEmbed = createResponseEmbed({
+      title: '⚠️ Steam ID Only Grant',
+      description: `**Steam ID:** ${steamid}\n${username ? `**Username:** ${username}` : '**Username:** Not provided'}\n\n🚨 **Important:** This grant will NOT create a Discord-Steam account link.\nThis means the user will have lower link confidence for future staff whitelist access.\n\nOnly use this for users who are not in Discord or emergency situations.`,
+      color: 0xffa500
+    });
+
+    const confirmRow = new ActionRowBuilder()
+      .addComponents(
+        new ButtonBuilder()
+          .setCustomId('proceed_steamid_grant')
+          .setLabel('Proceed with Steam ID Grant')
+          .setStyle(ButtonStyle.Danger)
+          .setEmoji('⚠️'),
+        new ButtonBuilder()
+          .setCustomId('cancel_steamid_grant')
+          .setLabel('Cancel')
+          .setStyle(ButtonStyle.Secondary)
+          .setEmoji('❌')
+      );
 
     await interaction.reply({
-      embeds: [reasonEmbed],
-      components: [reasonRow],
+      embeds: [warningEmbed],
+      components: [confirmRow],
       flags: MessageFlags.Ephemeral
     });
 
-    // Step 3: Handle reason selection and show duration options
-    const reasonCollector = interaction.channel.createMessageComponentCollector({
-      componentType: ComponentType.StringSelect,
-      filter: (i) => i.customId === 'whitelist_reason_select' && i.user.id === interaction.user.id,
-      time: 300000 // 5 minutes
+    // Handle confirmation
+    const confirmCollector = interaction.channel.createMessageComponentCollector({
+      componentType: ComponentType.Button,
+      filter: (i) => (i.customId === 'proceed_steamid_grant' || i.customId === 'cancel_steamid_grant') && i.user.id === interaction.user.id,
+      time: 300000
     });
 
-    reasonCollector.on('collect', async (reasonInteraction) => {
-      const selectedReason = reasonInteraction.values[0];
-      
+    confirmCollector.on('collect', async (buttonInteraction) => {
+      if (buttonInteraction.customId === 'cancel_steamid_grant') {
+        await buttonInteraction.update({
+          content: '❌ Steam ID grant cancelled.',
+          embeds: [],
+          components: []
+        });
+        return;
+      }
+
+      // Proceed with Steam ID only grant
       try {
-        if (!reasonInteraction.deferred && !reasonInteraction.replied) {
-          await reasonInteraction.deferUpdate();
+        if (!buttonInteraction.deferred && !buttonInteraction.replied) {
+          await buttonInteraction.deferUpdate();
         }
-        await handleDurationSelection(reasonInteraction, {
-          reason: selectedReason,
-          discordUser,
+
+        // Step 2: Resolve user information (no Discord user, no linking)
+        const userInfo = await resolveUserInfo(steamid, null, false);
+        // Manually add username if provided
+        if (username) {
+          userInfo.username = username;
+        }
+
+        // Step 3: Show reason selection with buttons instead of dropdown
+        await showReasonSelectionButtons(buttonInteraction, {
+          discordUser: null,
           userInfo,
-          originalUser: interaction.user
+          originalUser: interaction.user,
+          isSteamIdOnly: true
         });
       } catch (error) {
-        loggerConsole.error('Error handling reason selection:', error);
-        if (!reasonInteraction.replied && !reasonInteraction.deferred) {
-          try {
-            await reasonInteraction.reply({
-              content: '❌ An error occurred while processing your selection. Please try again.',
-              flags: MessageFlags.Ephemeral
-            });
-          } catch (replyError) {
-            loggerConsole.error('Failed to send error reply:', replyError);
-          }
-        }
-      }
-    });
-
-    reasonCollector.on('end', (collected, reason) => {
-      if (reason === 'time' && collected.size === 0) {
-        interaction.editReply({
-          content: '❌ Whitelist grant timed out. Please try again.',
+        loggerConsole.error('Steam ID grant error:', error);
+        await buttonInteraction.editReply({
+          content: `❌ ${error.message}`,
           embeds: [],
           components: []
         });
@@ -337,9 +360,94 @@ async function handleGrant(interaction) {
     });
 
   } catch (error) {
-    loggerConsole.error('Whitelist grant error:', error);
+    loggerConsole.error('Steam ID grant setup error:', error);
     await sendError(interaction, error.message);
   }
+}
+
+async function showReasonSelectionButtons(interaction, grantData) {
+  const { discordUser, userInfo, originalUser, isSteamIdOnly } = grantData;
+
+  const reasonEmbed = createResponseEmbed({
+    title: '🎯 Select Whitelist Type',
+    description: `**Steam ID:** ${userInfo.steamid64}\n${discordUser ? `**Discord User:** <@${discordUser.id}>` : '**Discord User:** Not linked'}${isSteamIdOnly ? '\n\n⚠️ **Steam ID Only Grant** - No account linking will occur' : ''}\n\nPlease select the type of whitelist to grant:`,
+    color: isSteamIdOnly ? 0xffa500 : 0x3498db
+  });
+
+  const reasonRow1 = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId('reason_service-member')
+        .setLabel('Service Member')
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji('🎖️'),
+      new ButtonBuilder()
+        .setCustomId('reason_first-responder')
+        .setLabel('First Responder')
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji('🚑'),
+      new ButtonBuilder()
+        .setCustomId('reason_donator')
+        .setLabel('Donator')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('💎'),
+      new ButtonBuilder()
+        .setCustomId('reason_reporting')
+        .setLabel('Reporting')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('📋')
+    );
+
+  await interaction.editReply({
+    embeds: [reasonEmbed],
+    components: [reasonRow1]
+  });
+
+  // Handle reason button selection
+  const reasonCollector = interaction.channel.createMessageComponentCollector({
+    componentType: ComponentType.Button,
+    filter: (i) => i.customId.startsWith('reason_') && i.user.id === originalUser.id,
+    time: 300000
+  });
+
+  reasonCollector.on('collect', async (reasonInteraction) => {
+    const selectedReason = reasonInteraction.customId.replace('reason_', '');
+
+    try {
+      if (!reasonInteraction.deferred && !reasonInteraction.replied) {
+        await reasonInteraction.deferUpdate();
+      }
+      await handleDurationSelection(reasonInteraction, {
+        reason: selectedReason,
+        discordUser,
+        userInfo,
+        originalUser,
+        isSteamIdOnly
+      });
+    } catch (error) {
+      loggerConsole.error('Error handling reason selection:', error);
+      if (!reasonInteraction.replied && !reasonInteraction.deferred) {
+        try {
+          await reasonInteraction.reply({
+            content: '❌ An error occurred while processing your selection. Please try again.',
+            flags: MessageFlags.Ephemeral
+          });
+        } catch (replyError) {
+          loggerConsole.error('Failed to send error reply:', replyError);
+        }
+      }
+    }
+  });
+
+  reasonCollector.on('end', (collected, reason) => {
+    if (reason === 'time' && collected.size === 0) {
+      interaction.editReply({
+        content: '❌ Whitelist grant timed out. Please try again.',
+        embeds: [],
+        components: []
+      });
+    }
+  });
 }
 
 async function handleDurationSelection(interaction, grantData) {
@@ -500,12 +608,7 @@ async function showReportingDurationSelection(interaction, grantData) {
 
       await buttonInteraction.showModal(customDaysModal);
 
-      // Handle modal submission
-      const modalCollector = interaction.channel.createMessageComponentCollector({
-        componentType: ComponentType.Modal,
-        filter: (i) => i.customId === 'reporting_custom_modal' && i.user.id === grantData.originalUser.id,
-        time: 300000
-      });
+      // Handle modal submission - using awaitModalSubmit instead
 
       // Create a more specific modal filter
       try {
@@ -639,7 +742,7 @@ async function handleConfirmation(interaction, grantData) {
 }
 
 async function processWhitelistGrant(interaction, grantData) {
-  const { reason, discordUser, userInfo, durationValue, durationType, durationText } = grantData;
+  const { reason, discordUser, userInfo, durationValue, durationType, durationText, isSteamIdOnly } = grantData;
 
   await interaction.editReply({
     content: '⏳ Processing whitelist grant...',
@@ -661,7 +764,7 @@ async function processWhitelistGrant(interaction, grantData) {
       granted_by: grantData.originalUser.id
     });
 
-    // Log to Discord
+    // Log to Discord (with steam ID only flag)
     await logWhitelistOperation(interaction.client, 'grant', {
       id: discordUser?.id || 'unknown',
       tag: discordUser?.tag || 'Unknown User'
@@ -669,7 +772,8 @@ async function processWhitelistGrant(interaction, grantData) {
       whitelistType: reason.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase()),
       duration: durationText,
       grantedBy: `<@${grantData.originalUser.id}>`,
-      expiration: whitelistEntry.expiration ? whitelistEntry.expiration.toLocaleDateString() : 'Never'
+      expiration: whitelistEntry.expiration ? whitelistEntry.expiration.toLocaleDateString() : 'Never',
+      steamIdOnly: isSteamIdOnly || false // Flag for audit
     });
 
     // Assign Discord role based on whitelist reason
@@ -792,7 +896,7 @@ async function handleInfo(interaction) {
     const steamid = interaction.options.getString('steamid');
 
     // Use the new helper that works with either user OR steamid
-    const { steamid64: resolvedSteamId, discordUser: resolvedDiscordUser, hasLink, hasWhitelistHistory } = await resolveUserForInfo(steamid, discordUser);
+    const { steamid64: resolvedSteamId, discordUser: resolvedDiscordUser, hasLink } = await resolveUserForInfo(steamid, discordUser);
 
     // Use WhitelistAuthorityService to get comprehensive whitelist status
     let authorityStatus = null;
@@ -849,12 +953,10 @@ async function handleInfo(interaction) {
     });
 
     // Determine final status using WhitelistAuthorityService result
-    let finalStatus, finalColor, hasActiveWhitelist;
+    let finalStatus, finalColor;
 
     if (authorityStatus) {
       // Use authority service result as primary source of truth
-      hasActiveWhitelist = authorityStatus.isWhitelisted;
-
       if (authorityStatus.isWhitelisted) {
         const source = authorityStatus.effectiveStatus.primarySource;
 
@@ -897,15 +999,12 @@ async function handleInfo(interaction) {
       if (!resolvedSteamId) {
         finalStatus = 'No whitelist - Steam account not linked';
         finalColor = 0xFF0000;
-        hasActiveWhitelist = false;
       } else if (whitelistStatus.hasWhitelist) {
         finalStatus = whitelistStatus.status;
         finalColor = 0x00FF00;
-        hasActiveWhitelist = true;
       } else {
         finalStatus = whitelistStatus.status;
         finalColor = 0xFF0000;
-        hasActiveWhitelist = false;
       }
     }
 

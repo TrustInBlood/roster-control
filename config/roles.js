@@ -11,6 +11,7 @@ const { SQUAD_GROUPS, getAllTrackedRoles } = require(isDevelopment ? './squadGro
 const COMMAND_PERMISSIONS = {
   // Admin commands
   'whitelist': getAllStaffRoles(),  // All staff roles can use whitelist commands
+  'grant-steamid': getAllAdminRoles(), // Admin-only: Steam ID only whitelist grants (no linking)
   'checkenv': getAllAdminRoles(),   // All admin roles can check environment
   'duty': getAllAdminRoles(),       // All admin roles can use duty commands
   'link': getAllAdminRoles(),       // All admin roles can use link commands
