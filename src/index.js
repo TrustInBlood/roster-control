@@ -85,10 +85,38 @@ client.on('ready', async () => {
   // Set up role change handler with new sync service
   const roleChangeHandler = setupRoleChangeHandler(client, logger);
   loggerConsole.log('Role change handler initialized with unified sync service');
-    
+
+  // Start periodic staff role synchronization (runs every hour)
+  roleChangeHandler.startStaffRolePeriodicSync(60);
+  loggerConsole.log('Periodic staff role synchronization started (60 minute intervals)');
+
   // Wait a moment for all guilds to be loaded
   setTimeout(async () => {
     await performStartupSync(client);
+
+    // Perform initial staff role sync for all guilds after startup
+    setTimeout(async () => {
+      try {
+        loggerConsole.log('Performing initial staff role synchronization...');
+        for (const [guildId, guild] of client.guilds.cache) {
+          try {
+            const result = await roleChangeHandler.bulkSyncGuildStaffRoles(guildId);
+            loggerConsole.log(`Staff role sync completed for ${guild.name}:`, {
+              processed: result.processed,
+              added: result.added,
+              removed: result.removed,
+              errors: result.errors,
+              skipped: result.skipped
+            });
+          } catch (error) {
+            loggerConsole.error(`Failed to sync staff roles for ${guild.name}:`, error.message);
+          }
+        }
+        loggerConsole.log('Initial staff role synchronization completed');
+      } catch (error) {
+        loggerConsole.error('Initial staff role sync failed:', error.message);
+      }
+    }, 2000); // Run 2 seconds after startup sync
   }, 5000);
 });
 

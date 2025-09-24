@@ -12,6 +12,7 @@ const DISCORD_ROLES = {
   OG_ADMIN: '1363017008039329972',         // "OG Admin"
   SQUAD_ADMIN: '814554233377652736',       // "Squad Admin"
   MODERATOR: '1285786746948423730',       // "Moderator"
+  STAFF: '1397788169264562267',           // "Staff"
 
   // Duty System Roles
   ON_DUTY: '1402396896257118258',

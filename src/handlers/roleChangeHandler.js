@@ -1,8 +1,10 @@
 const { ON_DUTY_ROLE_ID } = require('../../config/discord');
 const DutyStatusFactory = require('../services/DutyStatusFactory');
 const RoleWhitelistSyncService = require('../services/RoleWhitelistSyncService');
-const { squadGroups } = require('../utils/environment');
+const StaffRoleSyncService = require('../services/StaffRoleSyncService');
+const { squadGroups, discordRoles } = require('../utils/environment');
 const { getAllTrackedRoles, getHighestPriorityGroup } = squadGroups;
+const { getAllStaffRoles } = discordRoles;
 const NotificationService = require('../services/NotificationService');
 const { AuditLog } = require('../database/models');
 const { console: loggerConsole } = require('../utils/logger');
@@ -15,7 +17,9 @@ class RoleChangeHandler {
     this.dutyFactory = new DutyStatusFactory();
     this.processingUsers = new Set(); // Prevent duplicate processing
     this.roleWhitelistSync = new RoleWhitelistSyncService(logger, client); // New sync service
+    this.staffRoleSync = new StaffRoleSyncService(client, logger); // Staff role sync service
     this.trackedRoles = getAllTrackedRoles(); // Get all staff/member roles
+    this.staffRoles = getAllStaffRoles(); // Get all individual staff roles
 
     // Set up cross-reference
     this.dutyFactory.setRoleChangeHandler(this);
@@ -150,6 +154,42 @@ class RoleChangeHandler {
               });
             }
           }
+        }
+      }
+
+      // Handle staff role synchronization for any role change
+      const oldStaffRoles = oldMember.roles.cache.filter(r => this.staffRoles.includes(r.id));
+      const newStaffRoles = newMember.roles.cache.filter(r => this.staffRoles.includes(r.id));
+
+      // Check if any staff roles changed
+      const oldStaffRoleIds = new Set(oldStaffRoles.map(r => r.id));
+      const newStaffRoleIds = new Set(newStaffRoles.map(r => r.id));
+
+      const staffRolesChanged = oldStaffRoleIds.size !== newStaffRoleIds.size ||
+                               ![...oldStaffRoleIds].every(id => newStaffRoleIds.has(id));
+
+      if (staffRolesChanged) {
+        try {
+          const staffSyncResult = await this.staffRoleSync.syncMemberStaffRole(newMember, {
+            source: 'role_change',
+            skipNotification: true
+          });
+
+          if (staffSyncResult.success && staffSyncResult.actionPerformed) {
+            this.logger.info('Staff role sync completed', {
+              userId: newMember.user.id,
+              userTag: newMember.user.tag,
+              action: staffSyncResult.action,
+              hasIndividualStaffRole: staffSyncResult.hasIndividualStaffRole,
+              hasStaffRole: staffSyncResult.hasStaffRole
+            });
+          }
+        } catch (error) {
+          this.logger.error('Failed to sync staff role during role change', {
+            userId: newMember.user.id,
+            userTag: newMember.user.tag,
+            error: error.message
+          });
         }
       }
     } catch (error) {
@@ -312,6 +352,39 @@ class RoleChangeHandler {
       });
       throw error;
     }
+  }
+
+  /**
+   * Start periodic staff role synchronization
+   * @param {number} intervalMinutes - How often to run sync (default: 60 minutes)
+   */
+  startStaffRolePeriodicSync(intervalMinutes = 60) {
+    return this.staffRoleSync.startPeriodicSync(intervalMinutes);
+  }
+
+  /**
+   * Stop periodic staff role synchronization
+   */
+  stopStaffRolePeriodicSync() {
+    return this.staffRoleSync.stopPeriodicSync();
+  }
+
+  /**
+   * Manually sync staff role for a specific member
+   * @param {Object} member - Discord GuildMember object
+   * @param {Object} options - Sync options
+   */
+  async syncMemberStaffRole(member, options = {}) {
+    return await this.staffRoleSync.syncMemberStaffRole(member, options);
+  }
+
+  /**
+   * Bulk sync staff roles for entire guild
+   * @param {string} guildId - Discord guild ID
+   * @param {Object} options - Sync options
+   */
+  async bulkSyncGuildStaffRoles(guildId, options = {}) {
+    return await this.staffRoleSync.bulkSyncGuildStaffRoles(guildId, options);
   }
 
   // Method to manually trigger role sync for a member

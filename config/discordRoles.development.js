@@ -9,9 +9,10 @@ const DISCORD_ROLES_DEV = {
   EXECUTIVE_ADMIN: '1365205433236717598',     // "Admin" - existing role
   HEAD_ADMIN: null,                           // CREATE: "Test Head Admin" 
   SENIOR_ADMIN: null,                         // CREATE: "Test Senior Admin"
-  OG_ADMIN: null,                            // CREATE: "Test OG Admin" 
+  OG_ADMIN: null,                            // CREATE: "Test OG Admin"
   SQUAD_ADMIN: null,                         // CREATE: "Test Squad Admin"
   MODERATOR: null,                           // CREATE: "Test Moderator"
+  STAFF: '1420297163166191627',                               // CREATE: "Test Staff"
 
   // Duty System Roles
   ON_DUTY: '1407218174117679125',            // "On-Duty Dev" - existing
