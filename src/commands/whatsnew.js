@@ -24,7 +24,17 @@ module.exports = {
         // Add recent updates (most recent first)
         updatesEmbed.addFields(
           {
-            name: 'Improved Whitelist UX & Security (Latest)',
+            name: 'Super Admin Confidence Upgrades (Latest)',
+            value: '• **New `/adminlink upgrade-confidence`** - Super admin can upgrade confidence to 1.0\n' +
+                 '• **Fixes Admin Whitelist Access** - Upgrade known admin accounts stuck at 0.7 confidence\n' +
+                 '• **Highest Security** - Restricted to SUPER_ADMIN role with confirmation dialogs\n' +
+                 '• **Full Audit Trail** - Logs upgrades with reason and previous confidence level\n' +
+                 '• **Command Renamed** - `/link` is now `/adminlink` to avoid confusion with `/linkid`\n' +
+                 '• **Immediate Staff Access** - Upgraded users get full staff whitelist privileges',
+            inline: false
+          },
+          {
+            name: 'Improved Whitelist UX & Security',
             value: '• **Required Discord User** - `/whitelist grant` now requires Discord user for better linking\n' +
                  '• **Steam ID Only Mode** - New `/whitelist grant-steamid` for admin-only edge cases\n' +
                  '• **Button-Based UI** - Replaced dropdown with intuitive button interface\n' +
@@ -105,11 +115,12 @@ module.exports = {
           },
           {
             name: 'Security & Confidence Scores',
-            value: '• **1.0** - Self-verified (staff whitelist eligible)\n' +
+            value: '• **1.0** - Self-verified OR Super Admin upgraded (staff whitelist eligible)\n' +
                  '• **0.7** - Admin-created links\n' +
                  '• **0.5** - Whitelist-created links\n' +
                  '• **0.3** - Auto-detected from tickets\n' +
-                 '• **Staff whitelist protection** - Only highest confidence links allowed',
+                 '• **Staff whitelist protection** - Only highest confidence links allowed\n' +
+                 '• **Super Admin Override** - Can upgrade any confidence level to 1.0 with reason',
             inline: false
           }
         );
@@ -122,7 +133,8 @@ module.exports = {
           .addFields(
             {
               name: 'Admin Commands',
-              value: '`/link` - Link Steam ID to Discord user\n' +
+              value: '`/adminlink create` - Link Steam ID to Discord user\n' +
+                   '`/adminlink upgrade-confidence` - Upgrade to 1.0 confidence (Super Admin)\n' +
                    '`/whitelist grant` - Grant whitelist access (requires Discord user)\n' +
                    '`/whitelist grant-steamid` - Grant by Steam ID only (admin-only)\n' +
                    '`/whitelist extend` - Extend whitelist duration\n' +

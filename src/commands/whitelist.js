@@ -288,7 +288,7 @@ async function handleGrantSteamId(interaction) {
     // Step 1: Show warning about Steam ID only grant
     const warningEmbed = createResponseEmbed({
       title: '⚠️ Steam ID Only Grant',
-      description: `**Steam ID:** ${steamid}\n${username ? `**Username:** ${username}` : '**Username:** Not provided'}\n\n🚨 **Important:** This grant will NOT create a Discord-Steam account link.\nThis means the user will have lower link confidence for future staff whitelist access.\n\nOnly use this for users who are not in Discord or emergency situations.`,
+      description: `**Steam ID:** ${steamid}\n${username ? `**Username:** ${username}` : '**Username:** Not provided'}\n\n🚨 **Important:** This grant will NOT create a Discord-Steam account link.\nThis means the user will have lower link confidence.\n\nOnly use this for users who are not in Discord or emergency situations.`,
       color: 0xffa500
     });
 

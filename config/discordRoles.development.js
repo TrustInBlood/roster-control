@@ -5,9 +5,12 @@
 const { console: loggerConsole } = require('../src/utils/logger');
 
 const DISCORD_ROLES_DEV = {
+  // Super Administrator - Highest level access
+  SUPER_ADMIN: '1420532128541835284',                         // CREATE: "Test Super Admin" - Full system access including confidence upgrades
+
   // Administrative Roles - Using available and suggested new roles
   EXECUTIVE_ADMIN: '1365205433236717598',     // "Admin" - existing role
-  HEAD_ADMIN: null,                           // CREATE: "Test Head Admin" 
+  HEAD_ADMIN: null,                           // CREATE: "Test Head Admin"
   SENIOR_ADMIN: null,                         // CREATE: "Test Senior Admin"
   OG_ADMIN: null,                            // CREATE: "Test OG Admin"
   SQUAD_ADMIN: null,                         // CREATE: "Test Squad Admin"

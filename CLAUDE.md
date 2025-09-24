@@ -256,3 +256,4 @@ The system is designed to support 5 Squad servers through SquadJS instances, wit
 - you don't have access to the production server
 - do not commit anything
 - Never start the production instance
+- The link_source is an ENUM with only these values: 'manual', 'ticket', 'squadjs', 'import'.

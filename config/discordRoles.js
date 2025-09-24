@@ -5,9 +5,12 @@
 const { console: loggerConsole } = require('../src/utils/logger');
 
 const DISCORD_ROLES = {
+  // Super Administrator - Highest level access
+  SUPER_ADMIN: '680546534013796502',                      // SET THIS: Super admin role for confidence upgrades and critical operations
+
   // Administrative Roles (actual Discord role names shown in comments)
   EXECUTIVE_ADMIN: '1363025391366967386',  // "Executive Admin"
-  HEAD_ADMIN: '1256127324928213012',       // "Head Admin"  
+  HEAD_ADMIN: '1256127324928213012',       // "Head Admin"
   SENIOR_ADMIN: '1363025129814233190',     // "Senior Admin"
   OG_ADMIN: '1363017008039329972',         // "OG Admin"
   SQUAD_ADMIN: '814554233377652736',       // "Squad Admin"
