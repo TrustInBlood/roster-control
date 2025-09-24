@@ -398,10 +398,19 @@ async function showReasonSelectionButtons(interaction, grantData) {
         .setEmoji('📋')
     );
 
-  await interaction.editReply({
-    embeds: [reasonEmbed],
-    components: [reasonRow1]
-  });
+  // Check if we need to reply or edit reply based on interaction state
+  if (interaction.replied || interaction.deferred) {
+    await interaction.editReply({
+      embeds: [reasonEmbed],
+      components: [reasonRow1]
+    });
+  } else {
+    await interaction.reply({
+      embeds: [reasonEmbed],
+      components: [reasonRow1],
+      flags: MessageFlags.Ephemeral
+    });
+  }
 
   // Handle reason button selection
   const reasonCollector = interaction.channel.createMessageComponentCollector({
@@ -451,7 +460,7 @@ async function showReasonSelectionButtons(interaction, grantData) {
 }
 
 async function handleDurationSelection(interaction, grantData) {
-  const { reason, discordUser, userInfo, originalUser } = grantData;
+  const { reason } = grantData;
 
   // Show different duration selection based on reason
   switch (reason) {
