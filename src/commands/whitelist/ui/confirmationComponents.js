@@ -63,6 +63,7 @@ async function handleConfirmation(interaction, grantData) {
         await buttonInteraction.deferUpdate();
       }
 
+      // Import here to avoid circular dependency
       const { processWhitelistGrant } = require('../handlers/grantHandler');
       await processWhitelistGrant(buttonInteraction, {
         ...grantData,

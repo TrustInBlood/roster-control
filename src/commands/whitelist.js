@@ -6,7 +6,6 @@ const { console: loggerConsole } = require('../utils/logger');
 // Import handlers
 const { handleGrant, handleGrantSteamId } = require('./whitelist/handlers/grantHandler');
 const { handleInfo } = require('./whitelist/handlers/infoHandler');
-const { handleExtend } = require('./whitelist/handlers/extendHandler');
 const { handleRevoke } = require('./whitelist/handlers/revokeHandler');
 
 module.exports = {
@@ -56,25 +55,6 @@ module.exports = {
             .setDescription('Steam ID64 to check')
             .setRequired(false)))
 
-    // Extend subcommand
-    .addSubcommand(subcommand =>
-      subcommand
-        .setName('extend')
-        .setDescription('Extend whitelist duration for a user')
-        .addIntegerOption(option =>
-          option.setName('months')
-            .setDescription('Number of months to extend')
-            .setRequired(true)
-            .setMinValue(1)
-            .setMaxValue(24))
-        .addUserOption(option =>
-          option.setName('user')
-            .setDescription('Discord user to extend')
-            .setRequired(false))
-        .addStringOption(option =>
-          option.setName('steamid')
-            .setDescription('Steam ID64 to extend')
-            .setRequired(false)))
 
     // Revoke subcommand
     .addSubcommand(subcommand =>
@@ -108,9 +88,6 @@ module.exports = {
           break;
         case 'info':
           await handleInfo(interaction);
-          break;
-        case 'extend':
-          await handleExtend(interaction);
           break;
         case 'revoke':
           await handleRevoke(interaction);

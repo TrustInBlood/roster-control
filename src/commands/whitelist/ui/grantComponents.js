@@ -67,6 +67,7 @@ async function showReasonSelectionButtons(interaction, grantData) {
         await reasonInteraction.deferUpdate();
       }
 
+      // Import here to avoid circular dependency
       const { handleDurationSelection } = require('../handlers/grantHandler');
       await handleDurationSelection(reasonInteraction, {
         reason: selectedReason,
@@ -147,6 +148,7 @@ async function showDonatorDurationSelection(interaction, grantData) {
         await buttonInteraction.deferUpdate();
       }
 
+      // Import here to avoid circular dependency
       const { handleConfirmation } = require('./confirmationComponents');
       await handleConfirmation(buttonInteraction, {
         ...grantData,
@@ -255,7 +257,8 @@ async function showReportingDurationSelection(interaction, grantData) {
           await modalResponse.deferUpdate();
         }
 
-        const { handleConfirmation } = require('./confirmationComponents');
+        // Import here to avoid circular dependency
+      const { handleConfirmation } = require('./confirmationComponents');
         await handleConfirmation(modalResponse, {
           ...grantData,
           durationValue: customDays,
@@ -286,6 +289,7 @@ async function showReportingDurationSelection(interaction, grantData) {
         await buttonInteraction.deferUpdate();
       }
 
+      // Import here to avoid circular dependency
       const { handleConfirmation } = require('./confirmationComponents');
       await handleConfirmation(buttonInteraction, {
         ...grantData,
