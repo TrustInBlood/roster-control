@@ -1,13 +1,13 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { permissionMiddleware } = require('../handlers/permissionHandler');
-const { sendError } = require('../utils/messageHandler');
-const { console: loggerConsole } = require('../utils/logger');
+const { permissionMiddleware } = require('../../handlers/permissionHandler');
+const { sendError } = require('../../utils/messageHandler');
+const { console: loggerConsole } = require('../../utils/logger');
 
 // Import handlers
-const { handleGrant, handleGrantSteamId } = require('./whitelist/handlers/grantHandler');
-const { handleInfo } = require('./whitelist/handlers/infoHandler');
-const { handleExtend } = require('./whitelist/handlers/extendHandler');
-const { handleRevoke } = require('./whitelist/handlers/revokeHandler');
+const { handleGrant, handleGrantSteamId } = require('./handlers/grantHandler');
+const { handleInfo } = require('./handlers/infoHandler');
+const { handleExtend } = require('./handlers/extendHandler');
+const { handleRevoke } = require('./handlers/revokeHandler');
 
 module.exports = {
   data: new SlashCommandBuilder()
