@@ -258,7 +258,7 @@ async function showReportingDurationSelection(interaction, grantData) {
         }
 
         // Import here to avoid circular dependency
-      const { handleConfirmation } = require('./confirmationComponents');
+        const { handleConfirmation } = require('./confirmationComponents');
         await handleConfirmation(modalResponse, {
           ...grantData,
           durationValue: customDays,
