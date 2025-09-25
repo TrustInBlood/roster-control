@@ -4,10 +4,13 @@
  * Empty array means everyone can use the command
  */
 const COMMAND_PERMISSIONS = {
+  // Super admin commands (highest level access)
+  'upgradeconfidence': ['1420532128541835284'], // Super admin only: Upgrade confidence scores to 1.0 (Test Super Admin role)
+
   // Admin commands - Update these with your development server role IDs
   'whitelist': ['1365205433236717598'], // Admin roles can use whitelist commands
   'duty': ['1365205433236717598'],      // Admin roles can use duty commands
-  'adminlink': ['1365205433236717598'], // Admin roles can use adminlink commands (renamed from link)
+  'adminlink': ['1365205433236717598'], // Admin roles can create Steam-Discord account links
   'whatsnew': ['1365205433236717598'],  // Admin roles can use whatsnew command
   'unlinkedstaff': ['1365205433236717598'], // Admin roles can view unlinked staff
 

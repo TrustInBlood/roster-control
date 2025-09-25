@@ -10,14 +10,14 @@ const { DISCORD_ROLES, getAllAdminRoles, getAllStaffRoles } = require(isDevelopm
 const { SQUAD_GROUPS, getAllTrackedRoles } = require(isDevelopment ? './squadGroups.development' : './squadGroups');
 const COMMAND_PERMISSIONS = {
   // Super admin commands (highest level access)
-  'upgrade-confidence': [DISCORD_ROLES.SUPER_ADMIN], // Super admin only: Upgrade confidence scores to 1.0
+  'upgradeconfidence': [DISCORD_ROLES.SUPER_ADMIN], // Super admin only: Upgrade confidence scores to 1.0
 
   // Admin commands
   'whitelist': getAllStaffRoles(),  // All staff roles can use whitelist commands
   'grant-steamid': getAllAdminRoles(), // Admin-only: Steam ID only whitelist grants (no linking)
   'checkenv': getAllAdminRoles(),   // All admin roles can check environment
   'duty': getAllAdminRoles(),       // All admin roles can use duty commands
-  'create': getAllAdminRoles(),     // All admin roles can create account links (/adminlink create)
+  'adminlink': getAllAdminRoles(),  // All admin roles can create Steam-Discord account links
   'whatsnew': getAllAdminRoles(),   // All admin roles can use whatsnew command
   'unlinkedstaff': getAllAdminRoles(), // All admin roles can view unlinked staff
 
