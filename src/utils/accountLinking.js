@@ -12,7 +12,7 @@ const { console: loggerConsole } = require('./logger');
  * @param {string} steamid64 - Steam ID64
  * @param {string} eosID - Optional EOS ID
  * @param {string} username - Optional username
- * @param {number} confidenceScore - Confidence score for the link (default 0.5 for whitelist operations)
+ * @param {number} confidenceScore - Confidence score for the link (default 0.5, will preserve higher existing scores)
  * @param {Object} discordUser - Optional Discord user object for display name (for logging)
  * @returns {Object} The created or updated link
  */

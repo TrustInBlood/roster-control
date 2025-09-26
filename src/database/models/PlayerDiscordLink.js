@@ -119,16 +119,32 @@ module.exports = (sequelize) => {
       metadata = null
     } = options;
 
+    // Check for existing link to preserve highest confidence score
+    const existingLink = await this.findOne({
+      where: {
+        discord_user_id: discordUserId,
+        steamid64
+      }
+    });
+
+    // Use the highest confidence score between existing and new
+    const finalConfidenceScore = existingLink
+      ? Math.max(existingLink.confidence_score, confidenceScore)
+      : confidenceScore;
+
+    // Update metadata to preserve existing if not provided
+    const finalMetadata = metadata !== null ? metadata : (existingLink?.metadata || null);
+
     const [link, created] = await this.upsert({
       discord_user_id: discordUserId,
       steamid64,
       eosID,
       username,
       link_source: linkSource,
-      confidence_score: confidenceScore,
+      confidence_score: finalConfidenceScore,
       is_primary: isPrimary,
-      metadata,
-      created_at: new Date(),
+      metadata: finalMetadata,
+      created_at: existingLink ? existingLink.created_at : new Date(),
       updated_at: new Date()
     }, {
       returning: true

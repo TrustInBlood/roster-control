@@ -65,7 +65,12 @@ class SquadJSLinkingService {
         verificationCode.discord_user_id,
         player.steamID,
         player.eosID,
-        player.name
+        player.name,
+        {
+          linkSource: 'squadjs',
+          confidenceScore: 1.0,
+          isPrimary: true
+        }
       );
 
       // Store the verification code data before destroying it
