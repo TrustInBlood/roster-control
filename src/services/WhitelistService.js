@@ -427,7 +427,6 @@ class WhitelistService {
   }
 
   setupRoutes(app) {
-    const whitelistPaths = this.config.paths;
 
     // Combined comprehensive whitelist endpoint - all groups and users in one file
     app.get('/combined', async (req, res) => {
@@ -457,111 +456,11 @@ class WhitelistService {
       }
     });
 
-    // Staff endpoint - now uses role-based cache if available
-    app.get(whitelistPaths.staff, async (req, res) => {
-      try {
-        let content;
-        
-        // Get staff whitelist from unified database system
-        content = await this.getCachedWhitelist('staff');
-        
-        res.set({
-          'Content-Type': 'text/plain; charset=utf-8',
-          'Cache-Control': `public, max-age=${this.cacheRefreshSeconds}`,
-          'X-Content-Length': content.length
-        });
-        res.send(content);
-        
-        if (this.logConnections) {
-          this.logger.info('Served staff whitelist', { 
-            ip: req.ip,
-            userAgent: req.get('User-Agent'),
-            contentLength: content.length,
-            source: 'database'
-          });
-        }
-      } catch (error) {
-        this.logger.error('Failed to serve staff whitelist', { 
-          error: error.message,
-          ip: req.ip 
-        });
-        res.status(500).send('Internal Server Error');
-      }
-    });
 
-    app.get(whitelistPaths.whitelist, async (req, res) => {
-      try {
-        const content = await this.getCachedWhitelist('whitelist');
-        res.set({
-          'Content-Type': 'text/plain; charset=utf-8',
-          'Cache-Control': `public, max-age=${this.cacheRefreshSeconds}`,
-          'X-Content-Length': content.length
-        });
-        res.send(content);
-        
-        if (this.logConnections) {
-          this.logger.info('Served general whitelist', { 
-            ip: req.ip,
-            userAgent: req.get('User-Agent'),
-            contentLength: content.length
-          });
-        }
-      } catch (error) {
-        this.logger.error('Failed to serve general whitelist', { 
-          error: error.message,
-          ip: req.ip 
-        });
-        res.status(500).send('Internal Server Error');
-      }
-    });
 
-    // Members endpoint - serves member whitelist from database
-    app.get('/members', async (req, res) => {
-      try {
-        // Get member whitelist entries from database (type='whitelist' with Member role_name)
-        const { Group } = require('../database/models');
-        const memberEntries = await Whitelist.findAll({
-          where: {
-            role_name: 'Member',
-            source: 'role',
-            approved: true,
-            revoked: false
-          },
-          include: [{
-            model: Group,
-            as: 'group',
-            required: false
-          }],
-          order: [['steamid64', 'ASC']]
-        });
 
-        const content = await this.formatWhitelistContent(memberEntries);
-        
-        res.set({
-          'Content-Type': 'text/plain; charset=utf-8',
-          'Cache-Control': `public, max-age=${this.cacheRefreshSeconds}`,
-          'X-Content-Length': content.length
-        });
-        res.send(content);
-        
-        if (this.logConnections) {
-          this.logger.info('Served members whitelist', { 
-            ip: req.ip,
-            userAgent: req.get('User-Agent'),
-            contentLength: content.length
-          });
-        }
-      } catch (error) {
-        this.logger.error('Failed to serve members whitelist', { 
-          error: error.message,
-          ip: req.ip 
-        });
-        res.status(500).send('Internal Server Error');
-      }
-    });
-
-    this.logger.info('Whitelist routes configured', { 
-      paths: { ...whitelistPaths, members: '/members', combined: '/combined' } 
+    this.logger.info('Whitelist routes configured', {
+      paths: { combined: '/combined' }
     });
   }
 

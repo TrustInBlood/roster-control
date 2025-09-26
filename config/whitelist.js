@@ -7,11 +7,8 @@ const config = {
     host: '0.0.0.0'
   },
 
-  // Whitelist endpoint paths
-  paths: {
-    staff: '/staff',
-    whitelist: '/whitelist'
-  },
+  // Whitelist endpoint paths (unused - keeping for reference)
+  paths: {},
 
   // Cache configuration
   cache: {
