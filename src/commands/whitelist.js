@@ -350,12 +350,19 @@ async function handleGrantSteamId(interaction) {
           isSteamIdOnly: true
         });
       } catch (error) {
-        loggerConsole.error('Steam ID grant error:', error);
         // For interaction timeout errors, just log and don't try to respond
         if (error.code === 10062 || error.rawError?.code === 10062) {
           loggerConsole.warn('Interaction expired during Steam ID grant process');
           return;
         }
+
+        // For "already acknowledged" errors, just log briefly
+        if (error.code === 40060 || error.rawError?.code === 40060) {
+          loggerConsole.warn('Attempted to respond to already acknowledged interaction in Steam ID grant');
+          return;
+        }
+
+        loggerConsole.error('Steam ID grant error:', error);
 
         try {
           if (!buttonInteraction.replied && !buttonInteraction.deferred) {
