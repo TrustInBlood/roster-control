@@ -351,11 +351,31 @@ async function handleGrantSteamId(interaction) {
         });
       } catch (error) {
         loggerConsole.error('Steam ID grant error:', error);
-        await buttonInteraction.editReply({
-          content: `❌ ${error.message}`,
-          embeds: [],
-          components: []
-        });
+        try {
+          if (!buttonInteraction.replied && !buttonInteraction.deferred) {
+            await buttonInteraction.reply({
+              content: `❌ ${error.message}`,
+              flags: MessageFlags.Ephemeral
+            });
+          } else {
+            await buttonInteraction.editReply({
+              content: `❌ ${error.message}`,
+              embeds: [],
+              components: []
+            });
+          }
+        } catch (replyError) {
+          loggerConsole.error('Failed to send error message (interaction may have expired):', replyError);
+          // Try to follow up if possible
+          try {
+            await buttonInteraction.followUp({
+              content: `❌ ${error.message}`,
+              flags: MessageFlags.Ephemeral
+            });
+          } catch (followUpError) {
+            loggerConsole.error('Failed to send followup error message:', followUpError);
+          }
+        }
       }
     });
 
@@ -450,11 +470,15 @@ async function showReasonSelectionButtons(interaction, grantData) {
 
   reasonCollector.on('end', (collected, reason) => {
     if (reason === 'time' && collected.size === 0) {
-      interaction.editReply({
-        content: '❌ Whitelist grant timed out. Please try again.',
-        embeds: [],
-        components: []
-      });
+      try {
+        interaction.editReply({
+          content: '❌ Whitelist grant timed out. Please try again.',
+          embeds: [],
+          components: []
+        });
+      } catch (error) {
+        loggerConsole.error('Failed to send timeout message (interaction may have expired):', error);
+      }
     }
   });
 }
@@ -746,6 +770,22 @@ async function handleConfirmation(interaction, grantData) {
       });
     } catch (error) {
       loggerConsole.error('Error handling confirmation:', error);
+      try {
+        if (!buttonInteraction.replied && !buttonInteraction.deferred) {
+          await buttonInteraction.reply({
+            content: '❌ An error occurred while processing the confirmation. Please try again.',
+            flags: MessageFlags.Ephemeral
+          });
+        } else {
+          await buttonInteraction.editReply({
+            content: '❌ An error occurred while processing the confirmation.',
+            embeds: [],
+            components: []
+          });
+        }
+      } catch (replyError) {
+        loggerConsole.error('Failed to send confirmation error message (interaction may have expired):', replyError);
+      }
     }
   });
 }
