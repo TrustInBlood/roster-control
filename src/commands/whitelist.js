@@ -288,7 +288,7 @@ async function handleGrantSteamId(interaction) {
     // Step 1: Show warning about Steam ID only grant
     const warningEmbed = createResponseEmbed({
       title: '⚠️ Steam ID Only Grant',
-      description: `**Steam ID:** ${steamid}\n${username ? `**Username:** ${username}` : '**Username:** Not provided'}\n\n🚨 **Important:** This grant will NOT create a Discord-Steam account link.\nThis means the user will have lower link confidence.\n\nOnly use this for users who are not in Discord or emergency situations.`,
+      description: `**Steam ID:** ${steamid}\n${username ? `**Username:** ${username}` : '**Username:** Not provided'}\n\n🚨 **Important:** This grant will NOT create a Discord-Steam account link.\nThis means the user will have lower link confidence.\n\n⏰ **Please complete this process within 2-3 minutes to avoid timeout.**\n\nOnly use this for users who are not in Discord or emergency situations.`,
       color: 0xffa500
     });
 
@@ -351,6 +351,12 @@ async function handleGrantSteamId(interaction) {
         });
       } catch (error) {
         loggerConsole.error('Steam ID grant error:', error);
+        // For interaction timeout errors, just log and don't try to respond
+        if (error.code === 10062 || error.rawError?.code === 10062) {
+          loggerConsole.warn('Interaction expired during Steam ID grant process');
+          return;
+        }
+
         try {
           if (!buttonInteraction.replied && !buttonInteraction.deferred) {
             await buttonInteraction.reply({
@@ -365,15 +371,9 @@ async function handleGrantSteamId(interaction) {
             });
           }
         } catch (replyError) {
-          loggerConsole.error('Failed to send error message (interaction may have expired):', replyError);
-          // Try to follow up if possible
-          try {
-            await buttonInteraction.followUp({
-              content: `❌ ${error.message}`,
-              flags: MessageFlags.Ephemeral
-            });
-          } catch (followUpError) {
-            loggerConsole.error('Failed to send followup error message:', followUpError);
+          // Don't log twice for the same interaction timeout
+          if (replyError.code !== 10062 && replyError.code !== 40060) {
+            loggerConsole.error('Failed to send error message:', replyError);
           }
         }
       }
@@ -390,7 +390,7 @@ async function showReasonSelectionButtons(interaction, grantData) {
 
   const reasonEmbed = createResponseEmbed({
     title: '🎯 Select Whitelist Type',
-    description: `**Steam ID:** ${userInfo.steamid64}\n${discordUser ? `**Discord User:** <@${discordUser.id}>` : '**Discord User:** Not linked'}${isSteamIdOnly ? '\n\n⚠️ **Steam ID Only Grant** - No account linking will occur' : ''}\n\nPlease select the type of whitelist to grant:`,
+    description: `**Steam ID:** ${userInfo.steamid64}\n${discordUser ? `**Discord User:** <@${discordUser.id}>` : '**Discord User:** Not linked'}${isSteamIdOnly ? '\n\n⚠️ **Steam ID Only Grant** - No account linking will occur' : ''}\n\n⏰ **Complete quickly to avoid timeout**\n\nPlease select the type of whitelist to grant:`,
     color: isSteamIdOnly ? 0xffa500 : 0x3498db
   });
 
@@ -419,17 +419,26 @@ async function showReasonSelectionButtons(interaction, grantData) {
     );
 
   // Check if we need to reply or edit reply based on interaction state
-  if (interaction.replied || interaction.deferred) {
-    await interaction.editReply({
-      embeds: [reasonEmbed],
-      components: [reasonRow1]
-    });
-  } else {
-    await interaction.reply({
-      embeds: [reasonEmbed],
-      components: [reasonRow1],
-      flags: MessageFlags.Ephemeral
-    });
+  try {
+    if (interaction.replied || interaction.deferred) {
+      await interaction.editReply({
+        embeds: [reasonEmbed],
+        components: [reasonRow1]
+      });
+    } else {
+      await interaction.reply({
+        embeds: [reasonEmbed],
+        components: [reasonRow1],
+        flags: MessageFlags.Ephemeral
+      });
+    }
+  } catch (error) {
+    // If interaction failed, it might be expired - log and continue
+    if (error.code === 10062 || error.rawError?.code === 10062) {
+      loggerConsole.warn('Interaction expired while showing reason selection');
+      return;
+    }
+    throw error; // Re-throw if it's not an expiration error
   }
 
   // Handle reason button selection
@@ -455,6 +464,12 @@ async function showReasonSelectionButtons(interaction, grantData) {
       });
     } catch (error) {
       loggerConsole.error('Error handling reason selection:', error);
+      // For interaction timeout errors, just log and don't try to respond
+      if (error.code === 10062 || error.rawError?.code === 10062) {
+        loggerConsole.warn('Interaction expired during reason selection');
+        return;
+      }
+
       if (!reasonInteraction.replied && !reasonInteraction.deferred) {
         try {
           await reasonInteraction.reply({
@@ -462,7 +477,10 @@ async function showReasonSelectionButtons(interaction, grantData) {
             flags: MessageFlags.Ephemeral
           });
         } catch (replyError) {
-          loggerConsole.error('Failed to send error reply:', replyError);
+          // Don't log twice for the same interaction timeout
+          if (replyError.code !== 10062 && replyError.code !== 40060) {
+            loggerConsole.error('Failed to send error reply:', replyError);
+          }
         }
       }
     }
@@ -566,6 +584,11 @@ async function showDonatorDurationSelection(interaction, grantData) {
       });
     } catch (error) {
       loggerConsole.error('Error handling donator duration selection:', error);
+      // For interaction timeout errors, just log and don't try to respond
+      if (error.code === 10062 || error.rawError?.code === 10062) {
+        loggerConsole.warn('Interaction expired during donator duration selection');
+        return;
+      }
     }
   });
 }
@@ -700,6 +723,11 @@ async function showReportingDurationSelection(interaction, grantData) {
       });
     } catch (error) {
       loggerConsole.error('Error handling reporting duration selection:', error);
+      // For interaction timeout errors, just log and don't try to respond
+      if (error.code === 10062 || error.rawError?.code === 10062) {
+        loggerConsole.warn('Interaction expired during reporting duration selection');
+        return;
+      }
     }
   });
 }
@@ -770,6 +798,12 @@ async function handleConfirmation(interaction, grantData) {
       });
     } catch (error) {
       loggerConsole.error('Error handling confirmation:', error);
+      // For interaction timeout errors, just log and don't try to respond
+      if (error.code === 10062 || error.rawError?.code === 10062) {
+        loggerConsole.warn('Interaction expired during confirmation');
+        return;
+      }
+
       try {
         if (!buttonInteraction.replied && !buttonInteraction.deferred) {
           await buttonInteraction.reply({
@@ -784,7 +818,10 @@ async function handleConfirmation(interaction, grantData) {
           });
         }
       } catch (replyError) {
-        loggerConsole.error('Failed to send confirmation error message (interaction may have expired):', replyError);
+        // Don't log twice for the same interaction timeout
+        if (replyError.code !== 10062 && replyError.code !== 40060) {
+          loggerConsole.error('Failed to send confirmation error message:', replyError);
+        }
       }
     }
   });
