@@ -922,6 +922,7 @@ async function handleInfo(interaction) {
       } catch (error) {
         loggerConsole.error('WhitelistAuthorityService validation failed:', error);
         // Continue with limited validation if authority service fails
+        authorityStatus = null;
       }
     }
 
@@ -964,32 +965,36 @@ async function handleInfo(interaction) {
     // Determine final status using WhitelistAuthorityService result
     let finalStatus, finalColor;
 
-    if (authorityStatus) {
+    if (authorityStatus && authorityStatus.effectiveStatus) {
       // Use authority service result as primary source of truth
       if (authorityStatus.isWhitelisted) {
         const source = authorityStatus.effectiveStatus.primarySource;
 
-        if (source === 'role_based') {
+        if (source === 'role_based' && authorityStatus.sources?.roleBased) {
           // Role-based whitelist (already validated by authority service)
           const group = authorityStatus.sources.roleBased.group;
           finalStatus = `Active (permanent - ${group})`;
           finalColor = 0x9C27B0; // Purple for staff role-based
         } else if (source === 'database') {
           // Database whitelist
-          finalStatus = authorityStatus.sources.database.isActive ?
+          finalStatus = authorityStatus.sources?.database?.isActive ?
             `Active (${authorityStatus.effectiveStatus.isPermanent ? 'permanent' : 'temporary'})` :
             'Active (database)';
+          finalColor = 0x00FF00; // Green for database whitelist
+        } else {
+          // Fallback for database entries
+          finalStatus = `Active (${authorityStatus.effectiveStatus.isPermanent ? 'permanent' : 'temporary'})`;
           finalColor = 0x00FF00; // Green for database whitelist
         }
       } else {
         // Not whitelisted - show specific reason
         const reason = authorityStatus.effectiveStatus.reason;
 
-        if (reason === 'security_blocked_insufficient_confidence') {
+        if (reason === 'security_blocked_insufficient_confidence' && authorityStatus.effectiveStatus.details) {
           const details = authorityStatus.effectiveStatus.details;
           finalStatus = `Inactive - Steam link confidence too low (${details.actualConfidence}/1.0 required, has ${details.group} role)`;
           finalColor = 0xFF6600; // Orange-red for security blocked
-        } else if (reason === 'no_steam_account_linked') {
+        } else if (reason === 'no_steam_account_linked' && authorityStatus.effectiveStatus.details) {
           const details = authorityStatus.effectiveStatus.details;
           if (details.hasStaffRole) {
             finalStatus = 'Inactive - Steam account not linked (has staff role)';
@@ -1029,10 +1034,10 @@ async function handleInfo(interaction) {
     });
 
     // Add whitelist source info using authority service data
-    if (authorityStatus && authorityStatus.isWhitelisted) {
+    if (authorityStatus && authorityStatus.isWhitelisted && authorityStatus.effectiveStatus) {
       const source = authorityStatus.effectiveStatus.primarySource;
 
-      if (source === 'role_based') {
+      if (source === 'role_based' && authorityStatus.sources?.roleBased) {
         const group = authorityStatus.sources.roleBased.group;
         const confidence = authorityStatus.linkInfo?.confidence || 0;
         embed.addFields({
@@ -1073,7 +1078,7 @@ async function handleInfo(interaction) {
     const hasRoleBasedAccessForEntries = authorityStatus?.sources?.roleBased?.isActive;
 
     // Add role-based entry if present and active
-    if (hasRoleBasedAccessForEntries) {
+    if (hasRoleBasedAccessForEntries && authorityStatus.sources?.roleBased) {
       const group = authorityStatus.sources.roleBased.group;
       const confidence = authorityStatus.linkInfo?.confidence || 0;
       whitelistEntries.push(`• ${group} Role: permanent (confidence: ${confidence})`);
@@ -1128,17 +1133,17 @@ async function handleInfo(interaction) {
     }
 
     // Add warnings based on authority service results
-    if (authorityStatus && !authorityStatus.isWhitelisted) {
+    if (authorityStatus && !authorityStatus.isWhitelisted && authorityStatus.effectiveStatus) {
       const reason = authorityStatus.effectiveStatus.reason;
 
-      if (reason === 'security_blocked_insufficient_confidence') {
+      if (reason === 'security_blocked_insufficient_confidence' && authorityStatus.effectiveStatus.details) {
         const details = authorityStatus.effectiveStatus.details;
         embed.addFields({
           name: '🚨 Security Warning',
           value: `You have the ${details.group} role but your Steam account link has insufficient confidence (${details.actualConfidence}/1.0). Staff whitelist requires high-confidence linking. Use \`/linkid\` to create a proper link.`,
           inline: false
         });
-      } else if (reason === 'no_steam_account_linked') {
+      } else if (reason === 'no_steam_account_linked' && authorityStatus.effectiveStatus.details) {
         const details = authorityStatus.effectiveStatus.details;
         if (details.hasStaffRole) {
           embed.addFields({
