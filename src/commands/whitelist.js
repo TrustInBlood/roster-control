@@ -469,11 +469,19 @@ async function showReasonSelectionButtons(interaction, grantData) {
         originalUser,
         isSteamIdOnly
       });
+      // Stop collector after successful processing
+      reasonCollector.stop('completed');
     } catch (error) {
       loggerConsole.error('Error handling reason selection:', error);
-      // For interaction timeout errors, just log and don't try to respond
+      // For interaction timeout errors, stop collector and don't try to respond
       if (error.code === 10062 || error.rawError?.code === 10062) {
         loggerConsole.warn('Interaction expired during reason selection');
+        reasonCollector.stop('expired');
+        return;
+      }
+      // For already acknowledged errors, stop collector silently
+      if (error.code === 40060 || error.rawError?.code === 40060) {
+        reasonCollector.stop('acknowledged');
         return;
       }
 
@@ -589,11 +597,19 @@ async function showDonatorDurationSelection(interaction, grantData) {
         durationType: duration.type,
         durationText: duration.text
       });
+      // Stop collector after successful processing
+      durationCollector.stop('completed');
     } catch (error) {
       loggerConsole.error('Error handling donator duration selection:', error);
-      // For interaction timeout errors, just log and don't try to respond
+      // For interaction timeout errors, stop collector and don't try to respond
       if (error.code === 10062 || error.rawError?.code === 10062) {
         loggerConsole.warn('Interaction expired during donator duration selection');
+        durationCollector.stop('expired');
+        return;
+      }
+      // For already acknowledged errors, stop collector silently
+      if (error.code === 40060 || error.rawError?.code === 40060) {
+        durationCollector.stop('acknowledged');
         return;
       }
     }
@@ -728,11 +744,19 @@ async function showReportingDurationSelection(interaction, grantData) {
         durationType: duration.type,
         durationText: duration.text
       });
+      // Stop collector after successful processing
+      durationCollector.stop('completed');
     } catch (error) {
       loggerConsole.error('Error handling reporting duration selection:', error);
-      // For interaction timeout errors, just log and don't try to respond
+      // For interaction timeout errors, stop collector and don't try to respond
       if (error.code === 10062 || error.rawError?.code === 10062) {
         loggerConsole.warn('Interaction expired during reporting duration selection');
+        durationCollector.stop('expired');
+        return;
+      }
+      // For already acknowledged errors, stop collector silently
+      if (error.code === 40060 || error.rawError?.code === 40060) {
+        durationCollector.stop('acknowledged');
         return;
       }
     }
@@ -789,6 +813,8 @@ async function handleConfirmation(interaction, grantData) {
           embeds: [],
           components: []
         });
+        // Stop collector after cancellation
+        confirmCollector.stop('cancelled');
         return;
       }
 
@@ -803,11 +829,19 @@ async function handleConfirmation(interaction, grantData) {
         durationType,
         durationText
       });
+      // Stop collector after successful processing
+      confirmCollector.stop('completed');
     } catch (error) {
       loggerConsole.error('Error handling confirmation:', error);
-      // For interaction timeout errors, just log and don't try to respond
+      // For interaction timeout errors, stop collector and don't try to respond
       if (error.code === 10062 || error.rawError?.code === 10062) {
         loggerConsole.warn('Interaction expired during confirmation');
+        confirmCollector.stop('expired');
+        return;
+      }
+      // For already acknowledged errors, stop collector silently
+      if (error.code === 40060 || error.rawError?.code === 40060) {
+        confirmCollector.stop('acknowledged');
         return;
       }
 
