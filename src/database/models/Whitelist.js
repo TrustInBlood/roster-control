@@ -493,7 +493,7 @@ module.exports = (sequelize) => {
   // Revoke active whitelist entries for a user
   Whitelist.revokeWhitelist = async function(steamid64, reason, revoked_by) {
     const revoked_at = new Date();
-    
+
     const [updatedCount] = await this.update(
       {
         revoked: true,
@@ -505,7 +505,8 @@ module.exports = (sequelize) => {
         where: {
           steamid64: steamid64,
           approved: true,
-          revoked: false
+          revoked: false,
+          source: { [require('sequelize').Op.ne]: 'role' } // Exclude role-based entries
         }
       }
     );
