@@ -1022,13 +1022,33 @@ async function handleInfo(interaction) {
       }
     }
 
+    // Determine proper account link status
+    let accountLinkStatus = '❌ Not linked';
+    if (authorityStatus?.linkInfo) {
+      // Use authority service link info if available
+      accountLinkStatus = `✅ Linked (${authorityStatus.linkInfo.confidence}/1.0)`;
+    } else if (hasLink && resolvedDiscordUser) {
+      // Fallback: only show linked if we have both Discord user and hasLink
+      accountLinkStatus = '✅ Linked';
+    }
+
+    // Try to get Discord username from whitelist entries if not from Discord user
+    let displayUser = resolvedDiscordUser ? `<@${resolvedDiscordUser.id}>` : 'user';
+    if (!resolvedDiscordUser && history.length > 0) {
+      // Look for Discord username in any whitelist entry
+      const entryWithDiscord = history.find(entry => entry.discord_username);
+      if (entryWithDiscord) {
+        displayUser = `${entryWithDiscord.discord_username} (from whitelist record)`;
+      }
+    }
+
     const embed = createResponseEmbed({
       title: '📋 Whitelist Status',
-      description: `Whitelist information for ${resolvedDiscordUser ? `<@${resolvedDiscordUser.id}>` : 'user'}`,
+      description: `Whitelist information for ${displayUser}`,
       fields: [
         { name: 'Steam ID', value: resolvedSteamId || 'Not linked', inline: true },
         { name: 'Status', value: finalStatus, inline: true },
-        { name: 'Account Link', value: hasLink ? '✅ Linked' : '❌ Not linked', inline: true }
+        { name: 'Account Link', value: accountLinkStatus, inline: true }
       ],
       color: finalColor
     });
@@ -1064,14 +1084,7 @@ async function handleInfo(interaction) {
       });
     }
 
-    // Add link confidence info if available
-    if (authorityStatus?.linkInfo) {
-      embed.addFields({
-        name: 'Account Link',
-        value: `Confidence: ${authorityStatus.linkInfo.confidence}/1.0 (${authorityStatus.linkInfo.source})`,
-        inline: true
-      });
-    }
+    // Link confidence info is now included in the main Account Link field
 
     // Show whitelist details using authority service data
     let whitelistEntries = [];
