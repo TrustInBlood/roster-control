@@ -37,9 +37,6 @@ async function resolveUserInfo(steamid, discordUser, createLink = false) {
   let username = null;
   let linkedAccount = false;
 
-  // Debug logging
-  loggerConsole.log(`[DEBUG] resolveUserInfo called with steamid: ${steamid}, discordUser: ${discordUser ? discordUser.id : 'null'}, createLink: ${createLink}`);
-
   // IMPORTANT: Only set Discord attribution if a Discord user was explicitly provided
   // This prevents cross-contamination when granting standalone Steam ID whitelists
   if (discordUser) {
@@ -96,9 +93,6 @@ async function resolveUserInfo(steamid, discordUser, createLink = false) {
       linkedAccount = 'failed';
     }
   }
-
-  // Debug logging before return
-  loggerConsole.log(`[DEBUG] resolveUserInfo returning steamid64: ${resolvedSteamId}`);
 
   return {
     steamid64: resolvedSteamId,
@@ -290,9 +284,6 @@ async function handleGrantSteamId(interaction) {
   const steamid = interaction.options.getString('steamid');
   const username = interaction.options.getString('username');
 
-  // Debug logging for Steam ID grant
-  loggerConsole.log(`[DEBUG] handleGrantSteamId called with steamid: ${steamid}, username: ${username}`);
-
   try {
     // Step 1: Show warning about Steam ID only grant
     const warningEmbed = createResponseEmbed({
@@ -321,6 +312,10 @@ async function handleGrantSteamId(interaction) {
       flags: MessageFlags.Ephemeral
     });
 
+    // Capture variables in closure to prevent contamination from concurrent commands
+    const capturedSteamId = steamid;
+    const capturedUsername = username;
+
     // Handle confirmation
     const confirmCollector = interaction.channel.createMessageComponentCollector({
       componentType: ComponentType.Button,
@@ -345,12 +340,10 @@ async function handleGrantSteamId(interaction) {
         }
 
         // Step 2: Resolve user information (no Discord user, no linking)
-        loggerConsole.log(`[DEBUG] About to call resolveUserInfo with steamid: ${steamid}`);
-        const userInfo = await resolveUserInfo(steamid, null, false);
-        loggerConsole.log(`[DEBUG] resolveUserInfo returned steamid64: ${userInfo.steamid64}`);
+        const userInfo = await resolveUserInfo(capturedSteamId, null, false);
         // Manually add username if provided
-        if (username) {
-          userInfo.username = username;
+        if (capturedUsername) {
+          userInfo.username = capturedUsername;
         }
 
         // Step 3: Show reason selection with buttons instead of dropdown
