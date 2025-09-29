@@ -1149,8 +1149,8 @@ async function handleInfo(interaction) {
     if (authorityStatus?.linkInfo) {
       // Use authority service link info if available
       accountLinkStatus = `✅ Linked (${authorityStatus.linkInfo.confidence}/1.0)`;
-    } else if (hasLink && resolvedDiscordUser) {
-      // Fallback: only show linked if we have both Discord user and hasLink
+    } else if (hasLink) {
+      // Show linked if we have a link, regardless of whether Discord user was provided
       accountLinkStatus = '✅ Linked';
     }
 

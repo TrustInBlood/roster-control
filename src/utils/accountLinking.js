@@ -128,8 +128,6 @@ async function getUserInfo(identifiers = {}) {
     hasWhitelistHistory: false
   };
 
-  loggerConsole.log(`[DEBUG] getUserInfo called with:`, identifiers);
-
   try {
     // If we have Discord ID but no Steam ID, try to resolve it
     if (result.discordUserId && !result.steamid64) {
@@ -138,40 +136,28 @@ async function getUserInfo(identifiers = {}) {
 
     // If we have Steam ID but no Discord ID, try to resolve it
     if (result.steamid64 && !result.discordUserId) {
-      loggerConsole.log(`[DEBUG] Resolving Discord ID from Steam ID: ${result.steamid64}`);
       result.discordUserId = await resolveDiscordFromSteamId(result.steamid64);
-      loggerConsole.log(`[DEBUG] Resolved Discord ID: ${result.discordUserId}`);
     }
 
     // Check if formal account link exists
     if (result.discordUserId) {
-      loggerConsole.log(`[DEBUG] Checking link by Discord ID: ${result.discordUserId}`);
       const link = await PlayerDiscordLink.findByDiscordId(result.discordUserId);
       if (link) {
-        loggerConsole.log(`[DEBUG] Found link by Discord ID`);
         result.hasLink = true;
         result.steamid64 = result.steamid64 || link.steamid64;
         result.eosID = result.eosID || link.eosID;
         result.username = result.username || link.username;
-      } else {
-        loggerConsole.log(`[DEBUG] No link found by Discord ID`);
       }
     } else if (result.steamid64) {
       // Also check for links by Steam ID if we don't have a Discord user ID
-      loggerConsole.log(`[DEBUG] Checking link by Steam ID: ${result.steamid64}`);
       const link = await PlayerDiscordLink.findBySteamId(result.steamid64);
       if (link) {
-        loggerConsole.log(`[DEBUG] Found link by Steam ID`);
         result.hasLink = true;
         result.discordUserId = result.discordUserId || link.discord_user_id;
         result.eosID = result.eosID || link.eosID;
         result.username = result.username || link.username;
-      } else {
-        loggerConsole.log(`[DEBUG] No link found by Steam ID`);
       }
     }
-
-    loggerConsole.log(`[DEBUG] Final result hasLink: ${result.hasLink}`);
 
     // Check whitelist history
     if (result.steamid64) {
