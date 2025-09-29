@@ -148,6 +148,15 @@ async function getUserInfo(identifiers = {}) {
         result.eosID = result.eosID || link.eosID;
         result.username = result.username || link.username;
       }
+    } else if (result.steamid64) {
+      // Also check for links by Steam ID if we don't have a Discord user ID
+      const link = await PlayerDiscordLink.findBySteamId(result.steamid64);
+      if (link) {
+        result.hasLink = true;
+        result.discordUserId = result.discordUserId || link.discord_user_id;
+        result.eosID = result.eosID || link.eosID;
+        result.username = result.username || link.username;
+      }
     }
 
     // Check whitelist history
