@@ -75,7 +75,7 @@ class RoleWhitelistSyncService {
 
       // Step 2: Check if user meets confidence requirements for staff roles
       if (newGroup && newGroup !== 'Member' && primaryLink.confidence_score < 1.0) {
-        this.logger.warn('User has staff role but insufficient link confidence', {
+        this.logger.warn('SECURITY: Blocking staff whitelist due to insufficient link confidence', {
           discordUserId,
           steamId: primaryLink.steamid64,
           group: newGroup,
@@ -83,8 +83,8 @@ class RoleWhitelistSyncService {
           required: 1.0
         });
 
-        // Still create entry but mark it for review
-        await this._createRoleBasedEntry(
+        // Create a disabled entry for audit purposes only
+        await this._createSecurityBlockedEntry(
           discordUserId,
           primaryLink.steamid64,
           newGroup,
@@ -94,10 +94,11 @@ class RoleWhitelistSyncService {
         );
 
         return {
-          success: true,
-          reason: 'insufficient_confidence',
+          success: false,
+          reason: 'security_blocked_insufficient_confidence',
           steamId: primaryLink.steamid64,
-          confidence: primaryLink.confidence_score
+          confidence: primaryLink.confidence_score,
+          requiredConfidence: 1.0
         };
       }
 
@@ -537,6 +538,61 @@ class RoleWhitelistSyncService {
     } catch (error) {
       this.logger.error('Failed to log role sync', { error: error.message });
     }
+  }
+
+  /**
+   * Create a security-blocked entry for audit purposes
+   * This creates a revoked entry to track access attempts that were blocked due to insufficient confidence
+   * @param {string} discordUserId - Discord user ID
+   * @param {string} steamId - Steam ID64
+   * @param {string} groupName - Role group name
+   * @param {Object} memberData - Discord member data
+   * @param {string} source - Source of the sync
+   * @param {Object} flags - Additional flags/metadata
+   */
+  async _createSecurityBlockedEntry(discordUserId, steamId, groupName, memberData, source, flags = {}) {
+    const userData = {
+      type: 'staff', // Would have been staff access
+      steamid64: steamId,
+      discord_user_id: discordUserId,
+      discord_username: memberData?.user?.tag || '',
+      username: memberData?.displayName || memberData?.user?.username || '',
+      source: 'role',
+      role_name: groupName,
+      approved: false, // SECURITY: Not approved due to low confidence
+      revoked: true,   // SECURITY: Immediately revoked for security
+      granted_by: 'SYSTEM',
+      granted_at: new Date(),
+      revoked_by: 'SECURITY_SYSTEM',
+      revoked_at: new Date(),
+      revoked_reason: `Security block: insufficient link confidence (${flags.actualConfidence}/1.0)`,
+      reason: `SECURITY BLOCKED: Role-based access denied for ${groupName}`,
+      expiration: null,
+      duration_value: null,
+      duration_type: null,
+      metadata: {
+        roleSync: true,
+        source,
+        syncedAt: new Date().toISOString(),
+        securityBlocked: true,
+        blockReason: 'insufficient_confidence',
+        actualConfidence: flags.actualConfidence,
+        requiredConfidence: 1.0,
+        ...flags
+      }
+    };
+
+    const blockedEntry = await Whitelist.create(userData);
+
+    this.logger.warn('SECURITY: Created security-blocked entry for audit trail', {
+      discordUserId,
+      steamId,
+      group: groupName,
+      confidence: flags.actualConfidence,
+      entryId: blockedEntry.id
+    });
+
+    return blockedEntry;
   }
 }
 

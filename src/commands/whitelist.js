@@ -1148,7 +1148,12 @@ async function handleInfo(interaction) {
     let accountLinkStatus = '❌ Not linked';
     if (authorityStatus?.linkInfo) {
       // Use authority service link info if available
-      accountLinkStatus = `✅ Linked (${authorityStatus.linkInfo.confidence}/1.0)`;
+      const confidence = authorityStatus.linkInfo.confidence;
+      if (confidence >= 0.5) {
+        accountLinkStatus = `✅ Linked (${confidence}/1.0)`;
+      } else {
+        accountLinkStatus = `⚠️ Low confidence (${confidence}/1.0)`;
+      }
     } else if (hasLink) {
       // Show linked if we have a link, regardless of whether Discord user was provided
       accountLinkStatus = '✅ Linked';
