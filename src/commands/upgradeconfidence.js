@@ -49,7 +49,7 @@ module.exports = {
         // Show confirmation
         const confirmEmbed = createResponseEmbed({
           title: '🔐 Upgrade Confidence Score',
-          description: `You are about to upgrade confidence score to **1.0 (Verified)** for:`,
+          description: 'You are about to upgrade confidence score to **1.0 (Verified)** for:',
           fields: [
             { name: 'Discord User', value: `<@${targetUser.id}>`, inline: true },
             { name: 'Steam ID', value: existingLink.steamid64, inline: true },

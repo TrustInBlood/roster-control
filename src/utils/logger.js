@@ -43,7 +43,7 @@ const consoleFormat = winston.format.combine(
         })}`;
       } catch (error) {
         // Fallback if JSON.stringify still fails
-        metaString = ` [Complex Object]`;
+        metaString = ' [Complex Object]';
       }
     }
 

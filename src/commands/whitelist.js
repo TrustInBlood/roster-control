@@ -14,6 +14,7 @@ const { logWhitelistOperation } = require('../utils/discordLogger');
 const notificationService = require('../services/NotificationService');
 const { console: loggerConsole } = require('../utils/logger');
 const WhitelistAuthorityService = require('../services/WhitelistAuthorityService');
+const RoleWhitelistSyncService = require('../services/RoleWhitelistSyncService');
 
 
 // Helper function to get role ID based on whitelist reason
@@ -224,6 +225,16 @@ module.exports = {
         .addStringOption(option =>
           option.setName('reason')
             .setDescription('Reason for revocation')
+            .setRequired(false)))
+
+    // Sync subcommand
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('sync')
+        .setDescription('Sync Discord roles to database whitelist entries (admin only)')
+        .addBooleanOption(option =>
+          option.setName('dry-run')
+            .setDescription('Preview changes without making them')
             .setRequired(false))),
 
   async execute(interaction) {
@@ -246,6 +257,9 @@ module.exports = {
           break;
         case 'revoke':
           await handleRevoke(interaction);
+          break;
+        case 'sync':
+          await handleSync(interaction);
           break;
         default:
           await sendError(interaction, 'Unknown subcommand.');
@@ -1437,4 +1451,125 @@ async function handleRevoke(interaction) {
 
     await sendSuccess(interaction, 'Whitelist revoked successfully!', embed);
   });
+}
+
+async function handleSync(interaction) {
+  await interaction.deferReply();
+
+  try {
+    const dryRun = interaction.options.getBoolean('dry-run') || false;
+    const guildId = interaction.guild.id;
+
+    loggerConsole.info('Starting whitelist sync', {
+      guildId,
+      dryRun,
+      requestedBy: interaction.user.id
+    });
+
+    // Create sync service with Discord client
+    const syncService = new RoleWhitelistSyncService(loggerConsole, interaction.client);
+
+    // Show initial message
+    const initialEmbed = createResponseEmbed({
+      title: dryRun ? '🔍 Whitelist Sync Preview' : '🔄 Syncing Whitelist',
+      description: dryRun
+        ? 'Analyzing Discord roles and database entries...'
+        : 'Syncing Discord roles to database whitelist entries...',
+      color: dryRun ? 0xffa500 : 0x3498db
+    });
+
+    await interaction.editReply({ embeds: [initialEmbed] });
+
+    // Perform the sync
+    const result = await syncService.bulkSyncGuild(guildId, {
+      dryRun,
+      batchSize: 25  // Smaller batches for better responsiveness
+    });
+
+    // Create result embed
+    const resultEmbed = createResponseEmbed({
+      title: dryRun ? '🔍 Sync Preview Results' : '✅ Sync Complete',
+      description: dryRun
+        ? 'Preview of changes that would be made:'
+        : 'Successfully synced Discord roles to database whitelist entries.',
+      fields: [
+        { name: 'Total Members', value: result.totalMembers?.toString() || 'Unknown', inline: true },
+        { name: 'Members with Roles', value: (result.membersToSync || result.totalProcessed || 0).toString(), inline: true },
+        { name: 'Successful', value: result.successful?.toString() || '0', inline: true }
+      ],
+      color: result.success ? 0x00ff00 : 0xff0000
+    });
+
+    if (result.failed && result.failed > 0) {
+      resultEmbed.addFields({
+        name: 'Failed',
+        value: result.failed.toString(),
+        inline: true
+      });
+    }
+
+    if (result.withoutSteamLinks && result.withoutSteamLinks > 0) {
+      resultEmbed.addFields({
+        name: 'Without Steam Links',
+        value: result.withoutSteamLinks.toString(),
+        inline: true
+      });
+    }
+
+    if (result.staffWithoutLinks && result.staffWithoutLinks > 0) {
+      resultEmbed.addFields({
+        name: '⚠️ Staff Without Links',
+        value: result.staffWithoutLinks.toString(),
+        inline: true
+      });
+    }
+
+    if (dryRun && result.groups) {
+      const groupInfo = Object.entries(result.groups)
+        .map(([group, count]) => `• ${group}: ${count}`)
+        .join('\n');
+
+      if (groupInfo) {
+        resultEmbed.addFields({
+          name: 'Role Distribution',
+          value: groupInfo,
+          inline: false
+        });
+      }
+    }
+
+    if (!dryRun && result.staffWithoutLinks && result.staffWithoutLinks > 0) {
+      resultEmbed.addFields({
+        name: '📝 Next Steps',
+        value: 'Some staff members don\'t have Steam account links. Use `/unlinkedstaff` to see who needs to link their accounts.',
+        inline: false
+      });
+    }
+
+    await interaction.editReply({ embeds: [resultEmbed] });
+
+    loggerConsole.info('Whitelist sync completed', {
+      guildId,
+      dryRun,
+      result: {
+        success: result.success,
+        totalProcessed: result.totalProcessed || result.membersToSync,
+        successful: result.successful,
+        failed: result.failed,
+        withoutSteamLinks: result.withoutSteamLinks,
+        staffWithoutLinks: result.staffWithoutLinks
+      }
+    });
+
+  } catch (error) {
+    loggerConsole.error('Whitelist sync error:', error);
+
+    const errorEmbed = createResponseEmbed({
+      title: '❌ Sync Failed',
+      description: `Failed to sync whitelist: ${error.message}`,
+      color: 0xff0000
+    });
+
+    await interaction.editReply({ embeds: [errorEmbed] });
+  }
 }

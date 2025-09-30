@@ -239,7 +239,7 @@ module.exports = {
         }
       }
 
-      loggerConsole.log(`\n📊 Migration Summary:`);
+      loggerConsole.log('\n📊 Migration Summary:');
       loggerConsole.log(`  - Total members to migrate: ${membersWithRoles.length}`);
       loggerConsole.log(`  - With Steam links: ${withSteamLinks}`);
       loggerConsole.log(`  - Without Steam links: ${withoutSteamLinks}`);

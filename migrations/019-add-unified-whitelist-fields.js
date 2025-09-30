@@ -26,7 +26,7 @@ module.exports = {
 
     // Update existing entries to have source='manual' (they're already defaulted above)
     await queryInterface.sequelize.query(
-      "UPDATE whitelists SET source = 'manual' WHERE source IS NULL"
+      'UPDATE whitelists SET source = \'manual\' WHERE source IS NULL'
     );
 
     // Now make source NOT NULL
