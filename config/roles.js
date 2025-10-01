@@ -12,15 +12,25 @@ const COMMAND_PERMISSIONS = {
   // Super admin commands (highest level access)
   'upgradeconfidence': [DISCORD_ROLES.SUPER_ADMIN], // Super admin only: Upgrade confidence scores to 1.0
   'sync': [DISCORD_ROLES.SUPER_ADMIN],       // Super admin only: Sync Discord roles to database whitelist entries
+  'whitelist-sync': [DISCORD_ROLES.SUPER_ADMIN],  // Super admin only: Sync Discord roles to database whitelist entries
 
   // Admin commands
-  'whitelist': getAllStaffRoles(),  // All staff roles can use whitelist commands
-  'grant-steamid': getAllAdminRoles(), // Admin-only: Steam ID only whitelist grants (no linking)
+  'whitelist': getAllStaffRoles(),  // DEPRECATED - Old monolithic whitelist command (use new specific commands)
+  'grant-steamid': getAllAdminRoles(), // DEPRECATED - Use /whitelist-grant-steamid instead
   'checkenv': getAllAdminRoles(),   // All admin roles can check environment
   'duty': getAllAdminRoles(),       // All admin roles can use duty commands
   'adminlink': getAllAdminRoles(),  // All admin roles can create Steam-Discord account links
   'whatsnew': getAllAdminRoles(),   // All admin roles can use whatsnew command
   'unlinkedstaff': getAllAdminRoles(), // All admin roles can view unlinked staff
+
+  // New whitelist commands (all staff)
+  'whitelist-service-member': getAllStaffRoles(),   // Grant 6mo service member whitelist + role
+  'whitelist-first-responder': getAllStaffRoles(),  // Grant 6mo first responder whitelist + role
+  'whitelist-donator': getAllStaffRoles(),          // Grant donator whitelist + role (6mo or 1yr)
+  'whitelist-reporting': getAllStaffRoles(),        // Grant temporary reporting whitelist (no role)
+  'whitelist-grant-steamid': getAllStaffRoles(),    // Emergency Steam-only grant (with warning)
+  'whitelist-extend': getAllStaffRoles(),           // Extend whitelist duration
+  'whitelist-revoke': getAllStaffRoles(),           // Revoke whitelist access
 
   // Tutor management commands (Tutor Lead only)
   'addspecialty': [DISCORD_ROLES.TUTOR_LEAD],
@@ -38,7 +48,8 @@ const COMMAND_PERMISSIONS = {
   'ping': [],      // Everyone can use
   'help': [],      // Everyone can use
   'linkid': [],    // Everyone can use - self-service account linking
-  'unlink': []     // Everyone can use - self-service account unlinking
+  'unlink': [],    // Everyone can use - self-service account unlinking
+  'whitelist-info': []  // Everyone can use - check whitelist status
 };
 
 // Both duty commands use the same permission list
