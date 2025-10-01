@@ -104,7 +104,7 @@ async function resolveUserInfo(steamid, discordUser, createLink = false) {
 }
 
 // Helper function for info command - works with either user OR steamid
-async function resolveUserForInfo(steamid, discordUser) {
+async function resolveUserForInfo(steamid, discordUser, interaction = null) {
   // Use the comprehensive getUserInfo function
   const userInfo = await getUserInfo({
     discordUserId: discordUser?.id,
@@ -134,9 +134,30 @@ async function resolveUserForInfo(steamid, discordUser) {
     throw new Error('Invalid Steam ID format. Please provide a valid Steam ID64.');
   }
 
+  // If we resolved a Discord user ID from Steam ID, try to fetch the Discord user object
+  let resolvedDiscordUser = discordUser;
+  if (!discordUser && userInfo.discordUserId && interaction?.client) {
+    try {
+      resolvedDiscordUser = await interaction.client.users.fetch(userInfo.discordUserId);
+      loggerConsole.debug('Resolved Discord user from Steam ID', {
+        steamId: userInfo.steamid64,
+        discordUserId: userInfo.discordUserId,
+        discordTag: resolvedDiscordUser.tag
+      });
+    } catch (error) {
+      loggerConsole.warn('Failed to fetch Discord user from resolved ID', {
+        discordUserId: userInfo.discordUserId,
+        steamId: userInfo.steamid64,
+        error: error.message
+      });
+      // Continue without Discord user object - we'll show the ID in the display
+    }
+  }
+
   return {
     steamid64: userInfo.steamid64,
-    discordUser: discordUser, // Keep original Discord user object for mentions
+    discordUser: resolvedDiscordUser,
+    discordUserId: userInfo.discordUserId, // Also return the raw Discord user ID
     hasLink: userInfo.hasLink,
     hasWhitelistHistory: userInfo.hasWhitelistHistory
   };
@@ -1041,7 +1062,7 @@ async function handleInfo(interaction) {
     const steamid = interaction.options.getString('steamid');
 
     // Use the new helper that works with either user OR steamid
-    const { steamid64: resolvedSteamId, discordUser: resolvedDiscordUser, hasLink } = await resolveUserForInfo(steamid, discordUser);
+    const { steamid64: resolvedSteamId, discordUser: resolvedDiscordUser, discordUserId: resolvedDiscordUserId, hasLink } = await resolveUserForInfo(steamid, discordUser, interaction);
 
     // Use WhitelistAuthorityService to get comprehensive whitelist status
     let authorityStatus = null;
@@ -1175,7 +1196,10 @@ async function handleInfo(interaction) {
 
     // Try to get Discord username from whitelist entries if not from Discord user
     let displayUser = resolvedDiscordUser ? `<@${resolvedDiscordUser.id}>` : 'user';
-    if (!resolvedDiscordUser && history.length > 0) {
+    if (!resolvedDiscordUser && resolvedDiscordUserId) {
+      // We have a Discord user ID but couldn't fetch the user object - show the ID
+      displayUser = `<@${resolvedDiscordUserId}> (ID: ${resolvedDiscordUserId})`;
+    } else if (!resolvedDiscordUser && !resolvedDiscordUserId && history.length > 0) {
       // Look for Discord username in any whitelist entry
       const entryWithDiscord = history.find(entry => entry.discord_username);
       if (entryWithDiscord) {
@@ -1337,7 +1361,7 @@ async function handleExtend(interaction) {
     const months = interaction.options.getInteger('months');
 
     // Use the new helper that works with either user OR steamid
-    const { steamid64: resolvedSteamId, discordUser: resolvedDiscordUser } = await resolveUserForInfo(steamid, discordUser);
+    const { steamid64: resolvedSteamId, discordUser: resolvedDiscordUser } = await resolveUserForInfo(steamid, discordUser, interaction);
 
     // Ensure we have a Steam ID for extension
     if (!resolvedSteamId) {
@@ -1377,7 +1401,7 @@ async function handleRevoke(interaction) {
     const reason = interaction.options.getString('reason') || 'No reason provided';
 
     // Use the new helper that works with either user OR steamid
-    const { steamid64: resolvedSteamId, discordUser: resolvedDiscordUser } = await resolveUserForInfo(steamid, discordUser);
+    const { steamid64: resolvedSteamId, discordUser: resolvedDiscordUser } = await resolveUserForInfo(steamid, discordUser, interaction);
 
     // Ensure we have a Steam ID for revocation
     if (!resolvedSteamId) {
