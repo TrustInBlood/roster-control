@@ -803,17 +803,32 @@ async function showReportingDurationSelection(interaction, grantData) {
 }
 
 async function handleConfirmation(interaction, grantData) {
-  const { reason, discordUser, userInfo, durationValue, durationType, durationText } = grantData;
-  
+  // IMPORTANT: Capture all variables at function entry to prevent contamination from concurrent commands
+  const capturedGrantData = {
+    reason: grantData.reason,
+    discordUser: grantData.discordUser,
+    userInfo: {
+      steamid64: grantData.userInfo.steamid64,
+      discord_username: grantData.userInfo.discord_username,
+      username: grantData.userInfo.username,
+      linkedAccount: grantData.userInfo.linkedAccount
+    },
+    originalUser: grantData.originalUser,
+    isSteamIdOnly: grantData.isSteamIdOnly,
+    durationValue: grantData.durationValue,
+    durationType: grantData.durationType,
+    durationText: grantData.durationText
+  };
+
   const confirmEmbed = createResponseEmbed({
     title: '✅ Confirm Whitelist Grant',
     description: 'Please confirm the whitelist details below:',
     fields: [
-      { name: 'Discord User', value: discordUser ? `<@${discordUser.id}>` : 'Not linked', inline: true },
-      { name: 'Steam ID', value: userInfo.steamid64, inline: true },
-      { name: 'Type', value: reason.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase()), inline: true },
-      { name: 'Duration', value: durationText, inline: true },
-      { name: 'Granted By', value: `<@${grantData.originalUser.id}>`, inline: true }
+      { name: 'Discord User', value: capturedGrantData.discordUser ? `<@${capturedGrantData.discordUser.id}>` : 'Not linked', inline: true },
+      { name: 'Steam ID', value: capturedGrantData.userInfo.steamid64, inline: true },
+      { name: 'Type', value: capturedGrantData.reason.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase()), inline: true },
+      { name: 'Duration', value: capturedGrantData.durationText, inline: true },
+      { name: 'Granted By', value: `<@${capturedGrantData.originalUser.id}>`, inline: true }
     ],
     color: 0x4caf50
   });
@@ -840,7 +855,7 @@ async function handleConfirmation(interaction, grantData) {
   // Handle confirmation
   const confirmCollector = interaction.channel.createMessageComponentCollector({
     componentType: ComponentType.Button,
-    filter: (i) => (i.customId === 'confirm_grant' || i.customId === 'cancel_grant') && i.user.id === grantData.originalUser.id,
+    filter: (i) => (i.customId === 'confirm_grant' || i.customId === 'cancel_grant') && i.user.id === capturedGrantData.originalUser.id,
     time: 300000
   });
 
@@ -862,12 +877,7 @@ async function handleConfirmation(interaction, grantData) {
       if (!buttonInteraction.deferred && !buttonInteraction.replied && buttonInteraction.customId !== 'whitelist_cancel') {
         await buttonInteraction.deferUpdate();
       }
-      await processWhitelistGrant(buttonInteraction, {
-        ...grantData,
-        durationValue,
-        durationType,
-        durationText
-      });
+      await processWhitelistGrant(buttonInteraction, capturedGrantData);
       // Stop collector after successful processing
       confirmCollector.stop('completed');
     } catch (error) {
