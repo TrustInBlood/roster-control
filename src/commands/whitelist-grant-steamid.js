@@ -7,7 +7,7 @@ const { console: loggerConsole } = require('../utils/logger');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('whitelist-grant-steamid')
-    .setDescription('Emergency Steam-only whitelist grant (no account link)')
+    .setDescription('Steam-only whitelist grant for donations (no account link)')
     .addStringOption(option =>
       option.setName('steamid')
         .setDescription('Steam ID64 of the user')
@@ -17,22 +17,13 @@ module.exports = {
         .setDescription('Whitelist duration')
         .setRequired(true)
         .addChoices(
-          { name: '3 Days', value: '3_days' },
-          { name: '7 Days', value: '7_days' },
-          { name: '14 Days', value: '14_days' },
-          { name: '30 Days', value: '30_days' },
-          { name: 'Custom', value: 'custom' }
+          { name: '6 Months', value: '6_months' },
+          { name: '1 Year', value: '12_months' }
         ))
     .addStringOption(option =>
       option.setName('username')
         .setDescription('Username for audit trail (optional but recommended)')
-        .setRequired(false))
-    .addIntegerOption(option =>
-      option.setName('custom_days')
-        .setDescription('Custom number of days (1-365, only if duration=custom)')
-        .setRequired(false)
-        .setMinValue(1)
-        .setMaxValue(365)),
+        .setRequired(false)),
 
   async execute(interaction) {
     await permissionMiddleware(interaction, async () => {
@@ -40,39 +31,26 @@ module.exports = {
         const steamid = interaction.options.getString('steamid');
         const durationChoice = interaction.options.getString('duration');
         const username = interaction.options.getString('username');
-        const customDays = interaction.options.getInteger('custom_days');
 
         // Parse duration first to show in warning
-        let duration_value, durationText;
-        if (durationChoice === 'custom') {
-          if (!customDays) {
-            await sendError(interaction, 'Please provide custom_days when using custom duration.');
-            return;
-          }
-          duration_value = customDays;
-          durationText = `${customDays} day${customDays > 1 ? 's' : ''}`;
+        let duration_value, durationText, duration_type;
+        if (durationChoice === '6_months') {
+          duration_value = 6;
+          duration_type = 'months';
+          durationText = '6 months';
+        } else if (durationChoice === '12_months') {
+          duration_value = 12;
+          duration_type = 'months';
+          durationText = '1 year';
         } else {
-          const durationMap = {
-            '3_days': { value: 3, text: '3 days' },
-            '7_days': { value: 7, text: '7 days' },
-            '14_days': { value: 14, text: '14 days' },
-            '30_days': { value: 30, text: '30 days' }
-          };
-
-          const selected = durationMap[durationChoice];
-          if (!selected) {
-            await sendError(interaction, 'Invalid duration selected.');
-            return;
-          }
-
-          duration_value = selected.value;
-          durationText = selected.text;
+          await sendError(interaction, 'Invalid duration selected.');
+          return;
         }
 
         // Show WARNING embed
         const warningEmbed = createResponseEmbed({
-          title: '⚠️ STEAM ID ONLY GRANT',
-          description: `**Steam ID:** ${steamid}\n${username ? `**Username:** ${username}` : '**Username:** Not provided'}\n**Duration:** ${durationText}\n\n🚨 **IMPORTANT WARNING**\n\nThis grant will **NOT create a Discord-Steam account link**.\n\n✅ **Recommended:** Use other whitelist commands that require Discord user for proper account linking.\n\n⚠️ **Only use this for:**\n• User not in Discord server\n• Emergency situations\n• External players who don't use Discord\n\n⏰ **Please confirm within 2 minutes**`,
+          title: '⚠️ STEAM ID ONLY GRANT (Donations)',
+          description: `**Steam ID:** ${steamid}\n${username ? `**Username:** ${username}` : '**Username:** Not provided'}\n**Duration:** ${durationText}\n\n🚨 **IMPORTANT WARNING**\n\nThis grant will **NOT create a Discord-Steam account link**.\n\n✅ **Intended Use:** Donations and external supporters\n\n✅ **Recommended:** If user is in Discord, use other whitelist commands for proper account linking.\n\n⏰ **Please confirm within 2 minutes**`,
           color: 0xff6600
         });
 
@@ -133,7 +111,7 @@ module.exports = {
               steamid64: steamid,
               username,
               duration_value,
-              duration_type: 'days',
+              duration_type,
               granted_by: interaction.user.id
             });
 
@@ -151,7 +129,7 @@ module.exports = {
             // Build success embed with warnings
             const successEmbed = createResponseEmbed({
               title: '⚠️ Steam ID Whitelist Granted',
-              description: 'Steam ID whitelist has been granted (emergency use only)',
+              description: 'Steam ID whitelist has been granted (donation/external supporter)',
               fields: [
                 { name: 'Steam ID', value: steamid, inline: true },
                 { name: 'Username', value: username || 'Not provided', inline: true },
@@ -177,7 +155,7 @@ module.exports = {
             try {
               const publicEmbed = createResponseEmbed({
                 title: '⚠️ Steam ID Whitelist Granted',
-                description: `Steam ID \`${steamid}\`${username ? ` (${username})` : ''} has been granted whitelist access\n\n⚠️ **Emergency grant - no Discord link created**`,
+                description: `Steam ID \`${steamid}\`${username ? ` (${username})` : ''} has been granted whitelist access\n\n⚠️ **Donation/External supporter - no Discord link created**`,
                 fields: [
                   { name: 'Duration', value: durationText, inline: true },
                   { name: 'Granted By', value: `<@${interaction.user.id}>`, inline: true }

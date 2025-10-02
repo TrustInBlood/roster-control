@@ -28,8 +28,7 @@ const COMMAND_PERMISSIONS = {
   'whitelist-first-responder': getAllStaffRoles(),  // Grant 6mo first responder whitelist + role
   'whitelist-donator': getAllStaffRoles(),          // Grant donator whitelist + role (6mo or 1yr)
   'whitelist-reporting': getAllStaffRoles(),        // Grant temporary reporting whitelist (no role)
-  'whitelist-grant-steamid': getAllStaffRoles(),    // Emergency Steam-only grant (with warning)
-  'whitelist-extend': getAllStaffRoles(),           // Extend whitelist duration
+  'whitelist-grant-steamid': getAllStaffRoles(),    // Donation/external Steam-only grant (6mo or 1yr, no linking)
   'whitelist-revoke': getAllStaffRoles(),           // Revoke whitelist access
 
   // Tutor management commands (Tutor Lead only)
