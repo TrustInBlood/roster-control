@@ -311,58 +311,72 @@ class RoleWhitelistSyncService {
   }
 
   /**
-   * Upgrade any existing unlinked placeholder entries when user gets a proper Steam link
+   * Upgrade any existing unlinked/unapproved/security-blocked entries when user gets sufficient confidence
    * @private
    */
   async _upgradeUnlinkedEntries(discordUserId, steamId, source) {
     try {
-      // Find all unlinked placeholder entries for this user
-      const unlinkedEntries = await Whitelist.findAll({
+      // Find all entries that need upgrading:
+      // 1. Unapproved placeholder entries (approved: false, revoked: false)
+      // 2. Security-blocked entries (approved: false, revoked: true) from insufficient confidence
+      const entriesToUpgrade = await Whitelist.findAll({
         where: {
           discord_user_id: discordUserId,
-          steamid64: '00000000000000000', // Placeholder Steam ID
           source: 'role',
-          approved: false,
-          revoked: false
+          approved: false
+          // Note: We check both revoked: false AND revoked: true entries
         }
       });
 
-      if (unlinkedEntries.length === 0) {
-        return; // No unlinked entries to upgrade
+      if (entriesToUpgrade.length === 0) {
+        return; // No entries to upgrade
       }
 
-      this.logger.info('Upgrading unlinked placeholder entries to proper role-based entries', {
+      this.logger.info('Upgrading unapproved/blocked role-based entries', {
         discordUserId,
         steamId,
-        count: unlinkedEntries.length
+        count: entriesToUpgrade.length
       });
 
-      // Update each placeholder entry with the real Steam ID and approve it
-      for (const entry of unlinkedEntries) {
+      // Update each entry with the real Steam ID and approve it
+      for (const entry of entriesToUpgrade) {
+        const previousSteamId = entry.steamid64;
+        const wasRevoked = entry.revoked;
+        const wasSecurityBlocked = entry.metadata?.securityBlocked || false;
+
         await entry.update({
           steamid64: steamId,
           approved: true,
+          revoked: false,  // Un-revoke security-blocked entries
+          revoked_by: null,
+          revoked_at: null,
+          revoked_reason: null,
           reason: `Role-based access: ${entry.role_name}`,
           metadata: {
             ...entry.metadata,
             upgraded: true,
             upgradedAt: new Date().toISOString(),
-            upgradedFrom: 'unlinked_placeholder',
+            upgradedFrom: wasSecurityBlocked ? 'security_blocked' : (previousSteamId === '00000000000000000' ? 'placeholder' : 'unapproved_entry'),
             upgradeSource: source,
-            previousSteamId: '00000000000000000'
+            previousSteamId: previousSteamId,
+            wasRevoked: wasRevoked,
+            securityBlocked: false  // Clear security block flag
           }
         });
 
-        this.logger.info('Upgraded unlinked entry to proper role-based entry', {
+        this.logger.info('Upgraded entry to proper role-based whitelist', {
           discordUserId,
           steamId,
           roleName: entry.role_name,
-          entryId: entry.id
+          entryId: entry.id,
+          previousSteamId: previousSteamId,
+          wasSecurityBlocked: wasSecurityBlocked,
+          wasRevoked: wasRevoked
         });
       }
 
     } catch (error) {
-      this.logger.error('Failed to upgrade unlinked entries', {
+      this.logger.error('Failed to upgrade entries', {
         discordUserId,
         steamId,
         error: error.message
