@@ -188,11 +188,12 @@ class RoleWhitelistSyncService {
    * @private
    */
   async _createRoleBasedEntry(discordUserId, steamId, groupName, memberData, source, flags = {}) {
-    // Check if user already has an active role-based entry
-    const existingEntry = await Whitelist.findOne({
+    // Check if user already has active role-based entries (could be multiple due to bugs)
+    const existingEntries = await Whitelist.findAll({
       where: {
         discord_user_id: discordUserId,
         source: 'role',
+        approved: true,
         revoked: false
       },
       order: [['createdAt', 'DESC']]
@@ -224,34 +225,62 @@ class RoleWhitelistSyncService {
       }
     };
 
-    if (existingEntry) {
+    if (existingEntries.length > 0) {
+      // If there are multiple entries, keep the most recent and revoke duplicates
+      const [mostRecentEntry, ...duplicates] = existingEntries;
+
+      if (duplicates.length > 0) {
+        this.logger.warn('Found duplicate approved role-based entries, revoking duplicates', {
+          discordUserId,
+          steamId,
+          duplicateCount: duplicates.length
+        });
+
+        for (const duplicate of duplicates) {
+          await duplicate.update({
+            revoked: true,
+            revoked_by: 'SYSTEM',
+            revoked_at: new Date(),
+            revoked_reason: 'Duplicate entry - consolidating to single entry',
+            metadata: {
+              ...duplicate.metadata,
+              revokedAsDuplicate: true,
+              revokedAt: new Date().toISOString()
+            }
+          });
+        }
+      }
+
       // Update existing entry if group changed
-      if (existingEntry.role_name !== groupName) {
-        await existingEntry.update({
+      if (mostRecentEntry.role_name !== groupName) {
+        await mostRecentEntry.update({
           role_name: groupName,
           type: userData.type,
           reason: userData.reason,
           username: userData.username,
           discord_username: userData.discord_username,
+          steamid64: steamId,  // Update Steam ID in case it changed
           metadata: {
-            ...existingEntry.metadata,
+            ...mostRecentEntry.metadata,
             ...userData.metadata,
             updated: true,
-            previousRole: existingEntry.role_name
+            previousRole: mostRecentEntry.role_name
           }
         });
 
         this.logger.info('Updated existing role-based whitelist entry', {
           discordUserId,
           steamId,
-          previousGroup: existingEntry.role_name,
-          newGroup: groupName
+          previousGroup: mostRecentEntry.role_name,
+          newGroup: groupName,
+          duplicatesRevoked: duplicates.length
         });
       } else {
         this.logger.debug('Role-based entry already exists and is current', {
           discordUserId,
           steamId,
-          groupName
+          groupName,
+          duplicatesRevoked: duplicates.length
         });
       }
     } else {
@@ -325,7 +354,8 @@ class RoleWhitelistSyncService {
           source: 'role',
           approved: false
           // Note: We check both revoked: false AND revoked: true entries
-        }
+        },
+        order: [['createdAt', 'DESC']] // Most recent first
       });
 
       if (entriesToUpgrade.length === 0) {
@@ -338,42 +368,75 @@ class RoleWhitelistSyncService {
         count: entriesToUpgrade.length
       });
 
-      // Update each entry with the real Steam ID and approve it
-      for (const entry of entriesToUpgrade) {
-        const previousSteamId = entry.steamid64;
-        const wasRevoked = entry.revoked;
-        const wasSecurityBlocked = entry.metadata?.securityBlocked || false;
+      // If there are multiple entries, only upgrade the most recent one and revoke the rest
+      const [mostRecentEntry, ...duplicateEntries] = entriesToUpgrade;
 
-        await entry.update({
-          steamid64: steamId,
-          approved: true,
-          revoked: false,  // Un-revoke security-blocked entries
-          revoked_by: null,
-          revoked_at: null,
-          revoked_reason: null,
-          reason: `Role-based access: ${entry.role_name}`,
-          metadata: {
-            ...entry.metadata,
-            upgraded: true,
-            upgradedAt: new Date().toISOString(),
-            upgradedFrom: wasSecurityBlocked ? 'security_blocked' : (previousSteamId === '00000000000000000' ? 'placeholder' : 'unapproved_entry'),
-            upgradeSource: source,
-            previousSteamId: previousSteamId,
-            wasRevoked: wasRevoked,
-            securityBlocked: false  // Clear security block flag
-          }
-        });
-
-        this.logger.info('Upgraded entry to proper role-based whitelist', {
+      // Revoke any duplicate entries
+      if (duplicateEntries.length > 0) {
+        this.logger.warn('Found duplicate unapproved entries, revoking older duplicates', {
           discordUserId,
           steamId,
-          roleName: entry.role_name,
-          entryId: entry.id,
-          previousSteamId: previousSteamId,
-          wasSecurityBlocked: wasSecurityBlocked,
-          wasRevoked: wasRevoked
+          duplicateCount: duplicateEntries.length
         });
+
+        for (const duplicate of duplicateEntries) {
+          await duplicate.update({
+            revoked: true,
+            revoked_by: 'SYSTEM',
+            revoked_at: new Date(),
+            revoked_reason: 'Duplicate entry - keeping most recent only',
+            metadata: {
+              ...duplicate.metadata,
+              revokedAsDuplicate: true,
+              revokedDuringUpgrade: true,
+              revokedAt: new Date().toISOString()
+            }
+          });
+
+          this.logger.info('Revoked duplicate unapproved entry', {
+            discordUserId,
+            steamId,
+            entryId: duplicate.id,
+            roleName: duplicate.role_name
+          });
+        }
       }
+
+      // Upgrade the most recent entry
+      const previousSteamId = mostRecentEntry.steamid64;
+      const wasRevoked = mostRecentEntry.revoked;
+      const wasSecurityBlocked = mostRecentEntry.metadata?.securityBlocked || false;
+
+      await mostRecentEntry.update({
+        steamid64: steamId,
+        approved: true,
+        revoked: false,  // Un-revoke security-blocked entries
+        revoked_by: null,
+        revoked_at: null,
+        revoked_reason: null,
+        reason: `Role-based access: ${mostRecentEntry.role_name}`,
+        metadata: {
+          ...mostRecentEntry.metadata,
+          upgraded: true,
+          upgradedAt: new Date().toISOString(),
+          upgradedFrom: wasSecurityBlocked ? 'security_blocked' : (previousSteamId === '00000000000000000' ? 'placeholder' : 'unapproved_entry'),
+          upgradeSource: source,
+          previousSteamId: previousSteamId,
+          wasRevoked: wasRevoked,
+          securityBlocked: false  // Clear security block flag
+        }
+      });
+
+      this.logger.info('Upgraded entry to proper role-based whitelist', {
+        discordUserId,
+        steamId,
+        roleName: mostRecentEntry.role_name,
+        entryId: mostRecentEntry.id,
+        previousSteamId: previousSteamId,
+        wasSecurityBlocked: wasSecurityBlocked,
+        wasRevoked: wasRevoked,
+        duplicatesRevoked: duplicateEntries.length
+      });
 
     } catch (error) {
       this.logger.error('Failed to upgrade entries', {
