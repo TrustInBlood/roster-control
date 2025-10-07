@@ -15,9 +15,10 @@ const { getAllTrackedRoles } = squadGroups;
  * - Maintain data consistency between Discord and database
  */
 class RoleWhitelistSyncService {
-  constructor(logger, discordClient = null) {
+  constructor(logger, discordClient = null, whitelistService = null) {
     this.logger = logger;
     this.discordClient = discordClient;
+    this.whitelistService = whitelistService;
     this.trackedRoles = getAllTrackedRoles();
     this.processingUsers = new Set(); // Prevent duplicate processing
 
@@ -248,6 +249,11 @@ class RoleWhitelistSyncService {
               revokedAt: new Date().toISOString()
             }
           });
+        }
+
+        // Invalidate whitelist cache after revoking duplicates
+        if (this.whitelistService) {
+          this.whitelistService.invalidateCache();
         }
       }
 

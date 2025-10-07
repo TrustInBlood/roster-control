@@ -79,7 +79,10 @@ async function setupWhitelistRoutes(app, _sequelize, logger, discordClient) {
   }
 
   const whitelistService = new WhitelistService(logger, whitelistConfig, discordClient);
-  
+
+  // Link whitelistService to roleWhitelistSync for cache invalidation
+  roleWhitelistSync.whitelistService = whitelistService;
+
   whitelistService.setupRoutes(app);
 
   const connectionManager = new SquadJSConnectionManager(logger, whitelistConfig);

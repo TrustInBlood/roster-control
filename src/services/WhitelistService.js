@@ -533,13 +533,32 @@ class WhitelistService {
       return '';
     }
 
-    let content = '';
+    // Deduplicate entries by Steam ID - keep only the most recent entry for each user
+    const entriesBySteamId = new Map();
     for (const entry of entries) {
       // Skip entries without Steam IDs (unlinked users)
       if (!entry.steamid64 || entry.steamid64 === '00000000000000000') {
         continue;
       }
 
+      const existing = entriesBySteamId.get(entry.steamid64);
+      if (!existing || new Date(entry.createdAt) > new Date(existing.createdAt)) {
+        entriesBySteamId.set(entry.steamid64, entry);
+      }
+    }
+
+    // Log if duplicates were found
+    const duplicateCount = entries.filter(e => e.steamid64 && e.steamid64 !== '00000000000000000').length - entriesBySteamId.size;
+    if (duplicateCount > 0) {
+      this.logger.warn('Deduplicated role-based entries during whitelist generation', {
+        originalCount: entries.length,
+        deduplicatedCount: entriesBySteamId.size,
+        duplicatesRemoved: duplicateCount
+      });
+    }
+
+    let content = '';
+    for (const entry of entriesBySteamId.values()) {
       const groupName = entry.role_name || 'Member';
       const comment = entry.username ? ` // ${entry.username}` : '';
       content += `Admin=${entry.steamid64}:${groupName}${comment}\n`;
