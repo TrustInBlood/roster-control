@@ -9,7 +9,7 @@ const SQUAD_GROUPS = {
   // Head Admin - Full server control
   HeadAdmin: {
     priority: 300,
-    permissions: 'ban,cameraman,canseeadminchat,changemap,chat,forceteamchange,immune,kick,reserve,startvote,teamchange,balance,manageserver,config',
+    permissions: 'cameraman,canseeadminchat,chat,forceteamchange,immune,reserve,teamchange,balance,manageserver,config',
     discordRoles: [
       DISCORD_ROLES.EXECUTIVE_ADMIN,
       DISCORD_ROLES.HEAD_ADMIN
@@ -19,7 +19,7 @@ const SQUAD_GROUPS = {
   // Squad Admin - Core admin permissions
   SquadAdmin: {
     priority: 200,
-    permissions: 'balance,ban,cameraman,canseeadminchat,changemap,chat,forceteamchange,immune,kick,startvote,reserve,teamchange',
+    permissions: 'balance,cameraman,canseeadminchat,chat,forceteamchange,immune,reserve',
     discordRoles: [
       DISCORD_ROLES.SENIOR_ADMIN,
       DISCORD_ROLES.OG_ADMIN,

@@ -73,6 +73,10 @@ class RoleWhitelistSyncService {
         };
       }
 
+      // IMPORTANT: Check for and upgrade any existing unlinked placeholder entries
+      // This handles cases where a user got a role before linking their Steam account
+      await this._upgradeUnlinkedEntries(discordUserId, primaryLink.steamid64, source);
+
       // Step 2: Check if user meets confidence requirements for staff roles
       if (newGroup && newGroup !== 'Member' && primaryLink.confidence_score < 1.0) {
         this.logger.warn('SECURITY: Blocking staff whitelist due to insufficient link confidence', {
@@ -303,6 +307,67 @@ class RoleWhitelistSyncService {
         roleName: entry.role_name,
         entryId: entry.id
       });
+    }
+  }
+
+  /**
+   * Upgrade any existing unlinked placeholder entries when user gets a proper Steam link
+   * @private
+   */
+  async _upgradeUnlinkedEntries(discordUserId, steamId, source) {
+    try {
+      // Find all unlinked placeholder entries for this user
+      const unlinkedEntries = await Whitelist.findAll({
+        where: {
+          discord_user_id: discordUserId,
+          steamid64: '00000000000000000', // Placeholder Steam ID
+          source: 'role',
+          approved: false,
+          revoked: false
+        }
+      });
+
+      if (unlinkedEntries.length === 0) {
+        return; // No unlinked entries to upgrade
+      }
+
+      this.logger.info('Upgrading unlinked placeholder entries to proper role-based entries', {
+        discordUserId,
+        steamId,
+        count: unlinkedEntries.length
+      });
+
+      // Update each placeholder entry with the real Steam ID and approve it
+      for (const entry of unlinkedEntries) {
+        await entry.update({
+          steamid64: steamId,
+          approved: true,
+          reason: `Role-based access: ${entry.role_name}`,
+          metadata: {
+            ...entry.metadata,
+            upgraded: true,
+            upgradedAt: new Date().toISOString(),
+            upgradedFrom: 'unlinked_placeholder',
+            upgradeSource: source,
+            previousSteamId: '00000000000000000'
+          }
+        });
+
+        this.logger.info('Upgraded unlinked entry to proper role-based entry', {
+          discordUserId,
+          steamId,
+          roleName: entry.role_name,
+          entryId: entry.id
+        });
+      }
+
+    } catch (error) {
+      this.logger.error('Failed to upgrade unlinked entries', {
+        discordUserId,
+        steamId,
+        error: error.message
+      });
+      // Don't throw - this is not critical enough to fail the sync
     }
   }
 
