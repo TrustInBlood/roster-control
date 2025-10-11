@@ -285,30 +285,17 @@ class WhitelistService {
     }
 
     if (grouplessEntries.length > 0) {
-      grouplessEntries.forEach(entry => {
-        const identifier = this.getIdentifier(entry);
-        const username = entry.username || '';
-        const discordUsername = entry.discord_username || '';
-
-        let line = `Admin=${identifier}:`;
-
-        // Format: // in-game-name discord-display-name
-        if (username || discordUsername) {
-          line += ' //';
-
-          // If we have in-game name, show it first
-          if (username) {
-            line += ` ${username}`;
-          }
-
-          // If we have Discord name and it's different from in-game name (or no in-game name), show it
-          if (discordUsername && (!username || discordUsername !== username)) {
-            line += ` ${discordUsername}`;
-          }
-        }
-
-        content += line + '\n';
+      this.logger.warn('Skipping groupless/invalid whitelist entries', {
+        count: grouplessEntries.length,
+        steamIds: grouplessEntries.map(e => e.steamid64)
       });
+
+      // Note: We intentionally skip groupless entries as they likely represent:
+      // - Old/inactive entries that should be cleaned up
+      // - Invalid imports with missing group data
+      // - Entries that were revoked but not properly marked as revoked
+      //
+      // These entries won't appear in the whitelist output, effectively deactivating them
     }
 
     return content;
