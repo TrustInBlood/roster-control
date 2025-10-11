@@ -142,6 +142,41 @@ module.exports = {
           embeds: [publicEmbed]
         });
 
+        // Trigger role-based whitelist sync for this user
+        // This ensures their whitelist access is updated immediately if they have a whitelisted role
+        //
+        // What this does:
+        // - If user has a staff role (HeadAdmin/SquadAdmin/Moderator), creates/upgrades their whitelist entry
+        // - If user has a Member role, creates their whitelist entry
+        // - Upgrades any existing unapproved/security-blocked entries to approved status
+        // - Invalidates whitelist cache so changes appear immediately
+        //
+        // Note: Admin-created links have 0.7 confidence, which is below the 1.0 threshold for staff whitelist.
+        // Users with staff roles will need to use /linkid to self-verify and get 1.0 confidence for staff access.
+        if (global.whitelistServices?.roleWhitelistSync) {
+          try {
+            const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+            if (member) {
+              const { getHighestPriorityGroup } = require('../utils/environment');
+              const userGroup = getHighestPriorityGroup(member.roles.cache);
+
+              if (userGroup) {
+                loggerConsole.log(`Triggering role sync for linked user: ${targetUser.tag} (${userGroup})`);
+                await global.whitelistServices.roleWhitelistSync.syncUserRole(
+                  targetUser.id,
+                  userGroup,
+                  member,
+                  { source: 'adminlink', skipNotification: false }
+                );
+                loggerConsole.log(`Role sync completed for ${targetUser.tag}`);
+              }
+            }
+          } catch (syncError) {
+            loggerConsole.error('Failed to sync user role after adminlink:', syncError);
+            // Don't fail the command if sync fails - the link was still created successfully
+          }
+        }
+
       } catch (error) {
         loggerConsole.error('Adminlink command error:', error);
         await sendError(interaction, `Failed to create link: ${error.message}`);
