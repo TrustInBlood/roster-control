@@ -2,6 +2,21 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Getting Started
+
+Before working on this codebase:
+- Review `TASKS.md` for current implementation status and next steps
+- Check `PLANNING.md` for overall project architecture and goals
+- These documents are referenced by Cursor AI rules and should be kept up to date
+
+## Quick Reference
+
+**Start Development**: `npm run dev`
+**Deploy Commands**: `npm run deploy:commands:dev`
+**Test Database**: `npm run test:db`
+**Environment Utility**: Always use `src/utils/environment.js` for environment detection
+**Logging**: Always use `src/utils/logger.js` (replace console.log with loggerConsole)
+
 ## Development Commands
 
 ### Essential Commands
@@ -206,7 +221,7 @@ logger.info('Direct winston logger access');
 
 ### Unified Whitelist System Workflow
 
-The unified whitelist system automatically manages Squad server access based on Discord roles:
+The unified whitelist system (implemented in migrations 019-020) automatically manages Squad server access based on Discord roles:
 
 1. **Role Monitoring**: `roleChangeHandler.js` detects Discord role changes in real-time
 2. **Database Sync**: `RoleWhitelistSyncService` creates/updates/revokes database entries when roles change
@@ -229,31 +244,26 @@ The unified whitelist system automatically manages Squad server access based on 
 
 ## Important Notes
 
-### Code Style Guidelines
-- **Avoid using emojis** in code, comments, or output unless specifically requested by the user
-- Use clear, descriptive text instead of emoji characters for better readability and maintainability
+### Project-Specific Constraints
+- **ESLint**: Use single quotes instead of template literals for simple strings
+- **Slash Commands**: Adding a Discord slash command requires updates in `config/roles.js`
+- **Database ENUMs**: `PlayerDiscordLink.link_source` only accepts: `'manual'`, `'ticket'`, `'squadjs'`, `'import'`
+- **Code Style**: Avoid using emojis in code, comments, or output unless specifically requested
+- **No Production Access**: You don't have access to the production server
+- **No Commits**: Do not commit anything
+- **Never Start Production**: Never start the production instance (`npm start`)
 
 ### Security Considerations
 - Role IDs and channel IDs in config files are environment-specific
 - Database uses connection pooling with charset configuration for Squad player names
 - Environment variables must be properly configured before deployment
 
-### Development Workflow
-1. Always test database connection before implementing new features
-2. Deploy commands to development environment first
-3. Use ESLint for code consistency
-4. Follow existing permission middleware patterns for new commands
-5. Update documentation when implementing new features:
-   - Update `/whatsnew` command with latest features
-   - Update `TASKS.md` with implementation status
-   - Update `PLANNING.md` if architecture changes
-   - Update `README.md` if user-facing changes occur
+### Documentation Updates
+When implementing new features, update:
+- `/whatsnew` command with latest features
+- `TASKS.md` with implementation status
+- `PLANNING.md` if architecture changes
+- `README.md` if user-facing changes occur
 
 ### Multi-Server Architecture
 The system is designed to support 5 Squad servers through SquadJS instances, with centralized Discord bot management and per-server data tracking.
-- the ESLint rule wants single quotes instead of template literals for simple strings.
-- adding a discord slash command requires updates in the @config/roles.js file
-- you don't have access to the production server
-- do not commit anything
-- Never start the production instance
-- The link_source is an ENUM with only these values: 'manual', 'ticket', 'squadjs', 'import'.
