@@ -30,6 +30,12 @@ Before working on this codebase:
 ### Database Commands
 - `npm run test:db` - Test database connection and configuration
 - `npm run test:player` - Test Player model operations (create, read, update, delete)
+- `npm run db:migrate:dev` - Run migrations on development database (localhost)
+- `npm run db:migrate:prod` - Run migrations on production database (EXPLICIT INTENT REQUIRED)
+- `npm run db:migrate:status:dev` - Check migration status for development
+- `npm run db:migrate:status:prod` - Check migration status for production
+- `npm run db:migrate:rollback:dev` - Rollback last migration on development
+- `npm run db:migrate:rollback:prod` - Rollback last migration on production (EXPLICIT INTENT REQUIRED)
 
 ### Discord Commands Deployment
 - `npm run deploy:commands` - Deploy slash commands (uses current NODE_ENV)
@@ -113,10 +119,20 @@ Configuration is managed through `.env` file (see `.env.example`):
 - **Validation**: Built-in config validation in `config/config.js`
 
 ### Environment-Specific Configuration
-The system automatically loads environment-specific configurations based on `NODE_ENV`:
+The system uses **dotenv-flow** for automatic environment-specific configuration loading:
 
-- **Production**: Uses `config/squadGroups.js`, `config/channels.js`, `config/discordRoles.js`
-- **Development**: Uses `config/squadGroups.development.js`, `config/channels.development.js`, `config/discordRoles.development.js`
+- **Development**: Automatically loads `.env.development` when `NODE_ENV=development`
+- **Production**: Automatically loads `.env.production` when `NODE_ENV=production`
+- **Fallback**: Uses `.env` for shared variables (copy either `.env.development` or `.env.production` to `.env` to set default)
+
+**Environment File Structure**:
+- `.env.development` - Development database (localhost), development Discord bot
+- `.env.production` - Production database (remote), production Discord bot
+- `.env` - Active environment (gitignored, manually switch by copying dev or prod)
+
+**Configuration Loading**:
+- **Bot/App**: Uses `config/squadGroups.js`, `config/channels.js`, `config/discordRoles.js` (switches based on NODE_ENV)
+- **Database**: Uses dotenv-flow to load `.env.development` or `.env.production`
 
 **IMPORTANT**: Always use the centralized environment utility for environment detection and config loading:
 
@@ -135,6 +151,14 @@ const { getHighestPriorityGroup } = require(isDevelopment ? '../../config/squadG
 - `loadConfig(configName)` - Load environment-specific configuration
 - `squadGroups`, `channels`, `discordRoles` - Pre-loaded configurations
 - `getHighestPriorityGroup`, `CHANNELS`, `DISCORD_ROLES` - Common exports
+
+**Pterodactyl Production Egg Behavior**:
+- The production Pterodactyl egg startup command does NOT set `NODE_ENV`
+- Instead, it relies on `.env` file containing `NODE_ENV=production`
+- When the bot starts without NODE_ENV set, `config/config.js` loads `.env` and reads NODE_ENV from it
+- This is INTENTIONAL and SAFE - production `.env` contains `NODE_ENV=production`
+- For local development, `.env` is set to development and npm scripts explicitly set NODE_ENV
+- **Test environment detection**: Run `npm run test:env` to verify correct behavior
 
 ## Development Patterns
 
@@ -249,9 +273,14 @@ The unified whitelist system (implemented in migrations 019-020) automatically m
 - **Slash Commands**: Adding a Discord slash command requires updates in `config/roles.js`
 - **Database ENUMs**: `PlayerDiscordLink.link_source` only accepts: `'manual'`, `'ticket'`, `'squadjs'`, `'import'`
 - **Code Style**: Avoid using emojis in code, comments, or output unless specifically requested
-- **No Production Access**: You don't have access to the production server
 - **No Commits**: Do not commit anything
-- **Never Start Production**: Never start the production instance (`npm start`)
+
+### CRITICAL: Production Safety Rules
+- **ALWAYS use explicit commands**: Use `npm run db:migrate:dev` for development, `npm run db:migrate:prod` for production
+- **NEVER run generic `npm run db:migrate`**: This uses whatever `.env` is active and can accidentally target production
+- **NEVER run untested migrations on production**: Always test migrations on development database first
+- **VERIFY environment before migrations**: Check `npm run db:migrate:status:dev` vs `npm run db:migrate:status:prod`
+- **Current environment**: `.env` is set to `development` (localhost database)
 
 ### Security Considerations
 - Role IDs and channel IDs in config files are environment-specific

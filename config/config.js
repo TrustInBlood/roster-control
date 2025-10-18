@@ -1,14 +1,27 @@
 const path = require('path');
-const dotenv = require('dotenv');
+const dotenvFlow = require('dotenv-flow');
 const { console: loggerConsole } = require('../src/utils/logger');
 
-// Load environment config based on NODE_ENV (default to production for safety)
-const env = process.env.NODE_ENV === 'development' ? 'development' : 'production';
-const envFile = env === 'development' ? '.env.development' : '.env';
-const envPath = path.join(__dirname, `../${envFile}`);
+// Load environment config using dotenv-flow for automatic environment detection
+// This will load:
+// - .env.development when NODE_ENV=development
+// - .env.production when NODE_ENV=production
+// - .env as fallback for shared variables (used in production Pterodactyl egg)
+//
+// IMPORTANT: Production Pterodactyl egg does NOT set NODE_ENV in startup command.
+// We detect production by checking if .env has NODE_ENV=production after loading.
+const preLoadEnv = process.env.NODE_ENV;
 
-loggerConsole.log(`Loading environment config from: ${envFile} (NODE_ENV: ${env})`);
-dotenv.config({ path: envPath });
+// First, load .env to check what environment it specifies
+dotenvFlow.config({
+  node_env: preLoadEnv || 'development',
+  path: path.join(__dirname, '..')
+});
+
+// Now check what environment .env specified (production egg uses .env directly)
+const env = process.env.NODE_ENV || 'development';
+
+loggerConsole.log(`Loading environment config with dotenv-flow (NODE_ENV: ${env})`);
 
 const config = {
   // Environment
