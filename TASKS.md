@@ -417,3 +417,129 @@
 4. Rebuild testing infrastructure (if needed)
 5. Set up database backup and pruning systems
 6. Deploy to production with proper environment configuration
+
+## Phase 3.8: Whitelist Security Hardening 🔒 IN PROGRESS
+
+### Overview
+Security audit identified 12 vulnerabilities in the unified whitelist system. These fixes are designed to be self-contained and testable independently.
+
+### Phase 1: Database Integrity (Foundation)
+- [ ] **Fix 1.1**: Add unique constraint for role-based entries
+  - **File**: New migration `025-add-role-whitelist-unique-constraint.js`
+  - **Goal**: Prevent duplicate role entries at database level
+  - **Change**: Add unique index on `(discord_user_id, source, revoked)` WHERE `source='role' AND revoked=false`
+  - **Test**: Attempt manual DB duplicate insert - should fail
+  - **Risk**: Very low - constraint matches business logic
+
+- [ ] **Fix 1.2**: Add metadata size validation
+  - **File**: New migration `026-add-metadata-constraints.js`
+  - **Goal**: Prevent DoS via large JSON metadata
+  - **Change**: Add CHECK constraint limiting metadata to 10KB
+  - **Test**: Try to insert >10KB metadata - should fail
+  - **Risk**: Very low - defensive measure
+
+### Phase 2: Audit Trail Enhancement (Visibility)
+- [ ] **Fix 2.1**: Add AuditLog entry for automatic upgrades
+  - **File**: `src/services/RoleWhitelistSyncService.js` (after line 434)
+  - **Goal**: Track security-blocked → approved transitions
+  - **Change**: Add `AuditLog.create()` call documenting upgrades with before/after states
+  - **Test**: Create blocked entry, upgrade via high-confidence link, verify AuditLog
+  - **Risk**: Very low - additive only, doesn't change behavior
+
+- [ ] **Fix 2.2**: Add admin notification for security transitions
+  - **File**: `src/services/RoleWhitelistSyncService.js` (after line 434)
+  - **Goal**: Alert admins when blocked entries auto-activate
+  - **Change**: Call `NotificationService.send('securityTransition', ...)` for blocked→approved
+  - **Test**: Trigger upgrade, verify notification in configured channel
+  - **Risk**: Low - notification only, can be disabled via config
+
+### Phase 3: Role Validation on Upgrade (CRITICAL)
+- [ ] **Fix 3.1**: Validate current role before upgrading blocked entries
+  - **File**: `src/services/RoleWhitelistSyncService.js` (_upgradeUnlinkedEntries, line 352)
+  - **Goal**: Prevent auto-activation when user no longer has role
+  - **Change**: Before upgrade, fetch Discord member and verify they still have required role
+  - **Test Cases**:
+    - User has role + high confidence → entry upgraded ✓
+    - User lost role + high confidence → entry NOT upgraded ✓
+    - User never in guild + high confidence → entry NOT upgraded ✓
+  - **Risk**: Medium - changes core upgrade logic, requires thorough testing
+
+### Phase 4: Race Condition Mitigation (CRITICAL)
+- [ ] **Fix 4.1**: Replace Set-based deduplication with database transactions
+  - **File**: `src/services/RoleWhitelistSyncService.js` (syncUserRole, line 37)
+  - **Goal**: Prevent duplicate processing and race conditions
+  - **Change**: Remove `processingUsers` Set, use database transaction locks with retry logic
+  - **Test**: Simulate concurrent role changes, verify only one entry created
+  - **Risk**: Medium-High - changes synchronization mechanism
+
+### Phase 5: Cache Atomicity (Correctness)
+- [ ] **Fix 5.1**: Atomic cache invalidation with database commits
+  - **File**: `src/services/WhitelistService.js`
+  - **Goal**: Prevent stale cache during updates
+  - **Change**: Invalidate cache BEFORE database commit, make synchronous
+  - **Test**: Update whitelist, immediately fetch via HTTP, verify fresh data
+  - **Risk**: Low - improves consistency
+
+- [ ] **Fix 5.2**: Add cache version tags
+  - **File**: `src/services/WhitelistService.js`
+  - **Goal**: Detect and reject stale cache
+  - **Change**: Add version number to cache, increment on changes, reject mismatches
+  - **Test**: Concurrent read during write returns complete data, never mixed
+  - **Risk**: Low - defensive measure
+
+### Phase 6: Force Revoke Capability (Admin Tool)
+- [ ] **Fix 6.1**: Add force revoke command
+  - **File**: New command `src/commands/forcerevokewhitelist.js`
+  - **Goal**: Allow emergency override of role-based entries
+  - **Command**: `/forcerevoke <user> <reason>` (Super Admin only)
+  - **Change**: New command that revokes ALL entries including role-based, with confirmation
+  - **Test**: User with role entry, force revoke, verify whitelist removed despite role
+  - **Risk**: Low - new isolated command
+
+### Phase 7: Steam ID Conflict Detection (Data Integrity)
+- [ ] **Fix 7.1**: Conflict detection in grant-steamid
+  - **File**: `src/commands/whitelist.js` (handleGrantSteamId, line 318)
+  - **Goal**: Prevent conflicting entries for same Steam ID
+  - **Change**: Check if Steam ID linked to different Discord account, require confirmation if conflict
+  - **Test Cases**:
+    - Steam ID not linked → grant succeeds ✓
+    - Steam ID linked to same user → grant succeeds ✓
+    - Steam ID linked to different user → warning shown, confirmation required ✓
+  - **Risk**: Low - adds safety check
+
+### Phase 8: Confidence Score Audit Trail (Monitoring)
+- [ ] **Fix 8.1**: Log all confidence score changes
+  - **File**: `src/database/models/PlayerDiscordLink.js` (createOrUpdateLink, line 114)
+  - **Goal**: Track confidence changes for security review
+  - **Change**: After line 132, check if confidence changed, create AuditLog entry with old/new values
+  - **Test**: Update link with different confidence, verify AuditLog entry created
+  - **Risk**: Very low - logging only
+
+### Phase 9: Rate Limiting (DoS Prevention)
+- [ ] **Fix 9.1**: Add rate limit to bulk sync
+  - **File**: `src/commands/whitelist.js` (handleSync, line 1490)
+  - **Goal**: Prevent spam of sync operations
+  - **Change**: Track last sync per guild, require 5-minute cooldown (bypassed by Super Admin)
+  - **Test**: Run sync twice quickly, verify second is rate-limited
+  - **Risk**: Very low - simple throttle
+
+### Testing Infrastructure
+- [ ] Create unit tests: `tests/whitelist-security.test.js`
+  - [ ] Test duplicate entry prevention (Fix 1.1)
+  - [ ] Test upgrade with missing role (Fix 3.1)
+  - [ ] Test concurrent role changes (Fix 4.1)
+  - [ ] Test cache staleness (Fix 5.1, 5.2)
+  - [ ] Test force revoke (Fix 6.1)
+  - [ ] Test Steam ID conflicts (Fix 7.1)
+  - [ ] Test confidence audit trail (Fix 8.1)
+
+- [ ] Create integration tests: `tests/whitelist-integration.test.js`
+  - [ ] Full workflow: role grant → link → upgrade → revoke
+  - [ ] Race condition simulation
+  - [ ] Cache consistency under load
+  - [ ] Bulk sync with edge cases
+
+### Implementation Progress
+**Status**: Not started
+**Current Phase**: Phase 1 - Database Integrity
+**Next Action**: Create migration for unique constraint
