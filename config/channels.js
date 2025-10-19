@@ -19,7 +19,7 @@ const NOTIFICATION_ROUTES = {
   // Duty-related notifications
   duty_status: 'DUTY_LOGS',
   duty_change: 'DUTY_LOGS',
-  
+
   // Bot operation logs
   tutor_management: 'BOT_LOGS',
   account_link: 'BOT_LOGS',
@@ -28,7 +28,10 @@ const NOTIFICATION_ROUTES = {
   error: 'BOT_LOGS',
   warning: 'BOT_LOGS',
   info: 'BOT_LOGS',
-  audit: 'BOT_LOGS'
+  audit: 'BOT_LOGS',
+
+  // Security notifications
+  security_transition: 'BOT_LOGS'
 };
 
 /**

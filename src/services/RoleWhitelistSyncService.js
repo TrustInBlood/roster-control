@@ -1,6 +1,7 @@
 const { Whitelist, PlayerDiscordLink, AuditLog } = require('../database/models');
 const { getHighestPriorityGroup, squadGroups } = require('../utils/environment');
 const { getAllTrackedRoles } = squadGroups;
+const notificationService = require('./NotificationService');
 
 /**
  * RoleWhitelistSyncService - Synchronizes Discord roles to database whitelist entries
@@ -493,6 +494,66 @@ class RoleWhitelistSyncService {
             steamId
           });
           // Don't throw - audit log failure shouldn't break the upgrade
+        }
+
+        // FIX 2.2: Send admin notification for security transition
+        try {
+          await notificationService.send('security_transition', {
+            title: 'Security Transition: Blocked Entry Auto-Upgraded',
+            description: `A security-blocked whitelist entry has been automatically activated after the user achieved sufficient account link confidence.`,
+            fields: [
+              {
+                name: 'Discord User',
+                value: `<@${discordUserId}>`,
+                inline: true
+              },
+              {
+                name: 'Steam ID',
+                value: `\`${steamId}\``,
+                inline: true
+              },
+              {
+                name: 'Role',
+                value: mostRecentEntry.role_name,
+                inline: true
+              },
+              {
+                name: 'Previous Status',
+                value: 'Security Blocked (Insufficient Confidence)',
+                inline: false
+              },
+              {
+                name: 'New Status',
+                value: 'Approved & Active',
+                inline: false
+              },
+              {
+                name: 'Entry ID',
+                value: `\`${mostRecentEntry.id}\``,
+                inline: true
+              },
+              {
+                name: 'Upgrade Source',
+                value: source,
+                inline: true
+              }
+            ],
+            colorType: 'warning',
+            timestamp: true
+          });
+
+          this.logger.info('Sent security transition notification', {
+            discordUserId,
+            steamId,
+            entryId: mostRecentEntry.id
+          });
+        } catch (notificationError) {
+          this.logger.error('Failed to send security transition notification', {
+            error: notificationError.message,
+            discordUserId,
+            steamId
+          });
+          // Don't throw - notification failure shouldn't break the upgrade
         }
       }
 
