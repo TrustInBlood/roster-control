@@ -444,6 +444,58 @@ class RoleWhitelistSyncService {
         duplicatesRevoked: duplicateEntries.length
       });
 
+      // FIX 2.1: Log security upgrade to audit trail
+      if (wasSecurityBlocked) {
+        try {
+          await AuditLog.create({
+            actionType: 'SECURITY_UPGRADE',
+            actorType: 'system',
+            actorId: 'AUTO_UPGRADE_SYSTEM',
+            actorName: 'RoleWhitelistSyncService',
+            targetType: 'whitelist_entry',
+            targetId: mostRecentEntry.id.toString(),
+            targetName: `${discordUserId} / ${steamId}`,
+            guildId: mostRecentEntry.metadata?.discordGuildId || null,
+            description: `Security-blocked entry auto-upgraded: ${mostRecentEntry.role_name}`,
+            beforeState: {
+              approved: false,
+              revoked: wasRevoked,
+              steamId: previousSteamId,
+              securityBlocked: true
+            },
+            afterState: {
+              approved: true,
+              revoked: false,
+              steamId: steamId,
+              securityBlocked: false
+            },
+            metadata: {
+              discordUserId,
+              roleName: mostRecentEntry.role_name,
+              upgradeSource: source,
+              previousSteamId,
+              newSteamId: steamId,
+              wasRevoked,
+              entryId: mostRecentEntry.id
+            },
+            severity: 'warning'
+          });
+
+          this.logger.info('Logged security upgrade to audit trail', {
+            discordUserId,
+            steamId,
+            entryId: mostRecentEntry.id
+          });
+        } catch (auditError) {
+          this.logger.error('Failed to log security upgrade to audit trail', {
+            error: auditError.message,
+            discordUserId,
+            steamId
+          });
+          // Don't throw - audit log failure shouldn't break the upgrade
+        }
+      }
+
     } catch (error) {
       this.logger.error('Failed to upgrade entries', {
         discordUserId,
