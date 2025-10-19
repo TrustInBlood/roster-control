@@ -423,20 +423,22 @@
 ### Overview
 Security audit identified 12 vulnerabilities in the unified whitelist system. These fixes are designed to be self-contained and testable independently.
 
-### Phase 1: Database Integrity (Foundation)
-- [ ] **Fix 1.1**: Add unique constraint for role-based entries
-  - **File**: New migration `025-add-role-whitelist-unique-constraint.js`
+### Phase 1: Database Integrity (Foundation) ✅ COMPLETED
+- [x] **Fix 1.1**: Add unique constraint for role-based entries ✅ COMPLETED
+  - **File**: Migration `025-add-role-whitelist-unique-constraint.js`
   - **Goal**: Prevent duplicate role entries at database level
-  - **Change**: Add unique index on `(discord_user_id, source, revoked)` WHERE `source='role' AND revoked=false`
-  - **Test**: Attempt manual DB duplicate insert - should fail
+  - **Change**: Add unique index using generated column `active_role_key` (MariaDB 10.3 compatible)
+  - **Test**: Attempted manual DB duplicate insert - failed as expected ✅
   - **Risk**: Very low - constraint matches business logic
+  - **Deployed**: Production on 2025-10-18
 
-- [ ] **Fix 1.2**: Add metadata size validation
-  - **File**: New migration `026-add-metadata-constraints.js`
+- [x] **Fix 1.2**: Add metadata size validation ✅ COMPLETED
+  - **File**: Migration `026-add-metadata-size-constraint.js`
   - **Goal**: Prevent DoS via large JSON metadata
-  - **Change**: Add CHECK constraint limiting metadata to 10KB
-  - **Test**: Try to insert >10KB metadata - should fail
+  - **Change**: Add CHECK constraint limiting metadata to 10KB using generated column
+  - **Test**: Ready to test >10KB metadata insertion
   - **Risk**: Very low - defensive measure
+  - **Status**: Tested on development, ready for production
 
 ### Phase 2: Audit Trail Enhancement (Visibility)
 - [ ] **Fix 2.1**: Add AuditLog entry for automatic upgrades
@@ -540,6 +542,7 @@ Security audit identified 12 vulnerabilities in the unified whitelist system. Th
   - [ ] Bulk sync with edge cases
 
 ### Implementation Progress
-**Status**: Not started
-**Current Phase**: Phase 1 - Database Integrity
-**Next Action**: Create migration for unique constraint
+**Status**: Phase 1 Complete, Phase 2 In Progress
+**Current Phase**: Phase 2 - Audit Trail Enhancement
+**Completed Phases**: Phase 1 - Database Integrity (Fixes 1.1, 1.2)
+**Next Action**: Implement Fix 2.1 - Add AuditLog entry for automatic upgrades
