@@ -457,16 +457,18 @@ Security audit identified 12 vulnerabilities in the unified whitelist system. Th
   - **Risk**: Low - notification only, can be disabled via config
   - **Status**: Implemented and tested on development on 2025-10-19
 
-### Phase 3: Role Validation on Upgrade (CRITICAL)
-- [ ] **Fix 3.1**: Validate current role before upgrading blocked entries
-  - **File**: `src/services/RoleWhitelistSyncService.js` (_upgradeUnlinkedEntries, line 352)
+### Phase 3: Role Validation on Upgrade (CRITICAL) - COMPLETED
+- [x] **Fix 3.1**: Validate current role before upgrading blocked entries - COMPLETED
+  - **File**: `src/services/RoleWhitelistSyncService.js` (lines 412-474, before upgrade logic)
   - **Goal**: Prevent auto-activation when user no longer has role
   - **Change**: Before upgrade, fetch Discord member and verify they still have required role
   - **Test Cases**:
-    - User has role + high confidence → entry upgraded ✓
-    - User lost role + high confidence → entry NOT upgraded ✓
-    - User never in guild + high confidence → entry NOT upgraded ✓
+    - User has role + high confidence → entry upgraded (documented)
+    - User lost role + high confidence → entry NOT upgraded (PASS)
+    - User never in guild + high confidence → entry NOT upgraded (PASS)
+  - **Test**: Tested with `scripts/test-fix-3.1-role-validation.js` - all test cases passed
   - **Risk**: Medium - changes core upgrade logic, requires thorough testing
+  - **Status**: Implemented and tested on development on 2025-10-20
 
 ### Phase 4: Race Condition Mitigation (CRITICAL)
 - [ ] **Fix 4.1**: Replace Set-based deduplication with database transactions
@@ -544,9 +546,10 @@ Security audit identified 12 vulnerabilities in the unified whitelist system. Th
   - [ ] Bulk sync with edge cases
 
 ### Implementation Progress
-**Status**: Phase 2 Complete, Phase 3 Ready
-**Current Phase**: Phase 3 - Role Validation on Upgrade (CRITICAL)
+**Status**: Phase 3 Complete, Phase 4 Ready
+**Current Phase**: Phase 4 - Race Condition Mitigation (CRITICAL)
 **Completed Phases**:
   - Phase 1 - Database Integrity (Fixes 1.1, 1.2) ✅
   - Phase 2 - Audit Trail Enhancement (Fixes 2.1, 2.2) ✅
-**Next Action**: Implement Fix 3.1 - Validate current role before upgrading blocked entries
+  - Phase 3 - Role Validation on Upgrade (Fix 3.1) ✅
+**Next Action**: Implement Fix 4.1 - Replace Set-based deduplication with database transactions

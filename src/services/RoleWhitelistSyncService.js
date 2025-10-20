@@ -409,6 +409,70 @@ class RoleWhitelistSyncService {
         }
       }
 
+      // FIX 3.1: Validate that user still has the required role before upgrading
+      // This prevents auto-activation when users no longer have the role
+      if (this.discordClient && mostRecentEntry.metadata?.discordGuildId) {
+        try {
+          const guildId = mostRecentEntry.metadata.discordGuildId;
+          const guild = await this.discordClient.guilds.fetch(guildId);
+          const member = await guild.members.fetch(discordUserId).catch(() => null);
+
+          if (!member) {
+            // User not in guild - do not upgrade
+            this.logger.warn('SECURITY: User not in guild - skipping upgrade', {
+              discordUserId,
+              steamId,
+              roleName: mostRecentEntry.role_name,
+              entryId: mostRecentEntry.id,
+              guildId
+            });
+            return; // Exit without upgrading
+          }
+
+          // Check if user still has the required role
+          const currentGroup = getHighestPriorityGroup(member.roles.cache);
+
+          if (!currentGroup || currentGroup !== mostRecentEntry.role_name) {
+            // User no longer has the required role - do not upgrade
+            this.logger.warn('SECURITY: User no longer has required role - skipping upgrade', {
+              discordUserId,
+              steamId,
+              expectedRole: mostRecentEntry.role_name,
+              currentRole: currentGroup || 'none',
+              entryId: mostRecentEntry.id
+            });
+            return; // Exit without upgrading
+          }
+
+          this.logger.info('Role validation passed for upgrade', {
+            discordUserId,
+            steamId,
+            roleName: mostRecentEntry.role_name,
+            entryId: mostRecentEntry.id
+          });
+
+        } catch (roleCheckError) {
+          // If role check fails, log error but don't upgrade (fail-safe)
+          this.logger.error('Failed to validate role before upgrade - skipping upgrade for safety', {
+            discordUserId,
+            steamId,
+            error: roleCheckError.message,
+            entryId: mostRecentEntry.id
+          });
+          return; // Exit without upgrading
+        }
+      } else {
+        // No Discord client or guild ID - cannot validate role
+        this.logger.warn('Cannot validate role (missing Discord client or guild ID) - skipping upgrade', {
+          discordUserId,
+          steamId,
+          hasClient: !!this.discordClient,
+          hasGuildId: !!mostRecentEntry.metadata?.discordGuildId,
+          entryId: mostRecentEntry.id
+        });
+        return; // Exit without upgrading
+      }
+
       // Upgrade the most recent entry
       const previousSteamId = mostRecentEntry.steamid64;
       const wasRevoked = mostRecentEntry.revoked;
