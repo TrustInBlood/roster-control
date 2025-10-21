@@ -132,6 +132,30 @@ module.exports = (sequelize) => {
       ? Math.max(existingLink.confidence_score, confidenceScore)
       : confidenceScore;
 
+    // Log confidence score changes for security audit trail
+    if (existingLink && parseFloat(existingLink.confidence_score) !== parseFloat(finalConfidenceScore)) {
+      const { AuditLog } = require('./index');
+
+      await AuditLog.create({
+        actionType: 'confidence_change',
+        description: `Account link confidence upgraded from ${existingLink.confidence_score} to ${finalConfidenceScore}`,
+        actorId: 'SYSTEM', // System-initiated change (upgrade logic)
+        actorType: 'system',
+        targetId: discordUserId,
+        targetType: 'user',
+        targetName: username || discordUserId,
+        metadata: {
+          steamid64: steamid64,
+          old_confidence: parseFloat(existingLink.confidence_score),
+          new_confidence: parseFloat(finalConfidenceScore),
+          link_source: linkSource,
+          reason: `Confidence upgraded from ${existingLink.confidence_score} to ${finalConfidenceScore}`,
+          existing_source: existingLink.link_source,
+          new_source: linkSource
+        }
+      });
+    }
+
     // Update metadata to preserve existing if not provided
     const finalMetadata = metadata !== null ? metadata : (existingLink?.metadata || null);
 

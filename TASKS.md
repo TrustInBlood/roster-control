@@ -547,13 +547,25 @@ Security audit identified 12 vulnerabilities in the unified whitelist system. Th
   - **Risk**: Low - adds safety check
   - **Status**: Implemented and tested on development on 2025-10-21
 
-### Phase 8: Confidence Score Audit Trail (Monitoring)
-- [ ] **Fix 8.1**: Log all confidence score changes
-  - **File**: `src/database/models/PlayerDiscordLink.js` (createOrUpdateLink, line 114)
+### Phase 8: Confidence Score Audit Trail (Monitoring) - COMPLETED
+- [x] **Fix 8.1**: Log all confidence score changes - COMPLETED
+  - **File**: `src/database/models/PlayerDiscordLink.js` (createOrUpdateLink, lines 135-157)
   - **Goal**: Track confidence changes for security review
-  - **Change**: After line 132, check if confidence changed, create AuditLog entry with old/new values
-  - **Test**: Update link with different confidence, verify AuditLog entry created
-  - **Risk**: Very low - logging only
+  - **Changes**:
+    - Added confidence score change detection after line 133 (comparing parseFloat values)
+    - Created AuditLog entries with comprehensive metadata tracking old/new confidence and link sources
+    - Only logs when confidence actually changes (not on initial creation or same-value updates)
+    - Uses SYSTEM as actor since changes are system-initiated (automatic confidence preservation logic)
+  - **Test Cases**:
+    - No audit log created for initial link creation (PASS)
+    - No audit log when confidence stays the same (PASS)
+    - Audit log created when confidence increases (PASS)
+    - Audit log contains correct metadata (old/new confidence, steamid64, link sources) (PASS)
+    - Multiple confidence upgrades create multiple logs with correct progression (PASS)
+    - Confidence progression correctly logged: 0.3 → 0.7 (ticket → manual), 0.7 → 1.0 (manual → squadjs) (PASS)
+  - **Test**: Tested with `scripts/test-fix-8.1-confidence-audit.js` - all test cases passed
+  - **Risk**: Very low - logging only, no behavior changes
+  - **Status**: Implemented and tested on development on 2025-10-21
 
 ### Phase 9: Rate Limiting (DoS Prevention)
 - [ ] **Fix 9.1**: Add rate limit to bulk sync
@@ -580,8 +592,8 @@ Security audit identified 12 vulnerabilities in the unified whitelist system. Th
   - [ ] Bulk sync with edge cases
 
 ### Implementation Progress
-**Status**: Phase 7 Complete, Phase 8 Ready
-**Current Phase**: Phase 8 - Confidence Score Audit Trail (Monitoring)
+**Status**: Phase 8 Complete, Phase 9 Ready
+**Current Phase**: Phase 9 - Rate Limiting (DoS Prevention)
 **Completed Phases**:
   - Phase 1 - Database Integrity (Fixes 1.1, 1.2) ✅
   - Phase 2 - Audit Trail Enhancement (Fixes 2.1, 2.2) ✅
@@ -589,4 +601,5 @@ Security audit identified 12 vulnerabilities in the unified whitelist system. Th
   - Phase 4 - Race Condition Mitigation (Fix 4.1) ✅
   - Phase 5 - Cache Atomicity (Fix 5.1) ✅
   - Phase 7 - Steam ID Conflict Detection (Fix 7.1) ✅ (Phase 6 skipped per user request)
-**Next Action**: Implement Fix 8.1 - Log all confidence score changes, or proceed to Fix 9.1
+  - Phase 8 - Confidence Score Audit Trail (Fix 8.1) ✅
+**Next Action**: Implement Fix 9.1 - Add rate limit to bulk sync, or conclude security hardening
