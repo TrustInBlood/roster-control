@@ -218,17 +218,40 @@ DutyStatusChange.calculateDutyTime = async function(discordUserId, startDate = n
     return dutyType === 'both' || changeDutyType === dutyType;
   });
 
+  // Deduplicate entries - remove external entries that have a matching command entry within 5 seconds
+  const deduplicatedChanges = [];
+  for (let i = 0; i < filteredChanges.length; i++) {
+    const change = filteredChanges[i];
+
+    // If this is an external change, check if there's a command change nearby
+    if (change.source === 'external') {
+      // Look for a command entry within 5 seconds with the same status
+      const hasDuplicate = filteredChanges.some((other, j) => {
+        if (i === j || other.source !== 'command') return false;
+        const timeDiff = Math.abs(change.createdAt - other.createdAt);
+        return timeDiff < 5000 && change.status === other.status;
+      });
+
+      // Skip this external entry if we found a duplicate command entry
+      if (hasDuplicate) continue;
+    }
+
+    deduplicatedChanges.push(change);
+  }
+
   let totalMs = 0;
   let sessions = [];
   let currentOnPeriod = null;
 
-  for (const change of filteredChanges) {
+  for (const change of deduplicatedChanges) {
     if (change.status === true) {
-      // ON duty event - start new session
-      currentOnPeriod = {
-        start: change.createdAt,
-        startId: change.id
-      };
+      // ON duty event - start new session (only if not already on duty)
+      if (!currentOnPeriod) {
+        currentOnPeriod = {
+          start: change.createdAt,
+          startId: change.id
+        };
+      }
     } else if (change.status === false && currentOnPeriod) {
       // OFF duty event - calculate session duration
       const duration = change.createdAt - currentOnPeriod.start;
