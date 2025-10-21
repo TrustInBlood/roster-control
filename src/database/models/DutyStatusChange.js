@@ -264,20 +264,42 @@ DutyStatusChange.calculateDutyTime = async function(discordUserId, startDate = n
           startId: change.id
         };
       }
-    } else if (change.status === false && currentOnPeriod) {
-      // OFF duty event - calculate session duration
-      const duration = change.createdAt - currentOnPeriod.start;
-      totalMs += duration;
-      sessions.push({
-        start: currentOnPeriod.start,
-        end: change.createdAt,
-        duration: duration,
-        startId: currentOnPeriod.startId,
-        endId: change.id
-      });
-      currentOnPeriod = null;
+    } else if (change.status === false) {
+      // OFF duty event
+      if (currentOnPeriod) {
+        // We have a matching ON event - calculate session duration
+        const duration = change.createdAt - currentOnPeriod.start;
+        totalMs += duration;
+        sessions.push({
+          start: currentOnPeriod.start,
+          end: change.createdAt,
+          duration: duration,
+          startId: currentOnPeriod.startId,
+          endId: change.id
+        });
+        currentOnPeriod = null;
+      } else {
+        // OFF event without a matching ON event (session started before our date range)
+        // If we have a startDate filter, assume the session started at startDate
+        if (startDate) {
+          const duration = change.createdAt - startDate;
+          totalMs += duration;
+          sessions.push({
+            start: startDate,
+            end: change.createdAt,
+            duration: duration,
+            startId: null,
+            endId: change.id,
+            partial: true // Mark as partial session
+          });
+        }
+        // Otherwise skip this orphaned OFF event
+      }
     }
   }
+
+  console.log(`[DEBUG] Sessions found: ${sessions.length}`);
+  console.log(`[DEBUG] Total hours: ${(totalMs / (1000 * 60 * 60)).toFixed(2)}`);
 
   // Handle currently on duty (no OFF event yet)
   if (currentOnPeriod) {
