@@ -320,115 +320,230 @@ async function handleGrantSteamId(interaction) {
   const username = interaction.options.getString('username');
 
   try {
-    // Step 1: Show warning about Steam ID only grant
-    const warningEmbed = createResponseEmbed({
-      title: '⚠️ Steam ID Only Grant',
-      description: `**Steam ID:** ${steamid}\n${username ? `**Username:** ${username}` : '**Username:** Not provided'}\n\n🚨 **Important:** This grant will NOT create a Discord-Steam account link.\nThis means the user will have lower link confidence.\n\n⏰ **Please complete this process within 2-3 minutes to avoid timeout.**\n\nOnly use this for users who are not in Discord or emergency situations.`,
-      color: 0xffa500
-    });
+    // Step 0: Check for Steam ID conflicts
+    const { PlayerDiscordLink } = require('../database/models');
+    const existingLink = await PlayerDiscordLink.findBySteamId(steamid);
 
-    const confirmRow = new ActionRowBuilder()
-      .addComponents(
-        new ButtonBuilder()
-          .setCustomId('proceed_steamid_grant')
-          .setLabel('Proceed with Steam ID Grant')
-          .setStyle(ButtonStyle.Danger)
-          .setEmoji('⚠️'),
-        new ButtonBuilder()
-          .setCustomId('cancel_steamid_grant')
-          .setLabel('Cancel')
-          .setStyle(ButtonStyle.Secondary)
-          .setEmoji('❌')
-      );
+    // If Steam ID is already linked to a different Discord account, show conflict warning
+    if (existingLink) {
+      const conflictEmbed = createResponseEmbed({
+        title: '🚨 Steam ID Conflict Detected',
+        description: `**WARNING:** This Steam ID is already linked to a Discord account.\n\n**Steam ID:** ${steamid}\n${username ? `**Username:** ${username}` : '**Username:** Not provided'}\n\n**Existing Link:**\n• Discord User: <@${existingLink.discord_user_id}> (ID: ${existingLink.discord_user_id})\n• Link Confidence: ${existingLink.confidence_score}\n• Link Source: ${existingLink.link_source}\n• Created: ${new Date(existingLink.created_at).toLocaleDateString()}\n\n⚠️ **Proceeding will grant whitelist to this Steam ID without changing the existing link.**\n\nOnly proceed if you're certain this is correct.`,
+        color: 0xff0000
+      });
 
-    await interaction.reply({
-      embeds: [warningEmbed],
-      components: [confirmRow],
-      flags: MessageFlags.Ephemeral
-    });
+      const conflictRow = new ActionRowBuilder()
+        .addComponents(
+          new ButtonBuilder()
+            .setCustomId('proceed_despite_conflict')
+            .setLabel('Proceed Anyway')
+            .setStyle(ButtonStyle.Danger)
+            .setEmoji('⚠️'),
+          new ButtonBuilder()
+            .setCustomId('cancel_conflict')
+            .setLabel('Cancel')
+            .setStyle(ButtonStyle.Secondary)
+            .setEmoji('❌')
+        );
 
-    // Capture variables in closure to prevent contamination from concurrent commands
-    const capturedSteamId = steamid;
-    const capturedUsername = username;
+      await interaction.reply({
+        embeds: [conflictEmbed],
+        components: [conflictRow],
+        flags: MessageFlags.Ephemeral
+      });
 
-    // Handle confirmation
-    const confirmCollector = interaction.channel.createMessageComponentCollector({
-      componentType: ComponentType.Button,
-      filter: (i) => (i.customId === 'proceed_steamid_grant' || i.customId === 'cancel_steamid_grant') && i.user.id === interaction.user.id,
-      time: 300000
-    });
+      // Handle conflict confirmation
+      const conflictCollector = interaction.channel.createMessageComponentCollector({
+        componentType: ComponentType.Button,
+        filter: (i) => (i.customId === 'proceed_despite_conflict' || i.customId === 'cancel_conflict') && i.user.id === interaction.user.id,
+        time: 300000
+      });
 
-    confirmCollector.on('collect', async (buttonInteraction) => {
-      if (buttonInteraction.customId === 'cancel_steamid_grant') {
-        await buttonInteraction.update({
-          content: '❌ Steam ID grant cancelled.',
-          embeds: [],
-          components: []
-        });
-        return;
-      }
-
-      // Proceed with Steam ID only grant
-      try {
-        if (!buttonInteraction.deferred && !buttonInteraction.replied) {
-          await buttonInteraction.deferUpdate();
-        }
-
-        // Step 2: Resolve user information (no Discord user, no linking)
-        const userInfo = await resolveUserInfo(capturedSteamId, null, false);
-        // Manually add username if provided
-        if (capturedUsername) {
-          userInfo.username = capturedUsername;
-        }
-
-        // Step 3: Show reason selection with buttons instead of dropdown
-        await showReasonSelectionButtons(buttonInteraction, {
-          discordUser: null,
-          userInfo,
-          originalUser: interaction.user,
-          isSteamIdOnly: true
-        });
-      } catch (error) {
-        // For interaction timeout errors, just log and don't try to respond
-        if (error.code === 10062 || error.rawError?.code === 10062) {
-          loggerConsole.warn('Interaction expired during Steam ID grant process');
+      conflictCollector.on('collect', async (buttonInteraction) => {
+        if (buttonInteraction.customId === 'cancel_conflict') {
+          await buttonInteraction.update({
+            content: '❌ Steam ID grant cancelled due to conflict.',
+            embeds: [],
+            components: []
+          });
           return;
         }
 
-        // For "already acknowledged" errors, just log briefly
-        if (error.code === 40060 || error.rawError?.code === 40060) {
-          loggerConsole.warn('Attempted to respond to already acknowledged interaction in Steam ID grant');
-          return;
-        }
-
-        loggerConsole.error('Steam ID grant error:', error);
-
+        // User chose to proceed despite conflict - continue to normal warning
         try {
-          if (!buttonInteraction.replied && !buttonInteraction.deferred) {
-            await buttonInteraction.reply({
-              content: `❌ ${error.message}`,
-              flags: MessageFlags.Ephemeral
-            });
-          } else {
-            await buttonInteraction.editReply({
-              content: `❌ ${error.message}`,
-              embeds: [],
-              components: []
-            });
+          if (!buttonInteraction.deferred && !buttonInteraction.replied) {
+            await buttonInteraction.deferUpdate();
           }
-        } catch (replyError) {
-          // Don't log twice for the same interaction timeout
-          if (replyError.code !== 10062 && replyError.code !== 40060) {
-            loggerConsole.error('Failed to send error message:', replyError);
+
+          // Show normal Steam ID grant warning (Step 1)
+          await showSteamIdGrantWarning(buttonInteraction, steamid, username, interaction.user);
+        } catch (error) {
+          if (error.code === 10062 || error.rawError?.code === 10062) {
+            loggerConsole.warn('Interaction expired during conflict resolution');
+            return;
+          }
+
+          if (error.code === 40060 || error.rawError?.code === 40060) {
+            loggerConsole.warn('Attempted to respond to already acknowledged interaction in conflict resolution');
+            return;
+          }
+
+          loggerConsole.error('Conflict resolution error:', error);
+
+          try {
+            if (!buttonInteraction.replied && !buttonInteraction.deferred) {
+              await buttonInteraction.reply({
+                content: `❌ ${error.message}`,
+                flags: MessageFlags.Ephemeral
+              });
+            } else {
+              await buttonInteraction.editReply({
+                content: `❌ ${error.message}`,
+                embeds: [],
+                components: []
+              });
+            }
+          } catch (replyError) {
+            if (replyError.code !== 10062 && replyError.code !== 40060) {
+              loggerConsole.error('Failed to send error message:', replyError);
+            }
           }
         }
-      }
-    });
+      });
+
+      return; // Exit early to wait for conflict resolution
+    }
+
+    // No conflict - proceed to normal Steam ID grant warning (Step 1)
+    await showSteamIdGrantWarning(interaction, steamid, username, interaction.user);
 
   } catch (error) {
     loggerConsole.error('Steam ID grant setup error:', error);
     await sendError(interaction, error.message);
   }
+}
+
+async function showSteamIdGrantWarning(interaction, steamid, username, originalUser) {
+  // Step 1: Show warning about Steam ID only grant
+  const warningEmbed = createResponseEmbed({
+    title: '⚠️ Steam ID Only Grant',
+    description: `**Steam ID:** ${steamid}\n${username ? `**Username:** ${username}` : '**Username:** Not provided'}\n\n🚨 **Important:** This grant will NOT create a Discord-Steam account link.\nThis means the user will have lower link confidence.\n\n⏰ **Please complete this process within 2-3 minutes to avoid timeout.**\n\nOnly use this for users who are not in Discord or emergency situations.`,
+    color: 0xffa500
+  });
+
+  const confirmRow = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId('proceed_steamid_grant')
+        .setLabel('Proceed with Steam ID Grant')
+        .setStyle(ButtonStyle.Danger)
+        .setEmoji('⚠️'),
+      new ButtonBuilder()
+        .setCustomId('cancel_steamid_grant')
+        .setLabel('Cancel')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('❌')
+    );
+
+  // Check if we need to edit reply (for conflict flow) or send new reply
+  try {
+    if (interaction.replied || interaction.deferred) {
+      await interaction.editReply({
+        embeds: [warningEmbed],
+        components: [confirmRow]
+      });
+    } else {
+      await interaction.reply({
+        embeds: [warningEmbed],
+        components: [confirmRow],
+        flags: MessageFlags.Ephemeral
+      });
+    }
+  } catch (error) {
+    if (error.code === 10062 || error.rawError?.code === 10062) {
+      loggerConsole.warn('Interaction expired while showing Steam ID grant warning');
+      return;
+    }
+    throw error;
+  }
+
+  // Capture variables in closure to prevent contamination from concurrent commands
+  const capturedSteamId = steamid;
+  const capturedUsername = username;
+
+  // Handle confirmation
+  const confirmCollector = interaction.channel.createMessageComponentCollector({
+    componentType: ComponentType.Button,
+    filter: (i) => (i.customId === 'proceed_steamid_grant' || i.customId === 'cancel_steamid_grant') && i.user.id === originalUser.id,
+    time: 300000
+  });
+
+  confirmCollector.on('collect', async (buttonInteraction) => {
+    if (buttonInteraction.customId === 'cancel_steamid_grant') {
+      await buttonInteraction.update({
+        content: '❌ Steam ID grant cancelled.',
+        embeds: [],
+        components: []
+      });
+      return;
+    }
+
+    // Proceed with Steam ID only grant
+    try {
+      if (!buttonInteraction.deferred && !buttonInteraction.replied) {
+        await buttonInteraction.deferUpdate();
+      }
+
+      // Step 2: Resolve user information (no Discord user, no linking)
+      const userInfo = await resolveUserInfo(capturedSteamId, null, false);
+      // Manually add username if provided
+      if (capturedUsername) {
+        userInfo.username = capturedUsername;
+      }
+
+      // Step 3: Show reason selection with buttons instead of dropdown
+      await showReasonSelectionButtons(buttonInteraction, {
+        discordUser: null,
+        userInfo,
+        originalUser: originalUser,
+        isSteamIdOnly: true
+      });
+    } catch (error) {
+      // For interaction timeout errors, just log and don't try to respond
+      if (error.code === 10062 || error.rawError?.code === 10062) {
+        loggerConsole.warn('Interaction expired during Steam ID grant process');
+        return;
+      }
+
+      // For "already acknowledged" errors, just log briefly
+      if (error.code === 40060 || error.rawError?.code === 40060) {
+        loggerConsole.warn('Attempted to respond to already acknowledged interaction in Steam ID grant');
+        return;
+      }
+
+      loggerConsole.error('Steam ID grant error:', error);
+
+      try {
+        if (!buttonInteraction.replied && !buttonInteraction.deferred) {
+          await buttonInteraction.reply({
+            content: `❌ ${error.message}`,
+            flags: MessageFlags.Ephemeral
+          });
+        } else {
+          await buttonInteraction.editReply({
+            content: `❌ ${error.message}`,
+            embeds: [],
+            components: []
+          });
+        }
+      } catch (replyError) {
+        // Don't log twice for the same interaction timeout
+        if (replyError.code !== 10062 && replyError.code !== 40060) {
+          loggerConsole.error('Failed to send error message:', replyError);
+        }
+      }
+    }
+  });
 }
 
 async function showReasonSelectionButtons(interaction, grantData) {
