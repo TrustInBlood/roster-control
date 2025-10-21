@@ -18,6 +18,7 @@ const COMMAND_PERMISSIONS = {
   'grant-steamid': getAllAdminRoles(), // Admin-only: Steam ID only whitelist grants (no linking)
   'checkenv': getAllAdminRoles(),   // All admin roles can check environment
   'duty': getAllAdminRoles(),       // All admin roles can use duty commands
+  'dutystats': getAllAdminRoles(),  // All admin roles can view duty statistics
   'adminlink': getAllAdminRoles(),  // All admin roles can create Steam-Discord account links
   'whatsnew': getAllAdminRoles(),   // All admin roles can use whatsnew command
   'unlinkedstaff': getAllAdminRoles(), // All admin roles can view unlinked staff

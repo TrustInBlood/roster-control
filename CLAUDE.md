@@ -296,3 +296,4 @@ When implementing new features, update:
 
 ### Multi-Server Architecture
 The system is designed to support 5 Squad servers through SquadJS instances, with centralized Discord bot management and per-server data tracking.
+- we need to update @config/roles.development.js and @config/roles.js whenever there is a change to a discord command

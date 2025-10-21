@@ -10,6 +10,7 @@ const COMMAND_PERMISSIONS = {
   // Admin commands - Update these with your development server role IDs
   'whitelist': ['1365205433236717598'], // Admin roles can use whitelist commands
   'duty': ['1365205433236717598'],      // Admin roles can use duty commands
+  'dutystats': ['1365205433236717598'], // Admin roles can view duty statistics
   'adminlink': ['1365205433236717598'], // Admin roles can create Steam-Discord account links
   'whatsnew': ['1365205433236717598'],  // Admin roles can use whatsnew command
   'unlinkedstaff': ['1365205433236717598'], // Admin roles can view unlinked staff
