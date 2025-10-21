@@ -470,13 +470,24 @@ Security audit identified 12 vulnerabilities in the unified whitelist system. Th
   - **Risk**: Medium - changes core upgrade logic, requires thorough testing
   - **Status**: Implemented and tested on development on 2025-10-20
 
-### Phase 4: Race Condition Mitigation (CRITICAL)
-- [ ] **Fix 4.1**: Replace Set-based deduplication with database transactions
-  - **File**: `src/services/RoleWhitelistSyncService.js` (syncUserRole, line 37)
+### Phase 4: Race Condition Mitigation (CRITICAL) - COMPLETED
+- [x] **Fix 4.1**: Replace Set-based deduplication with database transactions - COMPLETED
+  - **File**: `src/services/RoleWhitelistSyncService.js` (syncUserRole, constructor, helper methods)
   - **Goal**: Prevent duplicate processing and race conditions
-  - **Change**: Remove `processingUsers` Set, use database transaction locks with retry logic
-  - **Test**: Simulate concurrent role changes, verify only one entry created
+  - **Changes**:
+    - Removed `processingUsers` Set from constructor
+    - Added `Sequelize` import for Transaction constants
+    - Wrapped all database operations in transactions with READ_COMMITTED isolation
+    - Added row-level locking with `SELECT FOR UPDATE`
+    - Implemented deadlock detection and retry logic with exponential backoff (3 retries, 100ms * 2^retryCount)
+    - Updated all helper methods to accept and use transaction parameter
+  - **Test Cases**:
+    - 5 concurrent role grants → only 1 entry created (PASS)
+    - Mixed concurrent operations (add/remove) → no duplicate approved entries (PASS)
+    - Retry logic verified (implemented with ER_LOCK_DEADLOCK detection)
+  - **Test**: Tested with `scripts/test-fix-4.1-race-condition.js` - all test cases passed
   - **Risk**: Medium-High - changes synchronization mechanism
+  - **Status**: Implemented and tested on development on 2025-10-21
 
 ### Phase 5: Cache Atomicity (Correctness)
 - [ ] **Fix 5.1**: Atomic cache invalidation with database commits
@@ -546,10 +557,11 @@ Security audit identified 12 vulnerabilities in the unified whitelist system. Th
   - [ ] Bulk sync with edge cases
 
 ### Implementation Progress
-**Status**: Phase 3 Complete, Phase 4 Ready
-**Current Phase**: Phase 4 - Race Condition Mitigation (CRITICAL)
+**Status**: Phase 4 Complete, Phase 5 Ready
+**Current Phase**: Phase 5 - Cache Atomicity (Correctness)
 **Completed Phases**:
   - Phase 1 - Database Integrity (Fixes 1.1, 1.2) ✅
   - Phase 2 - Audit Trail Enhancement (Fixes 2.1, 2.2) ✅
   - Phase 3 - Role Validation on Upgrade (Fix 3.1) ✅
-**Next Action**: Implement Fix 4.1 - Replace Set-based deduplication with database transactions
+  - Phase 4 - Race Condition Mitigation (Fix 4.1) ✅
+**Next Action**: Implement Fix 5.1 - Atomic cache invalidation with database commits

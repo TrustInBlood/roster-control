@@ -1,4 +1,6 @@
 const { Whitelist, PlayerDiscordLink, AuditLog } = require('../database/models');
+const { sequelize } = require('../../config/database');
+const { Sequelize } = require('sequelize');
 const { getHighestPriorityGroup, squadGroups } = require('../utils/environment');
 const { getAllTrackedRoles } = squadGroups;
 const notificationService = require('./NotificationService');
@@ -21,7 +23,7 @@ class RoleWhitelistSyncService {
     this.discordClient = discordClient;
     this.whitelistService = whitelistService;
     this.trackedRoles = getAllTrackedRoles();
-    this.processingUsers = new Set(); // Prevent duplicate processing
+    // FIX 4.1: Removed Set-based deduplication - now using database transactions
 
     this.logger.info('RoleWhitelistSyncService initialized', {
       trackedRoles: this.trackedRoles.length
@@ -39,106 +41,134 @@ class RoleWhitelistSyncService {
     const {
       source = 'role_sync',
       skipNotification = false,
-      metadata = {}
+      metadata = {},
+      retryCount = 0
     } = options;
 
-    // Prevent duplicate processing
-    const processingKey = `${discordUserId}:${newGroup}`;
-    if (this.processingUsers.has(processingKey)) {
-      this.logger.debug('Skipping duplicate role sync', { discordUserId, newGroup });
-      return { success: true, reason: 'duplicate_processing_skipped' };
-    }
+    // FIX 4.1: Use database transaction instead of in-memory Set for deduplication
+    // This prevents race conditions across multiple bot instances
+    const maxRetries = 3;
+    const retryDelay = 100; // ms
 
-    this.processingUsers.add(processingKey);
-
+    // FIX 4.1: Wrap all database operations in a transaction with retry logic
     try {
-      this.logger.debug('Starting role sync', { discordUserId, newGroup, source });
+      return await sequelize.transaction({
+        isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED
+      }, async (transaction) => {
+        this.logger.debug('Starting role sync with transaction', { discordUserId, newGroup, source, retryCount });
 
-      // Step 1: Find user's primary Steam link
-      const primaryLink = await PlayerDiscordLink.findOne({
-        where: {
-          discord_user_id: discordUserId,
-          is_primary: true
-        },
-        order: [['confidence_score', 'DESC'], ['created_at', 'DESC']]
-      });
-
-      if (!primaryLink || !primaryLink.steamid64) {
-        // User has no Steam link - create/update unlinked entry for staff
-        if (newGroup && newGroup !== 'Member') {
-          await this._handleUnlinkedStaff(discordUserId, newGroup, memberData, source);
-        }
-        return {
-          success: true,
-          reason: 'no_steam_link',
-          hasStaffRole: newGroup && newGroup !== 'Member'
-        };
-      }
-
-      // IMPORTANT: Check for and upgrade any existing unlinked placeholder entries
-      // This handles cases where a user got a role before linking their Steam account
-      await this._upgradeUnlinkedEntries(discordUserId, primaryLink.steamid64, source);
-
-      // Step 2: Check if user meets confidence requirements for staff roles
-      if (newGroup && newGroup !== 'Member' && primaryLink.confidence_score < 1.0) {
-        this.logger.warn('SECURITY: Blocking staff whitelist due to insufficient link confidence', {
-          discordUserId,
-          steamId: primaryLink.steamid64,
-          group: newGroup,
-          confidence: primaryLink.confidence_score,
-          required: 1.0
+        // Step 1: Find user's primary Steam link
+        const primaryLink = await PlayerDiscordLink.findOne({
+          where: {
+            discord_user_id: discordUserId,
+            is_primary: true
+          },
+          order: [['confidence_score', 'DESC'], ['created_at', 'DESC']],
+          transaction,
+          lock: transaction.LOCK.UPDATE // Lock the row to prevent concurrent modifications
         });
 
-        // Create a disabled entry for audit purposes only
-        await this._createSecurityBlockedEntry(
-          discordUserId,
-          primaryLink.steamid64,
-          newGroup,
-          memberData,
-          source,
-          { insufficientConfidence: true, actualConfidence: primaryLink.confidence_score }
-        );
+        if (!primaryLink || !primaryLink.steamid64) {
+          // User has no Steam link - create/update unlinked entry for staff
+          if (newGroup && newGroup !== 'Member') {
+            await this._handleUnlinkedStaff(discordUserId, newGroup, memberData, source, transaction);
+          }
+          return {
+            success: true,
+            reason: 'no_steam_link',
+            hasStaffRole: newGroup && newGroup !== 'Member'
+          };
+        }
+
+        // IMPORTANT: Check for and upgrade any existing unlinked placeholder entries
+        // This handles cases where a user got a role before linking their Steam account
+        await this._upgradeUnlinkedEntries(discordUserId, primaryLink.steamid64, source, transaction);
+
+        // Step 2: Check if user meets confidence requirements for staff roles
+        if (newGroup && newGroup !== 'Member' && primaryLink.confidence_score < 1.0) {
+          this.logger.warn('SECURITY: Blocking staff whitelist due to insufficient link confidence', {
+            discordUserId,
+            steamId: primaryLink.steamid64,
+            group: newGroup,
+            confidence: primaryLink.confidence_score,
+            required: 1.0
+          });
+
+          // Create a disabled entry for audit purposes only
+          await this._createSecurityBlockedEntry(
+            discordUserId,
+            primaryLink.steamid64,
+            newGroup,
+            memberData,
+            source,
+            { insufficientConfidence: true, actualConfidence: primaryLink.confidence_score },
+            transaction
+          );
+
+          return {
+            success: false,
+            reason: 'security_blocked_insufficient_confidence',
+            steamId: primaryLink.steamid64,
+            confidence: primaryLink.confidence_score,
+            requiredConfidence: 1.0
+          };
+        }
+
+        // Step 3: Handle role-based whitelist entry
+        if (newGroup) {
+          // User gained a role - create/update database entry
+          await this._createRoleBasedEntry(
+            discordUserId,
+            primaryLink.steamid64,
+            newGroup,
+            memberData,
+            source,
+            {},
+            transaction
+          );
+        } else {
+          // User lost all tracked roles - revoke role-based entries
+          await this._revokeRoleBasedEntries(
+            discordUserId,
+            primaryLink.steamid64,
+            memberData,
+            source,
+            transaction
+          );
+        }
+
+        // Step 4: Log the sync operation
+        await this._logRoleSync(discordUserId, newGroup, primaryLink.steamid64, source, metadata, transaction);
 
         return {
-          success: false,
-          reason: 'security_blocked_insufficient_confidence',
+          success: true,
           steamId: primaryLink.steamid64,
-          confidence: primaryLink.confidence_score,
-          requiredConfidence: 1.0
+          group: newGroup,
+          confidence: primaryLink.confidence_score
         };
-      }
-
-      // Step 3: Handle role-based whitelist entry
-      if (newGroup) {
-        // User gained a role - create/update database entry
-        await this._createRoleBasedEntry(
-          discordUserId,
-          primaryLink.steamid64,
-          newGroup,
-          memberData,
-          source
-        );
-      } else {
-        // User lost all tracked roles - revoke role-based entries
-        await this._revokeRoleBasedEntries(
-          discordUserId,
-          primaryLink.steamid64,
-          memberData,
-          source
-        );
-      }
-
-      // Step 4: Log the sync operation
-      await this._logRoleSync(discordUserId, newGroup, primaryLink.steamid64, source, metadata);
-
-      return {
-        success: true,
-        steamId: primaryLink.steamid64,
-        group: newGroup,
-        confidence: primaryLink.confidence_score
-      };
+      });
 
     } catch (error) {
+      // FIX 4.1: Retry on transaction conflicts
+      if (error.name === 'SequelizeDatabaseError' && error.parent?.code === 'ER_LOCK_DEADLOCK' && retryCount < maxRetries) {
+        this.logger.warn('Transaction deadlock detected, retrying', {
+          discordUserId,
+          newGroup,
+          retryCount: retryCount + 1,
+          maxRetries
+        });
+
+        // Wait before retrying with exponential backoff
+        await new Promise(resolve => setTimeout(resolve, retryDelay * Math.pow(2, retryCount)));
+
+        // Retry the operation
+        return this.syncUserRole(discordUserId, newGroup, memberData, {
+          ...options,
+          retryCount: retryCount + 1
+        });
+      }
+
+      // Not a retryable error or max retries exceeded
       this.logger.error('Role sync failed', {
         discordUserId,
         newGroup,
@@ -176,20 +206,15 @@ class RoleWhitelistSyncService {
         success: false,
         error: error.message
       };
-
-    } finally {
-      // Clean up processing set after delay
-      setTimeout(() => {
-        this.processingUsers.delete(processingKey);
-      }, 5000);
     }
+    // FIX 4.1: Removed finally block - no longer using Set-based deduplication
   }
 
   /**
    * Create or update a role-based whitelist entry
    * @private
    */
-  async _createRoleBasedEntry(discordUserId, steamId, groupName, memberData, source, flags = {}) {
+  async _createRoleBasedEntry(discordUserId, steamId, groupName, memberData, source, flags = {}, transaction) {
     // Check if user already has active role-based entries (could be multiple due to bugs)
     const existingEntries = await Whitelist.findAll({
       where: {
@@ -198,7 +223,8 @@ class RoleWhitelistSyncService {
         approved: true,
         revoked: false
       },
-      order: [['createdAt', 'DESC']]
+      order: [['createdAt', 'DESC']],
+      transaction
     });
 
     const userData = {
@@ -249,7 +275,7 @@ class RoleWhitelistSyncService {
               revokedAsDuplicate: true,
               revokedAt: new Date().toISOString()
             }
-          });
+          }, { transaction });
         }
 
         // Invalidate whitelist cache after revoking duplicates
@@ -273,7 +299,7 @@ class RoleWhitelistSyncService {
             updated: true,
             previousRole: mostRecentEntry.role_name
           }
-        });
+        }, { transaction });
 
         this.logger.info('Updated existing role-based whitelist entry', {
           discordUserId,
@@ -292,7 +318,7 @@ class RoleWhitelistSyncService {
       }
     } else {
       // Create new entry
-      await Whitelist.create(userData);
+      await Whitelist.create(userData, { transaction });
 
       this.logger.info('Created new role-based whitelist entry', {
         discordUserId,
@@ -307,14 +333,15 @@ class RoleWhitelistSyncService {
    * Revoke role-based whitelist entries for a user
    * @private
    */
-  async _revokeRoleBasedEntries(discordUserId, steamId, memberData, source) {
+  async _revokeRoleBasedEntries(discordUserId, steamId, memberData, source, transaction) {
     // Find all active role-based entries for this user
     const roleEntries = await Whitelist.findAll({
       where: {
         discord_user_id: discordUserId,
         source: 'role',
         revoked: false
-      }
+      },
+      transaction
     });
 
     if (roleEntries.length === 0) {
@@ -335,7 +362,7 @@ class RoleWhitelistSyncService {
           revokedSource: source,
           revokedAt: new Date().toISOString()
         }
-      });
+      }, { transaction });
 
       this.logger.info('Revoked role-based whitelist entry', {
         discordUserId,
@@ -350,7 +377,7 @@ class RoleWhitelistSyncService {
    * Upgrade any existing unlinked/unapproved/security-blocked entries when user gets sufficient confidence
    * @private
    */
-  async _upgradeUnlinkedEntries(discordUserId, steamId, source) {
+  async _upgradeUnlinkedEntries(discordUserId, steamId, source, transaction) {
     try {
       // Find all entries that need upgrading:
       // 1. Unapproved placeholder entries (approved: false, revoked: false)
@@ -362,7 +389,8 @@ class RoleWhitelistSyncService {
           approved: false
           // Note: We check both revoked: false AND revoked: true entries
         },
-        order: [['createdAt', 'DESC']] // Most recent first
+        order: [['createdAt', 'DESC']], // Most recent first
+        transaction
       });
 
       if (entriesToUpgrade.length === 0) {
@@ -398,7 +426,7 @@ class RoleWhitelistSyncService {
               revokedDuringUpgrade: true,
               revokedAt: new Date().toISOString()
             }
-          });
+          }, { transaction });
 
           this.logger.info('Revoked duplicate unapproved entry', {
             discordUserId,
@@ -496,7 +524,7 @@ class RoleWhitelistSyncService {
           wasRevoked: wasRevoked,
           securityBlocked: false  // Clear security block flag
         }
-      });
+      }, { transaction });
 
       this.logger.info('Upgraded entry to proper role-based whitelist', {
         discordUserId,
@@ -544,7 +572,7 @@ class RoleWhitelistSyncService {
               entryId: mostRecentEntry.id
             },
             severity: 'warning'
-          });
+          }, { transaction });
 
           this.logger.info('Logged security upgrade to audit trail', {
             discordUserId,
@@ -635,7 +663,7 @@ class RoleWhitelistSyncService {
    * Handle unlinked staff members (those with staff roles but no Steam link)
    * @private
    */
-  async _handleUnlinkedStaff(discordUserId, groupName, memberData, source) {
+  async _handleUnlinkedStaff(discordUserId, groupName, memberData, source, transaction) {
     // Create a placeholder entry for tracking purposes
     // This won't grant actual whitelist access but helps with auditing
     await Whitelist.create({
@@ -660,7 +688,7 @@ class RoleWhitelistSyncService {
         discordGuildId: memberData?.guild?.id,
         syncedAt: new Date().toISOString()
       }
-    });
+    }, { transaction });
 
     this.logger.warn('Created placeholder entry for unlinked staff', {
       discordUserId,
@@ -835,7 +863,7 @@ class RoleWhitelistSyncService {
    * Log role sync operation to audit trail
    * @private
    */
-  async _logRoleSync(discordUserId, newGroup, steamId, source, metadata) {
+  async _logRoleSync(discordUserId, newGroup, steamId, source, metadata, transaction) {
     try {
       await AuditLog.create({
         actionType: 'ROLE_SYNC',
@@ -859,7 +887,7 @@ class RoleWhitelistSyncService {
           ...metadata
         },
         severity: 'info'
-      });
+      }, { transaction });
     } catch (error) {
       this.logger.error('Failed to log role sync', { error: error.message });
     }
@@ -874,8 +902,9 @@ class RoleWhitelistSyncService {
    * @param {Object} memberData - Discord member data
    * @param {string} source - Source of the sync
    * @param {Object} flags - Additional flags/metadata
+   * @param {Object} transaction - Sequelize transaction
    */
-  async _createSecurityBlockedEntry(discordUserId, steamId, groupName, memberData, source, flags = {}) {
+  async _createSecurityBlockedEntry(discordUserId, steamId, groupName, memberData, source, flags = {}, transaction) {
     const userData = {
       type: 'staff', // Would have been staff access
       steamid64: steamId,
@@ -907,7 +936,7 @@ class RoleWhitelistSyncService {
       }
     };
 
-    const blockedEntry = await Whitelist.create(userData);
+    const blockedEntry = await Whitelist.create(userData, { transaction });
 
     this.logger.warn('SECURITY: Created security-blocked entry for audit trail', {
       discordUserId,
