@@ -306,11 +306,11 @@ async function handleLeaderboard(interaction, startDate, endDate, periodLabel, d
   const medals = ['1st', '2nd', '3rd'];
   const leaderboardText = leaderboardWithDisplayNames.map((entry, index) => {
     const position = index < 3 ? medals[index] : `${index + 1}th`;
-    const displayName = entry.displayName;
+    const userMention = `<@${entry.discordUserId}>`;
     const time = formatDuration(entry.totalMs);
     const sessions = entry.sessionCount;
 
-    return `${position} ${displayName} - ${time} (${sessions} sessions)`;
+    return `${position} ${userMention} - ${time} (${sessions} sessions)`;
   }).join('\n');
 
   embed.addFields({ name: 'Rankings', value: leaderboardText, inline: false });
@@ -333,16 +333,11 @@ async function handleSummary(interaction, startDate, endDate, periodLabel, dutyT
     return await sendError(interaction, 'No duty time recorded in the selected period.');
   }
 
-  // Fetch display name for top contributor
+  // Format top contributor with mention
   let topContributorName = 'N/A';
   if (stats.topAdmin) {
-    try {
-      const member = await interaction.guild.members.fetch(stats.topAdmin.discordUserId);
-      topContributorName = `${member.displayName} (${formatDuration(stats.topAdmin.totalMs)})`;
-    } catch (error) {
-      // User may have left the server, use username fallback
-      topContributorName = `${stats.topAdmin.discordUsername} (${formatDuration(stats.topAdmin.totalMs)})`;
-    }
+    const userMention = `<@${stats.topAdmin.discordUserId}>`;
+    topContributorName = `${userMention} (${formatDuration(stats.topAdmin.totalMs)})`;
   }
 
   // Build embed
