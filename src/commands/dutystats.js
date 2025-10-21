@@ -304,16 +304,29 @@ async function handleLeaderboard(interaction, startDate, endDate, periodLabel, d
     .setDescription(`**Type:** ${dutyType === 'both' ? 'All' : dutyType.charAt(0).toUpperCase() + dutyType.slice(1)} Duty`);
 
   const medals = ['1st', '2nd', '3rd'];
-  const leaderboardText = leaderboardWithDisplayNames.map((entry, index) => {
-    const position = index < 3 ? medals[index] : `${index + 1}th`;
-    const userMention = `<@${entry.discordUserId}>`;
-    const time = formatDuration(entry.totalMs);
-    const sessions = entry.sessionCount;
 
-    return `${position} ${userMention} - ${time} (${sessions} sessions)`;
-  }).join('\n');
+  // Split leaderboard into chunks to avoid Discord's 1024 character limit per field
+  const entriesPerField = 10;
+  const chunks = [];
+  for (let i = 0; i < leaderboardWithDisplayNames.length; i += entriesPerField) {
+    const chunk = leaderboardWithDisplayNames.slice(i, i + entriesPerField);
+    const chunkText = chunk.map((entry, chunkIndex) => {
+      const index = i + chunkIndex;
+      const position = index < 3 ? medals[index] : `${index + 1}th`;
+      const userMention = `<@${entry.discordUserId}>`;
+      const time = formatDuration(entry.totalMs);
+      const sessions = entry.sessionCount;
 
-  embed.addFields({ name: 'Rankings', value: leaderboardText, inline: false });
+      return `${position} ${userMention} - ${time} (${sessions} sessions)`;
+    }).join('\n');
+    chunks.push(chunkText);
+  }
+
+  // Add fields for each chunk
+  chunks.forEach((chunkText, index) => {
+    const fieldName = index === 0 ? 'Rankings' : '\u200b'; // First field has title, rest use invisible character
+    embed.addFields({ name: fieldName, value: chunkText, inline: false });
+  });
   embed.setFooter({ text: `Requested by ${interaction.user.tag}` });
   embed.setTimestamp();
 
