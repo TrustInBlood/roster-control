@@ -212,15 +212,11 @@ DutyStatusChange.calculateDutyTime = async function(discordUserId, startDate = n
     order: [['createdAt', 'ASC']]
   });
 
-  console.log(`[DEBUG] Total changes fetched: ${changes.length}`);
-
   // Filter by duty type from metadata
   const filteredChanges = changes.filter(change => {
     const changeDutyType = change.metadata?.dutyType || 'admin';
     return dutyType === 'both' || changeDutyType === dutyType;
   });
-
-  console.log(`[DEBUG] After duty type filter: ${filteredChanges.length}`);
 
   // Deduplicate entries - remove external entries that have a matching command entry within 5 seconds
   const deduplicatedChanges = [];
@@ -242,14 +238,6 @@ DutyStatusChange.calculateDutyTime = async function(discordUserId, startDate = n
 
     deduplicatedChanges.push(change);
   }
-
-  console.log(`[DEBUG] After deduplication: ${deduplicatedChanges.length}`);
-  console.log(`[DEBUG] First 10 deduplicated entries:`, deduplicatedChanges.slice(0, 10).map(c => ({
-    id: c.id,
-    status: c.status,
-    source: c.source,
-    createdAt: c.createdAt
-  })));
 
   let totalMs = 0;
   let sessions = [];
@@ -297,9 +285,6 @@ DutyStatusChange.calculateDutyTime = async function(discordUserId, startDate = n
       }
     }
   }
-
-  console.log(`[DEBUG] Sessions found: ${sessions.length}`);
-  console.log(`[DEBUG] Total hours: ${(totalMs / (1000 * 60 * 60)).toFixed(2)}`);
 
   // Handle currently on duty (no OFF event yet)
   if (currentOnPeriod) {

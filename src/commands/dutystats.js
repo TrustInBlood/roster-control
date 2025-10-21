@@ -278,6 +278,25 @@ async function handleLeaderboard(interaction, startDate, endDate, periodLabel, d
     return await sendError(interaction, 'No duty time recorded in the selected period.');
   }
 
+  // Fetch guild members to get display names
+  const leaderboardWithDisplayNames = await Promise.all(
+    leaderboard.map(async (entry) => {
+      try {
+        const member = await interaction.guild.members.fetch(entry.discordUserId);
+        return {
+          ...entry,
+          displayName: member.displayName
+        };
+      } catch (error) {
+        // User may have left the server, use username fallback
+        return {
+          ...entry,
+          displayName: entry.discordUsername
+        };
+      }
+    })
+  );
+
   // Build embed
   const embed = new EmbedBuilder()
     .setColor('#ffa500')
@@ -285,13 +304,13 @@ async function handleLeaderboard(interaction, startDate, endDate, periodLabel, d
     .setDescription(`**Type:** ${dutyType === 'both' ? 'All' : dutyType.charAt(0).toUpperCase() + dutyType.slice(1)} Duty`);
 
   const medals = ['1st', '2nd', '3rd'];
-  const leaderboardText = leaderboard.map((entry, index) => {
+  const leaderboardText = leaderboardWithDisplayNames.map((entry, index) => {
     const position = index < 3 ? medals[index] : `${index + 1}th`;
-    const username = entry.discordUsername;
+    const displayName = entry.displayName;
     const time = formatDuration(entry.totalMs);
     const sessions = entry.sessionCount;
 
-    return `${position} ${username} - ${time} (${sessions} sessions)`;
+    return `${position} ${displayName} - ${time} (${sessions} sessions)`;
   }).join('\n');
 
   embed.addFields({ name: 'Rankings', value: leaderboardText, inline: false });
@@ -312,6 +331,18 @@ async function handleSummary(interaction, startDate, endDate, periodLabel, dutyT
 
   if (stats.totalAdmins === 0) {
     return await sendError(interaction, 'No duty time recorded in the selected period.');
+  }
+
+  // Fetch display name for top contributor
+  let topContributorName = 'N/A';
+  if (stats.topAdmin) {
+    try {
+      const member = await interaction.guild.members.fetch(stats.topAdmin.discordUserId);
+      topContributorName = `${member.displayName} (${formatDuration(stats.topAdmin.totalMs)})`;
+    } catch (error) {
+      // User may have left the server, use username fallback
+      topContributorName = `${stats.topAdmin.discordUsername} (${formatDuration(stats.topAdmin.totalMs)})`;
+    }
   }
 
   // Build embed
@@ -335,9 +366,7 @@ async function handleSummary(interaction, startDate, endDate, periodLabel, dutyT
       },
       {
         name: 'Top Contributor',
-        value: stats.topAdmin
-          ? `${stats.topAdmin.discordUsername} (${formatDuration(stats.topAdmin.totalMs)})`
-          : 'N/A',
+        value: topContributorName,
         inline: true
       }
     )
