@@ -308,6 +308,11 @@ class RoleWhitelistSyncService {
           newGroup: groupName,
           duplicatesRevoked: duplicates.length
         });
+
+        // FIX 5.1: Invalidate cache after updating entry
+        if (this.whitelistService) {
+          this.whitelistService.invalidateCache();
+        }
       } else {
         this.logger.debug('Role-based entry already exists and is current', {
           discordUserId,
@@ -326,6 +331,11 @@ class RoleWhitelistSyncService {
         groupName,
         type: userData.type
       });
+
+      // FIX 5.1: Invalidate cache after creating entry
+      if (this.whitelistService) {
+        this.whitelistService.invalidateCache();
+      }
     }
   }
 
@@ -370,6 +380,11 @@ class RoleWhitelistSyncService {
         roleName: entry.role_name,
         entryId: entry.id
       });
+    }
+
+    // FIX 5.1: Invalidate cache after revoking entries
+    if (roleEntries.length > 0 && this.whitelistService) {
+      this.whitelistService.invalidateCache();
     }
   }
 
@@ -537,6 +552,11 @@ class RoleWhitelistSyncService {
         duplicatesRevoked: duplicateEntries.length
       });
 
+      // FIX 5.1: Invalidate cache after upgrading entry
+      if (this.whitelistService) {
+        this.whitelistService.invalidateCache();
+      }
+
       // FIX 2.1: Log security upgrade to audit trail
       if (wasSecurityBlocked) {
         try {
@@ -592,7 +612,7 @@ class RoleWhitelistSyncService {
         try {
           await notificationService.send('security_transition', {
             title: 'Security Transition: Blocked Entry Auto-Upgraded',
-            description: `A security-blocked whitelist entry has been automatically activated after the user achieved sufficient account link confidence.`,
+            description: 'A security-blocked whitelist entry has been automatically activated after the user achieved sufficient account link confidence.',
             fields: [
               {
                 name: 'Discord User',
@@ -695,6 +715,11 @@ class RoleWhitelistSyncService {
       groupName,
       reason: 'no_steam_link'
     });
+
+    // FIX 5.1: Invalidate cache after creating placeholder entry
+    if (this.whitelistService) {
+      this.whitelistService.invalidateCache();
+    }
   }
 
   /**
@@ -945,6 +970,13 @@ class RoleWhitelistSyncService {
       confidence: flags.actualConfidence,
       entryId: blockedEntry.id
     });
+
+    // FIX 5.1: Invalidate cache after creating security-blocked entry
+    // Note: Security-blocked entries are revoked and won't affect active whitelist,
+    // but we invalidate cache for consistency and audit trail completeness
+    if (this.whitelistService) {
+      this.whitelistService.invalidateCache();
+    }
 
     return blockedEntry;
   }

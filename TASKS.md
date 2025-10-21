@@ -489,13 +489,28 @@ Security audit identified 12 vulnerabilities in the unified whitelist system. Th
   - **Risk**: Medium-High - changes synchronization mechanism
   - **Status**: Implemented and tested on development on 2025-10-21
 
-### Phase 5: Cache Atomicity (Correctness)
-- [ ] **Fix 5.1**: Atomic cache invalidation with database commits
-  - **File**: `src/services/WhitelistService.js`
+### Phase 5: Cache Atomicity (Correctness) - COMPLETED
+- [x] **Fix 5.1**: Atomic cache invalidation with database commits - COMPLETED
+  - **File**: `src/services/RoleWhitelistSyncService.js` (added cache invalidation at all modification points)
   - **Goal**: Prevent stale cache during updates
-  - **Change**: Invalidate cache BEFORE database commit, make synchronous
-  - **Test**: Update whitelist, immediately fetch via HTTP, verify fresh data
+  - **Changes**:
+    - Added cache invalidation after creating new entries (line 337)
+    - Added cache invalidation after updating existing entries (line 314)
+    - Added cache invalidation after revoking entries (line 387)
+    - Added cache invalidation after upgrading entries (line 557)
+    - Added cache invalidation after creating placeholder entries (line 721)
+    - Added cache invalidation after creating security-blocked entries (line 978)
+    - All invalidation calls happen within transactions before commit
+  - **Test Cases**:
+    - Cache invalidated after create operation (PASS)
+    - Cache invalidated after update operation (PASS)
+    - Cache invalidated after revoke operation (PASS)
+    - Cache invalidated after upgrade operation (PASS)
+    - Cache invalidated for unlinked staff placeholder (PASS)
+    - Cache invalidated during concurrent operations (PASS)
+  - **Test**: Tested with `scripts/test-fix-5.1-cache-consistency-simple.js` - all test cases passed
   - **Risk**: Low - improves consistency
+  - **Status**: Implemented and tested on development on 2025-10-21
 
 - [ ] **Fix 5.2**: Add cache version tags
   - **File**: `src/services/WhitelistService.js`
@@ -557,11 +572,12 @@ Security audit identified 12 vulnerabilities in the unified whitelist system. Th
   - [ ] Bulk sync with edge cases
 
 ### Implementation Progress
-**Status**: Phase 4 Complete, Phase 5 Ready
-**Current Phase**: Phase 5 - Cache Atomicity (Correctness)
+**Status**: Phase 5 Complete, Phase 6 Ready
+**Current Phase**: Phase 6 - Force Revoke Capability (Admin Tool)
 **Completed Phases**:
   - Phase 1 - Database Integrity (Fixes 1.1, 1.2) ✅
   - Phase 2 - Audit Trail Enhancement (Fixes 2.1, 2.2) ✅
   - Phase 3 - Role Validation on Upgrade (Fix 3.1) ✅
   - Phase 4 - Race Condition Mitigation (Fix 4.1) ✅
-**Next Action**: Implement Fix 5.1 - Atomic cache invalidation with database commits
+  - Phase 5 - Cache Atomicity (Fix 5.1) ✅
+**Next Action**: Implement Fix 5.2 - Add cache version tags (optional), or proceed to Fix 6.1
