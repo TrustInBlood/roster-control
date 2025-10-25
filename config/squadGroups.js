@@ -19,7 +19,7 @@ const SQUAD_GROUPS = {
   // Squad Admin - Core admin permissions
   SquadAdmin: {
     priority: 200,
-    permissions: 'balance,cameraman,canseeadminchat,chat,forceteamchange,immune,reserve',
+    permissions: 'balance,cameraman,canseeadminchat,chat,reserve',
     discordRoles: [
       DISCORD_ROLES.SENIOR_ADMIN,
       DISCORD_ROLES.OG_ADMIN,
