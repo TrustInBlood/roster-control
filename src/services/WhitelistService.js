@@ -1,7 +1,7 @@
 const { Whitelist, PlayerDiscordLink } = require('../database/models');
 const { Op } = require('sequelize');
 
-const { getHighestPriorityGroup } = require('../utils/environment');
+const { squadGroups } = require('../utils/environment');
 const WhitelistAuthorityService = require('./WhitelistAuthorityService');
 
 class WhitelistService {
@@ -357,10 +357,15 @@ class WhitelistService {
 
       // Group definitions (order by priority: highest to lowest)
       combinedContent += '// Group Definitions\n';
-      combinedContent += 'Group=HeadAdmin:ban,cameraman,canseeadminchat,changemap,chat,forceteamchange,immune,kick,reserve,startvote,teamchange,balance,manageserver,config\n';
-      combinedContent += 'Group=SquadAdmin:balance,ban,cameraman,canseeadminchat,changemap,chat,forceteamchange,immune,kick,startvote,reserve,teamchange\n';
-      combinedContent += 'Group=Moderator:canseeadminchat,chat,reserve\n';
-      combinedContent += 'Group=Member:reserve\n\n';
+
+      // Sort groups by priority (highest to lowest) and generate definitions
+      const sortedGroups = Object.entries(squadGroups.SQUAD_GROUPS)
+        .sort(([, a], [, b]) => b.priority - a.priority);
+
+      for (const [groupName, groupData] of sortedGroups) {
+        combinedContent += `Group=${groupName}:${groupData.permissions}\n`;
+      }
+      combinedContent += '\n';
 
       // Staff Section (role-based and database staff)
       combinedContent += '// Staff (Role-based + Database)\n';
