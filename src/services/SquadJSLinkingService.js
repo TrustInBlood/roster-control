@@ -1,5 +1,6 @@
 const { VerificationCode, PlayerDiscordLink, Whitelist } = require('../database/models');
 const { container } = require('../core/ServiceContainer');
+const { logAccountLink } = require('../utils/discordLogger');
 
 class SquadJSLinkingService {
   constructor(logger, discordClient, config, whitelistService, connectionManager) {
@@ -90,6 +91,22 @@ class SquadJSLinkingService {
 
       // Update role-based cache to reflect the new link
       await this.syncUserToDatabase(link.discord_user_id, server);
+
+      // Log account link to Discord channel
+      try {
+        const discordUser = await this.discordClient.users.fetch(link.discord_user_id);
+        await logAccountLink(this.discordClient, discordUser, player.steamID, 'squadjs', {
+          'Confidence': '1.0 (Self-verified)',
+          'In-Game Name': player.name,
+          'Server': server.name,
+          'EOS ID': player.eosID || 'N/A'
+        });
+      } catch (logError) {
+        this.logger.warn('Failed to log account link to Discord', {
+          discordUserId: link.discord_user_id,
+          error: logError.message
+        });
+      }
 
       this.logger.info('Account linking successful', {
         serverId: server.id,
