@@ -222,9 +222,11 @@ logger.info('Direct winston logger access');
 ## Project Structure Context
 
 ### Current Implementation Status
-- ✅ **Complete**: Discord bot framework, all database models with migrations, role-based on-duty system, tutor system with specialty management, external role change detection, duty status logging, permission system, error handling, **centralized logging system with timestamps**, **unified whitelist system with automatic Discord role synchronization**, Steam account linking with confidence scoring, comprehensive Squad server whitelist generation
+- ✅ **Complete**: Discord bot framework, all database models with migrations, role-based on-duty system, tutor system with specialty management, external role change detection, duty status logging, permission system, error handling, **centralized logging system with timestamps**, **unified whitelist system with automatic Discord role synchronization**, Steam account linking with confidence scoring, comprehensive Squad server whitelist generation, **security hardening with race condition mitigation and confidence-based access control**
 - 🔄 **In Progress**: SquadJS integration, BattleMetrics API
 - 📋 **Planned**: Player activity tracking, RCON integration, automated reporting
+
+**Note**: See `TASKS.md` Phase 3.8 for details on the comprehensive security hardening implementation (9/12 fixes completed, all critical vulnerabilities addressed, production-ready).
 
 ### Key Files for Development
 - `src/index.js` - Main bot entry point with event handlers
@@ -270,10 +272,11 @@ The unified whitelist system (implemented in migrations 019-020) automatically m
 
 ### Project-Specific Constraints
 - **ESLint**: Use single quotes instead of template literals for simple strings
-- **Slash Commands**: Adding a Discord slash command requires updates in `config/roles.js`
+- **Slash Commands**: Adding a Discord slash command requires updates in BOTH:
+  - `config/roles.js` (production role permissions)
+  - `config/roles.development.js` (development role permissions)
 - **Database ENUMs**: `PlayerDiscordLink.link_source` only accepts: `'manual'`, `'ticket'`, `'squadjs'`, `'import'`
 - **Code Style**: Avoid using emojis in code, comments, or output unless specifically requested
-- **No Commits**: Do not commit anything
 
 ### CRITICAL: Production Safety Rules
 - **ALWAYS use explicit commands**: Use `npm run db:migrate:dev` for development, `npm run db:migrate:prod` for production
@@ -296,4 +299,9 @@ When implementing new features, update:
 
 ### Multi-Server Architecture
 The system is designed to support 5 Squad servers through SquadJS instances, with centralized Discord bot management and per-server data tracking.
-- we need to update @config/roles.development.js and @config/roles.js whenever there is a change to a discord command
+
+### Cursor AI Integration
+This project includes Cursor AI rules that automatically:
+- Reference `TASKS.md` at the start, during, and end of tasks for implementation tracking
+- Reference `PLANNING.md` at the beginning of conversations to maintain architectural consistency
+- Both files should be kept up-to-date when implementing features or making architectural changes
