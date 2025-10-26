@@ -209,27 +209,7 @@ module.exports = {
           option.setName('steamid')
             .setDescription('Steam ID64 to check')
             .setRequired(false)))
-    
-    // Extend subcommand
-    .addSubcommand(subcommand =>
-      subcommand
-        .setName('extend')
-        .setDescription('Extend whitelist duration for a user')
-        .addIntegerOption(option =>
-          option.setName('months')
-            .setDescription('Number of months to extend')
-            .setRequired(true)
-            .setMinValue(1)
-            .setMaxValue(24))
-        .addUserOption(option =>
-          option.setName('user')
-            .setDescription('Discord user to extend')
-            .setRequired(false))
-        .addStringOption(option =>
-          option.setName('steamid')
-            .setDescription('Steam ID64 to extend')
-            .setRequired(false)))
-    
+
     // Revoke subcommand
     .addSubcommand(subcommand =>
       subcommand
@@ -272,9 +252,6 @@ module.exports = {
           break;
         case 'info':
           await handleInfo(interaction);
-          break;
-        case 'extend':
-          await handleExtend(interaction);
           break;
         case 'revoke':
           await handleRevoke(interaction);
@@ -1500,46 +1477,6 @@ async function handleInfo(interaction) {
       content: `❌ Failed to retrieve whitelist status: ${error.message}`
     });
   }
-}
-
-async function handleExtend(interaction) {
-  await withLoadingMessage(interaction, 'Extending whitelist...', async () => {
-    const discordUser = interaction.options.getUser('user');
-    const steamid = interaction.options.getString('steamid');
-    const months = interaction.options.getInteger('months');
-
-    // Use the new helper that works with either user OR steamid
-    const { steamid64: resolvedSteamId, discordUser: resolvedDiscordUser } = await resolveUserForInfo(steamid, discordUser, interaction);
-
-    // Ensure we have a Steam ID for extension
-    if (!resolvedSteamId) {
-      throw new Error('No Steam ID found. Please provide a Steam ID or link the Discord account first.');
-    }
-
-    // Extend the whitelist
-    const extensionEntry = await Whitelist.extendWhitelist(
-      resolvedSteamId,
-      months,
-      interaction.user.id
-    );
-
-    // Note: Extensions don't assign new roles - user should already have appropriate role from initial grant
-
-    const embed = createResponseEmbed({
-      title: '⏰ Whitelist Extended',
-      description: 'Successfully extended whitelist access',
-      fields: [
-        { name: 'User', value: resolvedDiscordUser ? `<@${resolvedDiscordUser.id}>` : 'Unknown Discord User', inline: true },
-        { name: 'Steam ID', value: resolvedSteamId, inline: true },
-        { name: 'Extension', value: `${months} month${months > 1 ? 's' : ''}`, inline: true },
-        { name: 'New Entry Expires', value: extensionEntry.expiration.toLocaleDateString(), inline: true },
-        { name: 'Extended By', value: `<@${interaction.user.id}>`, inline: true }
-      ],
-      color: 0x0099FF
-    });
-
-    await sendSuccess(interaction, 'Whitelist extended successfully!', embed);
-  });
 }
 
 async function handleRevoke(interaction) {
