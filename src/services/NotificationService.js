@@ -1,6 +1,6 @@
 const { EmbedBuilder } = require('discord.js');
-const { CHANNELS, NOTIFICATION_ROUTES } = require('../../config/channels');
-const { isDevelopment } = require('../utils/environment');
+const { channels } = require('../utils/environment');
+const { CHANNELS, NOTIFICATION_ROUTES } = channels;
 const { console: loggerConsole } = require('../utils/logger');
 
 /**

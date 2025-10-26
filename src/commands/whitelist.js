@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, ModalBuilder, TextInputBuilder, TextInputStyle, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, ModalBuilder, TextInputBuilder, TextInputStyle, StringSelectMenuBuilder, MessageFlags } = require('discord.js');
 const { permissionMiddleware } = require('../handlers/permissionHandler');
 const { withLoadingMessage, createResponseEmbed, sendSuccess, sendError } = require('../utils/messageHandler');
 const { Whitelist } = require('../database/models');
@@ -551,33 +551,41 @@ async function showReasonSelectionButtons(interaction, grantData) {
 
   const reasonEmbed = createResponseEmbed({
     title: '🎯 Select Whitelist Type',
-    description: `**Steam ID:** ${userInfo.steamid64}\n${discordUser ? `**Discord User:** <@${discordUser.id}>` : '**Discord User:** Not linked'}${isSteamIdOnly ? '\n\n⚠️ **Steam ID Only Grant** - No account linking will occur' : ''}\n\n⏰ **Complete quickly to avoid timeout**\n\nPlease select the type of whitelist to grant:`,
+    description: `**Steam ID:** ${userInfo.steamid64}\n${discordUser ? `**Discord User:** <@${discordUser.id}>` : '**Discord User:** Not linked'}${isSteamIdOnly ? '\n\n⚠️ **Steam ID Only Grant** - No account linking will occur' : ''}\n\nPlease select the type of whitelist to grant:`,
     color: isSteamIdOnly ? 0xffa500 : 0x3498db
   });
 
-  const reasonRow1 = new ActionRowBuilder()
-    .addComponents(
-      new ButtonBuilder()
-        .setCustomId('reason_service-member')
-        .setLabel('Service Member')
-        .setStyle(ButtonStyle.Primary)
-        .setEmoji('🎖️'),
-      new ButtonBuilder()
-        .setCustomId('reason_first-responder')
-        .setLabel('First Responder')
-        .setStyle(ButtonStyle.Primary)
-        .setEmoji('🚑'),
-      new ButtonBuilder()
-        .setCustomId('reason_donator')
-        .setLabel('Donator')
-        .setStyle(ButtonStyle.Secondary)
-        .setEmoji('💎'),
-      new ButtonBuilder()
-        .setCustomId('reason_reporting')
-        .setLabel('Reporting')
-        .setStyle(ButtonStyle.Secondary)
-        .setEmoji('📋')
-    );
+  const reasonSelect = new StringSelectMenuBuilder()
+    .setCustomId('reason_select')
+    .setPlaceholder('Select whitelist type')
+    .addOptions([
+      {
+        label: 'Service Member',
+        description: 'Military service member (6 months default)',
+        value: 'service-member',
+        emoji: '🎖️'
+      },
+      {
+        label: 'First Responder',
+        description: 'Emergency service personnel (6 months default)',
+        value: 'first-responder',
+        emoji: '🚑'
+      },
+      {
+        label: 'Donator',
+        description: 'Server donator (6 months or 1 year)',
+        value: 'donator',
+        emoji: '💎'
+      },
+      {
+        label: 'Reporting',
+        description: 'Temporary reporting access (3-365 days)',
+        value: 'reporting',
+        emoji: '📋'
+      }
+    ]);
+
+  const reasonRow1 = new ActionRowBuilder().addComponents(reasonSelect);
 
   // Check if we need to reply or edit reply based on interaction state
   try {
@@ -602,15 +610,15 @@ async function showReasonSelectionButtons(interaction, grantData) {
     throw error; // Re-throw if it's not an expiration error
   }
 
-  // Handle reason button selection
+  // Handle reason select menu
   const reasonCollector = interaction.channel.createMessageComponentCollector({
-    componentType: ComponentType.Button,
-    filter: (i) => i.customId.startsWith('reason_') && i.user.id === originalUser.id,
+    componentType: ComponentType.StringSelect,
+    filter: (i) => i.customId === 'reason_select' && i.user.id === originalUser.id,
     time: 300000
   });
 
   reasonCollector.on('collect', async (reasonInteraction) => {
-    const selectedReason = reasonInteraction.customId.replace('reason_', '');
+    const selectedReason = reasonInteraction.values[0];
 
     try {
       if (!reasonInteraction.deferred && !reasonInteraction.replied) {
@@ -705,47 +713,53 @@ async function handleDurationSelection(interaction, grantData) {
 
 async function showDonatorDurationSelection(interaction, grantData) {
   const { discordUser, userInfo } = grantData;
-  
+
   const durationEmbed = createResponseEmbed({
     title: '💎 Donator Duration Selection',
     description: `**Steam ID:** ${userInfo.steamid64}\n${discordUser ? `**Discord User:** <@${discordUser.id}>` : '**Discord User:** Not linked'}\n\nSelect the donator whitelist duration:`,
     color: 0xe91e63
   });
 
-  const durationRow = new ActionRowBuilder()
-    .addComponents(
-      new ButtonBuilder()
-        .setCustomId('donator_6m')
-        .setLabel('6 Months')
-        .setStyle(ButtonStyle.Primary)
-        .setEmoji('📅'),
-      new ButtonBuilder()
-        .setCustomId('donator_1y')
-        .setLabel('1 Year')
-        .setStyle(ButtonStyle.Primary)
-        .setEmoji('🗓️')
-    );
+  const durationSelect = new StringSelectMenuBuilder()
+    .setCustomId('donator_duration')
+    .setPlaceholder('Select duration')
+    .addOptions([
+      {
+        label: '6 Months',
+        description: '6 month donator access',
+        value: '6m',
+        emoji: '📅'
+      },
+      {
+        label: '1 Year',
+        description: '1 year donator access',
+        value: '1y',
+        emoji: '🗓️'
+      }
+    ]);
+
+  const durationRow = new ActionRowBuilder().addComponents(durationSelect);
 
   await interaction.editReply({
     embeds: [durationEmbed],
     components: [durationRow]
   });
 
-  // Handle duration button selection
+  // Handle duration select menu
   const durationCollector = interaction.channel.createMessageComponentCollector({
-    componentType: ComponentType.Button,
-    filter: (i) => (i.customId === 'donator_6m' || i.customId === 'donator_1y') && i.user.id === grantData.originalUser.id,
+    componentType: ComponentType.StringSelect,
+    filter: (i) => i.customId === 'donator_duration' && i.user.id === grantData.originalUser.id,
     time: 300000
   });
 
-  durationCollector.on('collect', async (buttonInteraction) => {
+  durationCollector.on('collect', async (selectInteraction) => {
     try {
-      const duration = buttonInteraction.customId === 'donator_6m' ? { value: 6, type: 'months', text: '6 months' } : { value: 12, type: 'months', text: '1 year' };
-      
-      if (!buttonInteraction.deferred && !buttonInteraction.replied) {
-        await buttonInteraction.deferUpdate();
+      const duration = selectInteraction.values[0] === '6m' ? { value: 6, type: 'months', text: '6 months' } : { value: 12, type: 'months', text: '1 year' };
+
+      if (!selectInteraction.deferred && !selectInteraction.replied) {
+        await selectInteraction.deferUpdate();
       }
-      await handleConfirmation(buttonInteraction, {
+      await handleConfirmation(selectInteraction, {
         ...grantData,
         durationValue: duration.value,
         durationType: duration.type,
@@ -772,56 +786,65 @@ async function showDonatorDurationSelection(interaction, grantData) {
 
 async function showReportingDurationSelection(interaction, grantData) {
   const { discordUser, userInfo } = grantData;
-  
+
   const durationEmbed = createResponseEmbed({
     title: '📋 Reporting Duration Selection',
     description: `**Steam ID:** ${userInfo.steamid64}\n${discordUser ? `**Discord User:** <@${discordUser.id}>` : '**Discord User:** Not linked'}\n\nSelect the reporting whitelist duration:`,
     color: 0xff9800
   });
 
-  const durationRow = new ActionRowBuilder()
-    .addComponents(
-      new ButtonBuilder()
-        .setCustomId('reporting_3d')
-        .setLabel('3 Days')
-        .setStyle(ButtonStyle.Secondary)
-        .setEmoji('🕐'),
-      new ButtonBuilder()
-        .setCustomId('reporting_7d')
-        .setLabel('7 Days')
-        .setStyle(ButtonStyle.Primary)
-        .setEmoji('📅'),
-      new ButtonBuilder()
-        .setCustomId('reporting_14d')
-        .setLabel('14 Days')
-        .setStyle(ButtonStyle.Secondary)
-        .setEmoji('🗓️'),
-      new ButtonBuilder()
-        .setCustomId('reporting_30d')
-        .setLabel('30 Days')
-        .setStyle(ButtonStyle.Secondary)
-        .setEmoji('📆'),
-      new ButtonBuilder()
-        .setCustomId('reporting_custom')
-        .setLabel('Custom')
-        .setStyle(ButtonStyle.Secondary)
-        .setEmoji('✏️')
-    );
+  const durationSelect = new StringSelectMenuBuilder()
+    .setCustomId('reporting_duration')
+    .setPlaceholder('Select duration')
+    .addOptions([
+      {
+        label: '3 Days',
+        description: '3 day reporting access',
+        value: '3d',
+        emoji: '🕐'
+      },
+      {
+        label: '7 Days',
+        description: '7 day reporting access (recommended)',
+        value: '7d',
+        emoji: '📅'
+      },
+      {
+        label: '14 Days',
+        description: '14 day reporting access',
+        value: '14d',
+        emoji: '🗓️'
+      },
+      {
+        label: '30 Days',
+        description: '30 day reporting access',
+        value: '30d',
+        emoji: '📆'
+      },
+      {
+        label: 'Custom',
+        description: 'Enter custom number of days (1-365)',
+        value: 'custom',
+        emoji: '✏️'
+      }
+    ]);
+
+  const durationRow = new ActionRowBuilder().addComponents(durationSelect);
 
   await interaction.editReply({
     embeds: [durationEmbed],
     components: [durationRow]
   });
 
-  // Handle duration button selection
+  // Handle duration select menu
   const durationCollector = interaction.channel.createMessageComponentCollector({
-    componentType: ComponentType.Button,
-    filter: (i) => i.customId.startsWith('reporting_') && i.user.id === grantData.originalUser.id,
+    componentType: ComponentType.StringSelect,
+    filter: (i) => i.customId === 'reporting_duration' && i.user.id === grantData.originalUser.id,
     time: 300000
   });
 
-  durationCollector.on('collect', async (buttonInteraction) => {
-    if (buttonInteraction.customId === 'reporting_custom') {
+  durationCollector.on('collect', async (selectInteraction) => {
+    if (selectInteraction.values[0] === 'custom') {
       // Show modal for custom duration input
       const customDaysModal = new ModalBuilder()
         .setCustomId('reporting_custom_modal')
@@ -839,13 +862,13 @@ async function showReportingDurationSelection(interaction, grantData) {
       const daysRow = new ActionRowBuilder().addComponents(daysInput);
       customDaysModal.addComponents(daysRow);
 
-      await buttonInteraction.showModal(customDaysModal);
+      await selectInteraction.showModal(customDaysModal);
 
       // Handle modal submission - using awaitModalSubmit instead
 
       // Create a more specific modal filter
       try {
-        const modalResponse = await buttonInteraction.awaitModalSubmit({
+        const modalResponse = await selectInteraction.awaitModalSubmit({
           filter: (i) => i.customId === 'reporting_custom_modal' && i.user.id === grantData.originalUser.id,
           time: 300000
         });
@@ -878,21 +901,21 @@ async function showReportingDurationSelection(interaction, grantData) {
       return;
     }
 
-    // Handle preset duration buttons
+    // Handle preset duration selections
     try {
       const durationMap = {
-        'reporting_3d': { value: 3, type: 'days', text: '3 days' },
-        'reporting_7d': { value: 7, type: 'days', text: '7 days' },
-        'reporting_14d': { value: 14, type: 'days', text: '14 days' },
-        'reporting_30d': { value: 30, type: 'days', text: '30 days' }
+        '3d': { value: 3, type: 'days', text: '3 days' },
+        '7d': { value: 7, type: 'days', text: '7 days' },
+        '14d': { value: 14, type: 'days', text: '14 days' },
+        '30d': { value: 30, type: 'days', text: '30 days' }
       };
-      
-      const duration = durationMap[buttonInteraction.customId];
-      
-      if (!buttonInteraction.deferred && !buttonInteraction.replied) {
-        await buttonInteraction.deferUpdate();
+
+      const duration = durationMap[selectInteraction.values[0]];
+
+      if (!selectInteraction.deferred && !selectInteraction.replied) {
+        await selectInteraction.deferUpdate();
       }
-      await handleConfirmation(buttonInteraction, {
+      await handleConfirmation(selectInteraction, {
         ...grantData,
         durationValue: duration.value,
         durationType: duration.type,

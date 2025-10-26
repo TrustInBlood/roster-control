@@ -82,6 +82,21 @@ module.exports = {
           }
         );
 
+        // Fetch the actual link to get the real confidence score
+        const actualLink = await PlayerDiscordLink.findOne({
+          where: {
+            discord_user_id: targetUser.id,
+            steamid64: steamId
+          }
+        });
+
+        const actualConfidence = actualLink ? parseFloat(actualLink.confidence_score) : 0.7;
+        const confidenceDisplay = actualConfidence === 1.0
+          ? '1.0 (Verified)'
+          : actualConfidence === 0.7
+            ? '0.7 (Admin Created)'
+            : `${actualConfidence.toFixed(2)} (${actualLink?.link_source || 'Unknown'})`;
+
         // Log to Discord - fetch member to get display name
         let targetMember;
         try {
@@ -101,10 +116,16 @@ module.exports = {
         const adminDisplayName = adminMember.displayName || adminMember.username || adminMember.tag;
 
         await logAccountLink(interaction.client, targetMember, steamId, 'admin', {
-          confidence: '0.7 (Admin created)',
+          confidence: confidenceDisplay,
           'Created By': adminDisplayName,
           'Reason': reason
         });
+
+        // Determine embed color and warning message based on confidence
+        const embedColor = actualConfidence >= 1.0 ? 0x00ff00 : 0xffa500;
+        const warningMessage = actualConfidence >= 1.0
+          ? 'This link has high confidence (1.0) and can be used for staff whitelist access.'
+          : 'This link has confidence score below 1.0 and **cannot** grant staff whitelist access. Only self-verified links (confidence 1.0) can access staff whitelist.';
 
         // Create success embed
         const successEmbed = createResponseEmbed({
@@ -114,12 +135,12 @@ module.exports = {
             { name: 'Discord User', value: `<@${targetUser.id}>`, inline: true },
             { name: 'Steam ID', value: steamId, inline: true },
             { name: 'Link Type', value: 'Manual (Admin)', inline: true },
-            { name: 'Confidence Score', value: '0.7 (Admin Created)', inline: true },
+            { name: 'Confidence Score', value: confidenceDisplay, inline: true },
             { name: 'Created By', value: `<@${interaction.user.id}>`, inline: true },
             { name: 'Reason', value: reason, inline: false },
-            { name: '⚠️ Important', value: 'This link has confidence score 0.7 and **cannot** grant staff whitelist access. Only self-verified links (confidence 1.0) can access staff whitelist.', inline: false }
+            { name: actualConfidence >= 1.0 ? '✅ Note' : '⚠️ Important', value: warningMessage, inline: false }
           ],
-          color: 0xffa500 // Orange to indicate warning
+          color: embedColor
         });
 
         await interaction.editReply({

@@ -6,7 +6,8 @@
 
 const { looksLikeSteamId, isValidSteamId } = require('../utils/steamId');
 const { PlayerDiscordLink } = require('../database/models');
-const { TICKET_CONFIG } = require('../../config/channels');
+const { channels } = require('../utils/environment');
+const { TICKET_CONFIG } = channels;
 const { logAccountLink } = require('../utils/discordLogger');
 const { console: loggerConsole } = require('../utils/logger');
 

@@ -4,7 +4,8 @@
  */
 
 const { createResponseEmbed } = require('./messageHandler');
-const { CHANNELS } = require('../../config/channels');
+const { channels } = require('./environment');
+const { CHANNELS } = channels;
 const { console: loggerConsole } = require('./logger');
 
 /**
