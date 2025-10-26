@@ -94,8 +94,16 @@ client.on('ready', async () => {
   setTimeout(async () => {
     await performStartupSync(client);
 
-    // Perform initial staff role sync for all guilds after startup
+    // Perform initial staff role sync for all guilds after startup (if not skipped)
     setTimeout(async () => {
+      const skipInitialStaffSync = process.env.SKIP_INITIAL_STAFF_SYNC === 'true';
+
+      if (skipInitialStaffSync) {
+        loggerConsole.log('Skipping initial staff role synchronization (SKIP_INITIAL_STAFF_SYNC=true)');
+        loggerConsole.log('Staff roles will be synced via periodic sync (60 min) and real-time role change events');
+        return;
+      }
+
       try {
         loggerConsole.log('Performing initial staff role synchronization...');
         for (const [guildId, guild] of client.guilds.cache) {
