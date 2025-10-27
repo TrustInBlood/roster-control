@@ -297,6 +297,9 @@ async function handleGrantSteamId(interaction) {
   const username = interaction.options.getString('username');
 
   try {
+    // Defer reply immediately to prevent timeout during database query
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
     // Step 0: Check for Steam ID conflicts
     const { PlayerDiscordLink } = require('../database/models');
     const existingLink = await PlayerDiscordLink.findBySteamId(steamid);
