@@ -1231,6 +1231,7 @@ async function processWhitelistGrant(interaction, grantData) {
 
 async function handleInfo(interaction) {
   try {
+    // Defer reply immediately - 15 minute timeout starts now
     await interaction.deferReply(); // Non-ephemeral defer
     const discordUser = interaction.options.getUser('user');
     const steamid = interaction.options.getString('steamid');
@@ -1522,9 +1523,22 @@ async function handleInfo(interaction) {
     });
   } catch (error) {
     loggerConsole.error('Whitelist info error:', error);
-    await interaction.editReply({
-      content: `❌ Failed to retrieve whitelist status: ${error.message}`
-    });
+
+    // Handle interaction timeout gracefully
+    if (error.code === 10062 || error.rawError?.code === 10062) {
+      loggerConsole.warn('Interaction expired while processing whitelist info');
+      return;
+    }
+
+    try {
+      await interaction.editReply({
+        content: `❌ Failed to retrieve whitelist status: ${error.message}`
+      });
+    } catch (replyError) {
+      if (replyError.code !== 10062 && replyError.rawError?.code !== 10062) {
+        loggerConsole.error('Failed to send error message for whitelist info:', replyError);
+      }
+    }
   }
 }
 

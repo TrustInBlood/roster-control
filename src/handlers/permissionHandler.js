@@ -45,31 +45,42 @@ function checkPermissions(interaction, commandName) {
  * @returns {Promise} - Resolves when permissions are checked and command is executed
  */
 async function permissionMiddleware(interaction, next, options = {}) {
-  const commandName = interaction.commandName;
-  const subcommand = interaction.options?.getSubcommand?.(false); // false = don't throw if no subcommand
+  try {
+    const commandName = interaction.commandName;
+    const subcommand = interaction.options?.getSubcommand?.(false); // false = don't throw if no subcommand
 
-  // Check parent command permission first
-  if (!checkPermissions(interaction, commandName)) {
-    await sendError(
-      interaction,
-      'You do not have permission to use this command.'
-    );
-    return;
-  }
-
-  // If there's a subcommand and skipSubcommandCheck is not true, check its permission too
-  if (subcommand && !options.skipSubcommandCheck) {
-    if (!checkPermissions(interaction, subcommand)) {
+    // Check parent command permission first
+    if (!checkPermissions(interaction, commandName)) {
       await sendError(
         interaction,
-        `You do not have permission to use \`/${commandName} ${subcommand}\`. This subcommand requires specific role permissions.`
+        'You do not have permission to use this command.'
       );
       return;
     }
-  }
 
-  // If permissions check passes, execute the command
-  await next();
+    // If there's a subcommand and skipSubcommandCheck is not true, check its permission too
+    if (subcommand && !options.skipSubcommandCheck) {
+      if (!checkPermissions(interaction, subcommand)) {
+        await sendError(
+          interaction,
+          `You do not have permission to use \`/${commandName} ${subcommand}\`. This subcommand requires specific role permissions.`
+        );
+        return;
+      }
+    }
+
+    // If permissions check passes, execute the command
+    await next();
+  } catch (error) {
+    // Handle interaction timeout or other errors gracefully
+    if (error.code === 10062 || error.rawError?.code === 10062) {
+      loggerConsole.warn('Interaction expired during permission check or command execution');
+      return;
+    }
+
+    // Re-throw other errors to be handled by the command handler
+    throw error;
+  }
 }
 
 module.exports = {
