@@ -103,9 +103,9 @@ module.exports = (sequelize) => {
       allowNull: false,
       defaultValue: 'manual',
       validate: {
-        isIn: [['role', 'manual', 'import']]
+        isIn: [['role', 'manual', 'import', 'donation']]
       },
-      comment: 'Source of the whitelist: "role", "manual", "import"'
+      comment: 'Source of the whitelist: "role", "manual", "import", "donation"'
     },
     role_name: {
       type: DataTypes.STRING(50),

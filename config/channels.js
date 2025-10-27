@@ -9,6 +9,19 @@ const CHANNELS = {
   MONITORED_VOICE: '1305677735707934822',  // Replace with the voice channel ID to monitor
   // Channel for bot activity logs (auto-linking, commands, etc.)
   BOT_LOGS: '1412709300941492246',  // Replace with your bot logs channel ID
+  // Channel for donation announcements (public, no email)
+  DONATION_ANNOUNCEMENTS: '1350251098547683459',
+  // Channel for donation admin logs (includes email)
+  DONATION_ADMIN_LOGS: '1310841642928050186',
+};
+
+/**
+ * Discord message links
+ * Links to specific messages for reference
+ */
+const MESSAGE_LINKS = {
+  // How-to-donate guide message link
+  HOW_TO_DONATE: 'https://discord.com/channels/386598132231700481/1202285020480282706/1267563969304989716'
 };
 
 /**
@@ -31,7 +44,12 @@ const NOTIFICATION_ROUTES = {
   audit: 'BOT_LOGS',
 
   // Security notifications
-  security_transition: 'BOT_LOGS'
+  security_transition: 'BOT_LOGS',
+
+  // Donation notifications
+  donation_public: 'DONATION_ANNOUNCEMENTS',
+  donation_admin: 'DONATION_ADMIN_LOGS',
+  donation_error: 'DONATION_ADMIN_LOGS'
 };
 
 /**
@@ -54,5 +72,6 @@ const TICKET_CONFIG = {
 module.exports = {
   CHANNELS,
   NOTIFICATION_ROUTES,
-  TICKET_CONFIG
+  TICKET_CONFIG,
+  MESSAGE_LINKS
 };

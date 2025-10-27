@@ -289,25 +289,37 @@ client.on('interactionCreate', async interaction => {
 async function initializeWhitelist() {
   try {
     loggerConsole.log('Initializing whitelist integration...');
-        
+
     // Setup HTTP server
     const app = express();
-        
+
+    // Add body parsing middleware
+    app.use(express.json());
+    app.use(express.urlencoded({ extended: true }));
+
     // Setup whitelist routes and services
     const whitelistServices = await setupWhitelistRoutes(
-      app, 
-      databaseManager.getSequelize(), 
-      logger, 
+      app,
+      databaseManager.getSequelize(),
+      logger,
       client
     );
+
+    // Setup donation webhook routes
+    const { setupDonationWebhook } = require('./routes/donationWebhook');
+    const donationRouter = setupDonationWebhook(client);
+    app.use('/webhook', donationRouter);
+    loggerConsole.log('Donation webhook routes registered at /webhook/donations');
 
     // Start HTTP server
     const port = whitelistServices.config.http.port;
     const host = whitelistServices.config.http.host;
-        
+
     const server = app.listen(port, host, () => {
-      logger.info(`Whitelist HTTP server listening on ${host}:${port}`);
-      loggerConsole.log(`Whitelist HTTP server started on ${host}:${port}`);
+      logger.info(`HTTP server listening on ${host}:${port}`);
+      loggerConsole.log(`HTTP server started on ${host}:${port}`);
+      loggerConsole.log(`  - Whitelist endpoint: http://${host}:${port}/whitelist`);
+      loggerConsole.log(`  - Donation webhook: http://${host}:${port}/webhook/donations`);
     });
 
     // Store for graceful shutdown
@@ -321,9 +333,9 @@ async function initializeWhitelist() {
       connectionStatus: whitelistServices.connectionManager.getConnectionStatus(),
       roleWhitelistSyncEnabled: !!whitelistServices.roleWhitelistSync
     });
-    
+
     return whitelistServices;
-        
+
   } catch (error) {
     loggerConsole.error('❌ Failed to initialize whitelist integration:', error);
     logger.error('Failed to initialize whitelist integration', { error: error.message });
