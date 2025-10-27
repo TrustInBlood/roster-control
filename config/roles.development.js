@@ -6,6 +6,7 @@
 const COMMAND_PERMISSIONS = {
   // Super admin commands (highest level access)
   'upgradeconfidence': ['1420532128541835284'], // Super admin only: Upgrade confidence scores to 1.0 (Test Super Admin role)
+  'adminunlink': ['1420532128541835284'], // Super admin only: Forcibly unlink accounts and revoke all access
 
   // Admin commands - Update these with your development server role IDs
   'whitelist': ['1365205433236717598'], // Admin roles can use whitelist commands

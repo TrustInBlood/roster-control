@@ -13,6 +13,9 @@ const COMMAND_PERMISSIONS = {
   'upgradeconfidence': [DISCORD_ROLES.SUPER_ADMIN], // Super admin only: Upgrade confidence scores to 1.0
   'sync': [DISCORD_ROLES.SUPER_ADMIN],       // Super admin only: Sync Discord roles to database whitelist entries
 
+  // Head Admin commands
+  'adminunlink': [DISCORD_ROLES.HEAD_ADMIN, DISCORD_ROLES.EXECUTIVE_ADMIN], // head admin only: Forcibly unlink accounts and revoke all access
+
   // Admin commands
   'whitelist': getAllStaffRoles(),  // All staff roles can use whitelist commands (parent command check)
   'grant': getAllStaffRoles(),      // All staff roles can grant whitelist with Discord linking
