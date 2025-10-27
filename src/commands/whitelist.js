@@ -306,6 +306,11 @@ async function handleGrantSteamId(interaction) {
 
     // If Steam ID is already linked to a different Discord account, show conflict warning
     if (existingLink) {
+      // Generate unique IDs for this specific interaction to prevent cross-contamination
+      const interactionId = interaction.id;
+      const proceedConflictId = `proceed_despite_conflict_${interactionId}`;
+      const cancelConflictId = `cancel_conflict_${interactionId}`;
+
       const conflictEmbed = createResponseEmbed({
         title: '🚨 Steam ID Conflict Detected',
         description: `**WARNING:** This Steam ID is already linked to a Discord account.\n\n**Steam ID:** ${steamid}\n${username ? `**Username:** ${username}` : '**Username:** Not provided'}\n\n**Existing Link:**\n• Discord User: <@${existingLink.discord_user_id}> (ID: ${existingLink.discord_user_id})\n• Link Confidence: ${existingLink.confidence_score}\n• Link Source: ${existingLink.link_source}\n• Created: ${new Date(existingLink.created_at).toLocaleDateString()}\n\n⚠️ **Proceeding will grant whitelist to this Steam ID without changing the existing link.**\n\nOnly proceed if you're certain this is correct.`,
@@ -315,12 +320,12 @@ async function handleGrantSteamId(interaction) {
       const conflictRow = new ActionRowBuilder()
         .addComponents(
           new ButtonBuilder()
-            .setCustomId('proceed_despite_conflict')
+            .setCustomId(proceedConflictId)
             .setLabel('Proceed Anyway')
             .setStyle(ButtonStyle.Danger)
             .setEmoji('⚠️'),
           new ButtonBuilder()
-            .setCustomId('cancel_conflict')
+            .setCustomId(cancelConflictId)
             .setLabel('Cancel')
             .setStyle(ButtonStyle.Secondary)
             .setEmoji('❌')
@@ -334,12 +339,12 @@ async function handleGrantSteamId(interaction) {
       // Handle conflict confirmation
       const conflictCollector = interaction.channel.createMessageComponentCollector({
         componentType: ComponentType.Button,
-        filter: (i) => (i.customId === 'proceed_despite_conflict' || i.customId === 'cancel_conflict') && i.user.id === interaction.user.id,
+        filter: (i) => (i.customId === proceedConflictId || i.customId === cancelConflictId) && i.user.id === interaction.user.id,
         time: 300000
       });
 
       conflictCollector.on('collect', async (buttonInteraction) => {
-        if (buttonInteraction.customId === 'cancel_conflict') {
+        if (buttonInteraction.customId === cancelConflictId) {
           try {
             await buttonInteraction.update({
               content: '❌ Steam ID grant cancelled due to conflict.',
@@ -412,6 +417,11 @@ async function handleGrantSteamId(interaction) {
 }
 
 async function showSteamIdGrantWarning(interaction, steamid, username, originalUser) {
+  // Generate unique IDs for this specific interaction to prevent cross-contamination
+  const interactionId = interaction.id;
+  const proceedId = `proceed_steamid_grant_${interactionId}`;
+  const cancelId = `cancel_steamid_grant_${interactionId}`;
+
   // Step 1: Show warning about Steam ID only grant
   const warningEmbed = createResponseEmbed({
     title: '⚠️ Steam ID Only Grant',
@@ -422,12 +432,12 @@ async function showSteamIdGrantWarning(interaction, steamid, username, originalU
   const confirmRow = new ActionRowBuilder()
     .addComponents(
       new ButtonBuilder()
-        .setCustomId('proceed_steamid_grant')
+        .setCustomId(proceedId)
         .setLabel('Proceed with Steam ID Grant')
         .setStyle(ButtonStyle.Danger)
         .setEmoji('⚠️'),
       new ButtonBuilder()
-        .setCustomId('cancel_steamid_grant')
+        .setCustomId(cancelId)
         .setLabel('Cancel')
         .setStyle(ButtonStyle.Secondary)
         .setEmoji('❌')
@@ -462,12 +472,12 @@ async function showSteamIdGrantWarning(interaction, steamid, username, originalU
   // Handle confirmation
   const confirmCollector = interaction.channel.createMessageComponentCollector({
     componentType: ComponentType.Button,
-    filter: (i) => (i.customId === 'proceed_steamid_grant' || i.customId === 'cancel_steamid_grant') && i.user.id === originalUser.id,
+    filter: (i) => (i.customId === proceedId || i.customId === cancelId) && i.user.id === originalUser.id,
     time: 300000
   });
 
   confirmCollector.on('collect', async (buttonInteraction) => {
-    if (buttonInteraction.customId === 'cancel_steamid_grant') {
+    if (buttonInteraction.customId === cancelId) {
       try {
         await buttonInteraction.update({
           content: '❌ Steam ID grant cancelled.',
@@ -546,6 +556,10 @@ async function showSteamIdGrantWarning(interaction, steamid, username, originalU
 async function showReasonSelectionButtons(interaction, grantData) {
   const { discordUser, userInfo, originalUser, isSteamIdOnly } = grantData;
 
+  // Generate unique ID for this specific interaction to prevent cross-contamination
+  const interactionId = interaction.id;
+  const reasonSelectId = `reason_select_${interactionId}`;
+
   const reasonEmbed = createResponseEmbed({
     title: '🎯 Select Whitelist Type',
     description: `**Steam ID:** ${userInfo.steamid64}\n${discordUser ? `**Discord User:** <@${discordUser.id}>` : '**Discord User:** Not linked'}${isSteamIdOnly ? '\n\n⚠️ **Steam ID Only Grant** - No account linking will occur' : ''}\n\nPlease select the type of whitelist to grant:`,
@@ -553,7 +567,7 @@ async function showReasonSelectionButtons(interaction, grantData) {
   });
 
   const reasonSelect = new StringSelectMenuBuilder()
-    .setCustomId('reason_select')
+    .setCustomId(reasonSelectId)
     .setPlaceholder('Select whitelist type')
     .addOptions([
       {
@@ -610,7 +624,7 @@ async function showReasonSelectionButtons(interaction, grantData) {
   // Handle reason select menu
   const reasonCollector = interaction.channel.createMessageComponentCollector({
     componentType: ComponentType.StringSelect,
-    filter: (i) => i.customId === 'reason_select' && i.user.id === originalUser.id,
+    filter: (i) => i.customId === reasonSelectId && i.user.id === originalUser.id,
     time: 300000
   });
 
@@ -711,6 +725,10 @@ async function handleDurationSelection(interaction, grantData) {
 async function showDonatorDurationSelection(interaction, grantData) {
   const { discordUser, userInfo } = grantData;
 
+  // Generate unique ID for this specific interaction to prevent cross-contamination
+  const interactionId = interaction.id;
+  const donatorDurationId = `donator_duration_${interactionId}`;
+
   const durationEmbed = createResponseEmbed({
     title: '💎 Donator Duration Selection',
     description: `**Steam ID:** ${userInfo.steamid64}\n${discordUser ? `**Discord User:** <@${discordUser.id}>` : '**Discord User:** Not linked'}\n\nSelect the donator whitelist duration:`,
@@ -718,7 +736,7 @@ async function showDonatorDurationSelection(interaction, grantData) {
   });
 
   const durationSelect = new StringSelectMenuBuilder()
-    .setCustomId('donator_duration')
+    .setCustomId(donatorDurationId)
     .setPlaceholder('Select duration')
     .addOptions([
       {
@@ -745,7 +763,7 @@ async function showDonatorDurationSelection(interaction, grantData) {
   // Handle duration select menu
   const durationCollector = interaction.channel.createMessageComponentCollector({
     componentType: ComponentType.StringSelect,
-    filter: (i) => i.customId === 'donator_duration' && i.user.id === grantData.originalUser.id,
+    filter: (i) => i.customId === donatorDurationId && i.user.id === grantData.originalUser.id,
     time: 300000
   });
 
@@ -784,6 +802,11 @@ async function showDonatorDurationSelection(interaction, grantData) {
 async function showReportingDurationSelection(interaction, grantData) {
   const { discordUser, userInfo } = grantData;
 
+  // Generate unique IDs for this specific interaction to prevent cross-contamination
+  const interactionId = interaction.id;
+  const reportingDurationId = `reporting_duration_${interactionId}`;
+  const customModalId = `reporting_custom_modal_${interactionId}`;
+
   const durationEmbed = createResponseEmbed({
     title: '📋 Reporting Duration Selection',
     description: `**Steam ID:** ${userInfo.steamid64}\n${discordUser ? `**Discord User:** <@${discordUser.id}>` : '**Discord User:** Not linked'}\n\nSelect the reporting whitelist duration:`,
@@ -791,7 +814,7 @@ async function showReportingDurationSelection(interaction, grantData) {
   });
 
   const durationSelect = new StringSelectMenuBuilder()
-    .setCustomId('reporting_duration')
+    .setCustomId(reportingDurationId)
     .setPlaceholder('Select duration')
     .addOptions([
       {
@@ -836,7 +859,7 @@ async function showReportingDurationSelection(interaction, grantData) {
   // Handle duration select menu
   const durationCollector = interaction.channel.createMessageComponentCollector({
     componentType: ComponentType.StringSelect,
-    filter: (i) => i.customId === 'reporting_duration' && i.user.id === grantData.originalUser.id,
+    filter: (i) => i.customId === reportingDurationId && i.user.id === grantData.originalUser.id,
     time: 300000
   });
 
@@ -844,7 +867,7 @@ async function showReportingDurationSelection(interaction, grantData) {
     if (selectInteraction.values[0] === 'custom') {
       // Show modal for custom duration input
       const customDaysModal = new ModalBuilder()
-        .setCustomId('reporting_custom_modal')
+        .setCustomId(customModalId)
         .setTitle('Custom Reporting Duration');
 
       const daysInput = new TextInputBuilder()
@@ -866,7 +889,7 @@ async function showReportingDurationSelection(interaction, grantData) {
       // Create a more specific modal filter
       try {
         const modalResponse = await selectInteraction.awaitModalSubmit({
-          filter: (i) => i.customId === 'reporting_custom_modal' && i.user.id === grantData.originalUser.id,
+          filter: (i) => i.customId === customModalId && i.user.id === grantData.originalUser.id,
           time: 300000
         });
 
@@ -938,6 +961,11 @@ async function showReportingDurationSelection(interaction, grantData) {
 }
 
 async function handleConfirmation(interaction, grantData) {
+  // Generate unique IDs for this specific interaction to prevent cross-contamination
+  const interactionId = interaction.id;
+  const confirmGrantId = `confirm_grant_${interactionId}`;
+  const cancelGrantId = `cancel_grant_${interactionId}`;
+
   // IMPORTANT: Capture all variables at function entry to prevent contamination from concurrent commands
   const capturedGrantData = {
     reason: grantData.reason,
@@ -971,12 +999,12 @@ async function handleConfirmation(interaction, grantData) {
   const confirmRow = new ActionRowBuilder()
     .addComponents(
       new ButtonBuilder()
-        .setCustomId('confirm_grant')
+        .setCustomId(confirmGrantId)
         .setLabel('Confirm & Grant')
         .setStyle(ButtonStyle.Success)
         .setEmoji('✅'),
       new ButtonBuilder()
-        .setCustomId('cancel_grant')
+        .setCustomId(cancelGrantId)
         .setLabel('Cancel')
         .setStyle(ButtonStyle.Danger)
         .setEmoji('❌')
@@ -990,13 +1018,13 @@ async function handleConfirmation(interaction, grantData) {
   // Handle confirmation
   const confirmCollector = interaction.channel.createMessageComponentCollector({
     componentType: ComponentType.Button,
-    filter: (i) => (i.customId === 'confirm_grant' || i.customId === 'cancel_grant') && i.user.id === capturedGrantData.originalUser.id,
+    filter: (i) => (i.customId === confirmGrantId || i.customId === cancelGrantId) && i.user.id === capturedGrantData.originalUser.id,
     time: 300000
   });
 
   confirmCollector.on('collect', async (buttonInteraction) => {
     try {
-      if (buttonInteraction.customId === 'cancel_grant') {
+      if (buttonInteraction.customId === cancelGrantId) {
         await buttonInteraction.update({
           content: '❌ Whitelist grant cancelled.',
           embeds: [],
