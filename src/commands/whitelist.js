@@ -338,11 +338,20 @@ async function handleGrantSteamId(interaction) {
 
       conflictCollector.on('collect', async (buttonInteraction) => {
         if (buttonInteraction.customId === 'cancel_conflict') {
-          await buttonInteraction.update({
-            content: '❌ Steam ID grant cancelled due to conflict.',
-            embeds: [],
-            components: []
-          });
+          try {
+            await buttonInteraction.update({
+              content: '❌ Steam ID grant cancelled due to conflict.',
+              embeds: [],
+              components: []
+            });
+          } catch (error) {
+            // Handle interaction timeout gracefully
+            if (error.code === 10062 || error.rawError?.code === 10062) {
+              loggerConsole.warn('Interaction expired during conflict cancellation');
+              return;
+            }
+            throw error;
+          }
           return;
         }
 
@@ -457,11 +466,20 @@ async function showSteamIdGrantWarning(interaction, steamid, username, originalU
 
   confirmCollector.on('collect', async (buttonInteraction) => {
     if (buttonInteraction.customId === 'cancel_steamid_grant') {
-      await buttonInteraction.update({
-        content: '❌ Steam ID grant cancelled.',
-        embeds: [],
-        components: []
-      });
+      try {
+        await buttonInteraction.update({
+          content: '❌ Steam ID grant cancelled.',
+          embeds: [],
+          components: []
+        });
+      } catch (error) {
+        // Handle interaction timeout gracefully
+        if (error.code === 10062 || error.rawError?.code === 10062) {
+          loggerConsole.warn('Interaction expired during Steam ID grant cancellation');
+          return;
+        }
+        throw error;
+      }
       return;
     }
 

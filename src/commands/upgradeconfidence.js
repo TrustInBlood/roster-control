@@ -90,11 +90,20 @@ module.exports = {
 
         confirmCollector.on('collect', async (buttonInteraction) => {
           if (buttonInteraction.customId === 'cancel_upgrade') {
-            await buttonInteraction.update({
-              content: '❌ Confidence upgrade cancelled.',
-              embeds: [],
-              components: []
-            });
+            try {
+              await buttonInteraction.update({
+                content: '❌ Confidence upgrade cancelled.',
+                embeds: [],
+                components: []
+              });
+            } catch (error) {
+              // Handle interaction timeout gracefully
+              if (error.code === 10062 || error.rawError?.code === 10062) {
+                loggerConsole.warn('Interaction expired during upgrade confidence cancellation');
+                return;
+              }
+              throw error;
+            }
             return;
           }
 
