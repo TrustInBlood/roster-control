@@ -326,10 +326,9 @@ async function handleGrantSteamId(interaction) {
             .setEmoji('❌')
         );
 
-      await interaction.reply({
+      await interaction.editReply({
         embeds: [conflictEmbed],
-        components: [conflictRow],
-        flags: MessageFlags.Ephemeral
+        components: [conflictRow]
       });
 
       // Handle conflict confirmation
