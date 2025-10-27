@@ -25,6 +25,7 @@ const COMMAND_PERMISSIONS = {
   'adminlink': getAllAdminRoles(),  // All admin roles can create Steam-Discord account links
   'whatsnew': getAllAdminRoles(),   // All admin roles can use whatsnew command
   'unlinkedstaff': getAllAdminRoles(), // All admin roles can view unlinked staff
+  'auditwhitelist': getAllAdminRoles(), // All admin roles can audit whitelist security
 
   // Tutor management commands (Tutor Lead only)
   'addspecialty': [DISCORD_ROLES.TUTOR_LEAD],

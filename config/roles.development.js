@@ -14,6 +14,7 @@ const COMMAND_PERMISSIONS = {
   'adminlink': ['1365205433236717598'], // Admin roles can create Steam-Discord account links
   'whatsnew': ['1365205433236717598'],  // Admin roles can use whatsnew command
   'unlinkedstaff': ['1365205433236717598'], // Admin roles can view unlinked staff
+  'auditwhitelist': ['1365205433236717598'], // Admin roles can audit whitelist security
 
   // Public commands
   'ping': [],  // Everyone can use
