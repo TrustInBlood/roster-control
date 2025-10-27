@@ -61,15 +61,20 @@ module.exports = {
           color: 0xff6b35
         });
 
+        // Generate unique IDs for this specific interaction to prevent cross-contamination
+        const interactionId = interaction.id;
+        const confirmId = `confirm_upgrade_${interactionId}`;
+        const cancelId = `cancel_upgrade_${interactionId}`;
+
         const confirmRow = new ActionRowBuilder()
           .addComponents(
             new ButtonBuilder()
-              .setCustomId('confirm_upgrade')
+              .setCustomId(confirmId)
               .setLabel('Confirm Upgrade to 1.0')
               .setStyle(ButtonStyle.Danger)
               .setEmoji('🔐'),
             new ButtonBuilder()
-              .setCustomId('cancel_upgrade')
+              .setCustomId(cancelId)
               .setLabel('Cancel')
               .setStyle(ButtonStyle.Secondary)
               .setEmoji('❌')
@@ -81,15 +86,16 @@ module.exports = {
           flags: MessageFlags.Ephemeral
         });
 
-        // Handle confirmation
-        const confirmCollector = interaction.channel.createMessageComponentCollector({
+        // Handle confirmation - use message-specific collector to prevent cross-contamination
+        const message = await interaction.fetchReply();
+        const confirmCollector = message.createMessageComponentCollector({
           componentType: ComponentType.Button,
-          filter: (i) => (i.customId === 'confirm_upgrade' || i.customId === 'cancel_upgrade') && i.user.id === interaction.user.id,
+          filter: (i) => (i.customId === confirmId || i.customId === cancelId) && i.user.id === interaction.user.id,
           time: 300000
         });
 
         confirmCollector.on('collect', async (buttonInteraction) => {
-          if (buttonInteraction.customId === 'cancel_upgrade') {
+          if (buttonInteraction.customId === cancelId) {
             try {
               await buttonInteraction.update({
                 content: '❌ Confidence upgrade cancelled.',
@@ -174,21 +180,39 @@ module.exports = {
 
           } catch (error) {
             loggerConsole.error('Confidence upgrade error:', error);
-            await buttonInteraction.editReply({
-              content: `❌ Failed to upgrade confidence: ${error.message}`,
-              embeds: [],
-              components: []
-            });
+            try {
+              await buttonInteraction.editReply({
+                content: `❌ Failed to upgrade confidence: ${error.message}`,
+                embeds: [],
+                components: []
+              });
+            } catch (interactionError) {
+              // Handle interaction timeout gracefully
+              if (interactionError.code === 10062 || interactionError.rawError?.code === 10062 || interactionError.code === 'InteractionNotReplied') {
+                loggerConsole.warn('Interaction expired during upgrade confidence error handling');
+                return;
+              }
+              throw interactionError;
+            }
           }
         });
 
-        confirmCollector.on('end', (collected, reason) => {
+        confirmCollector.on('end', async (collected, reason) => {
           if (reason === 'time' && collected.size === 0) {
-            interaction.editReply({
-              content: '❌ Confidence upgrade timed out.',
-              embeds: [],
-              components: []
-            });
+            try {
+              await interaction.editReply({
+                content: '❌ Confidence upgrade timed out.',
+                embeds: [],
+                components: []
+              });
+            } catch (error) {
+              // Handle interaction timeout gracefully - if already expired, just log
+              if (error.code === 10062 || error.rawError?.code === 10062 || error.code === 'InteractionNotReplied') {
+                loggerConsole.warn('Interaction already expired during timeout handler');
+                return;
+              }
+              loggerConsole.error('Error during timeout handler:', error);
+            }
           }
         });
 
