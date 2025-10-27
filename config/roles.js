@@ -14,8 +14,11 @@ const COMMAND_PERMISSIONS = {
   'sync': [DISCORD_ROLES.SUPER_ADMIN],       // Super admin only: Sync Discord roles to database whitelist entries
 
   // Admin commands
-  'whitelist': getAllStaffRoles(),  // All staff roles can use whitelist commands
+  'whitelist': getAllStaffRoles(),  // All staff roles can use whitelist commands (parent command check)
+  'grant': getAllStaffRoles(),      // All staff roles can grant whitelist with Discord linking
   'grant-steamid': getAllAdminRoles(), // Admin-only: Steam ID only whitelist grants (no linking)
+  'info': getAllStaffRoles(),       // All staff roles can view whitelist info
+  'revoke': getAllAdminRoles(),     // Admin-only: Revoke whitelist entries
   'checkenv': getAllAdminRoles(),   // All admin roles can check environment
   'duty': getAllAdminRoles(),       // All admin roles can use duty commands
   'dutystats': getAllAdminRoles(),  // All admin roles can view duty statistics

@@ -239,6 +239,7 @@ module.exports = {
             .setRequired(false))),
 
   async execute(interaction) {
+    // Permission middleware now automatically checks both parent command and subcommand permissions
     await permissionMiddleware(interaction, async () => {
       const subcommand = interaction.options.getSubcommand();
 
