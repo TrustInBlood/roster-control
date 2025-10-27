@@ -15,6 +15,54 @@ module.exports = {
 
       const discordUserId = interaction.user.id;
 
+      // Check if user already has an active verification code
+      const activeCode = await VerificationCode.findOne({
+        where: {
+          discord_user_id: discordUserId,
+          expiration: { [require('sequelize').Op.gt]: new Date() }
+        }
+      });
+
+      if (activeCode) {
+        const timeUntilExpiry = Math.ceil((activeCode.expiration - new Date()) / 1000 / 60);
+        const alreadyActiveEmbed = {
+          color: 0xffa500,
+          title: 'Verification Code Already Active',
+          description: `You already have an active verification code: **${activeCode.code}**`,
+          fields: [
+            {
+              name: 'Current Code',
+              value: activeCode.code,
+              inline: true
+            },
+            {
+              name: 'Expires In',
+              value: `${timeUntilExpiry} minute${timeUntilExpiry !== 1 ? 's' : ''} (<t:${Math.floor(activeCode.expiration.getTime() / 1000)}:R>)`,
+              inline: true
+            },
+            {
+              name: 'How to use',
+              value: `Type \`${activeCode.code}\` in Squad game chat to link your account.`,
+              inline: false
+            },
+            {
+              name: 'Need a new code?',
+              value: 'Wait for this code to expire, or use it first.',
+              inline: false
+            }
+          ],
+          timestamp: new Date().toISOString(),
+          footer: {
+            text: 'Roster Control System'
+          }
+        };
+
+        await interaction.editReply({
+          embeds: [alreadyActiveEmbed]
+        });
+        return;
+      }
+
       // Check if user already has a Steam account linked
       const existingLink = await PlayerDiscordLink.findOne({
         where: {
