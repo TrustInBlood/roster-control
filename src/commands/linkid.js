@@ -10,6 +10,9 @@ module.exports = {
   
   async execute(interaction) {
     try {
+      // Defer reply immediately to prevent timeout (Discord gives 3 seconds)
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
       const discordUserId = interaction.user.id;
 
       // Check if user already has a Steam account linked
@@ -54,9 +57,8 @@ module.exports = {
           }
         };
 
-        await interaction.reply({
-          embeds: [alreadyLinkedEmbed],
-          flags: MessageFlags.Ephemeral
+        await interaction.editReply({
+          embeds: [alreadyLinkedEmbed]
         });
         return;
       }
@@ -121,9 +123,8 @@ module.exports = {
         );
       }
 
-      await interaction.reply({
-        embeds: [embed],
-        flags: MessageFlags.Ephemeral
+      await interaction.editReply({
+        embeds: [embed]
       });
 
       // Store the interaction for later update
@@ -190,9 +191,11 @@ module.exports = {
         error: error.message
       });
 
-      await interaction.reply({
+      // Use editReply if already deferred, otherwise reply
+      const replyMethod = interaction.deferred || interaction.replied ? 'editReply' : 'reply';
+      await interaction[replyMethod]({
         content: 'Failed to generate verification code. Please try again later.',
-        flags: MessageFlags.Ephemeral
+        flags: replyMethod === 'reply' ? MessageFlags.Ephemeral : undefined
       });
     }
   }

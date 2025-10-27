@@ -18,7 +18,8 @@ const COMMAND_PERMISSIONS = {
   // Public commands
   'ping': [],  // Everyone can use
   'help': [],  // Everyone can use
-  'linkid': [] // Everyone can use - self-service account linking
+  'linkid': [], // Everyone can use - self-service account linking
+  'unlink': [] // Everyone can use - self-service account unlinking
 };
 
 // Both duty commands use the same permission list
