@@ -80,11 +80,8 @@ class RoleWhitelistSyncService {
           };
         }
 
-        // IMPORTANT: Check for and upgrade any existing unlinked placeholder entries
-        // This handles cases where a user got a role before linking their Steam account
-        await this._upgradeUnlinkedEntries(discordUserId, primaryLink.steamid64, source, transaction);
-
-        // Step 2: Check if user meets confidence requirements for staff roles
+        // Step 2: Check if user meets confidence requirements for staff roles BEFORE upgrading
+        // This prevents low-confidence Steam IDs from upgrading placeholder entries
         if (newGroup && newGroup !== 'Member' && primaryLink.confidence_score < 1.0) {
           this.logger.warn('SECURITY: Blocking staff whitelist due to insufficient link confidence', {
             discordUserId,
@@ -113,6 +110,11 @@ class RoleWhitelistSyncService {
             requiredConfidence: 1.0
           };
         }
+
+        // IMPORTANT: Check for and upgrade any existing unlinked placeholder entries
+        // This handles cases where a user got a role before linking their Steam account
+        // Only called after confidence validation to ensure high-confidence links only
+        await this._upgradeUnlinkedEntries(discordUserId, primaryLink.steamid64, primaryLink.confidence_score, source, transaction);
 
         // Step 3: Handle role-based whitelist entry
         if (newGroup) {
@@ -392,16 +394,32 @@ class RoleWhitelistSyncService {
    * Upgrade any existing unlinked/unapproved/security-blocked entries when user gets sufficient confidence
    * @private
    */
-  async _upgradeUnlinkedEntries(discordUserId, steamId, source, transaction) {
+  async _upgradeUnlinkedEntries(discordUserId, steamId, linkConfidence, source, transaction) {
     try {
+      // SECURITY: Validate confidence before upgrading (defense in depth)
+      if (linkConfidence < 1.0) {
+        this.logger.warn('SECURITY: Skipping upgrade due to insufficient confidence', {
+          discordUserId,
+          steamId,
+          confidence: linkConfidence,
+          required: 1.0
+        });
+        return; // Do not upgrade with low confidence
+      }
+
       // Find all entries that need upgrading:
       // 1. Unapproved placeholder entries (approved: false, revoked: false)
       // 2. Security-blocked entries (approved: false, revoked: true) from insufficient confidence
+      // SECURITY FIX: Only match entries for THIS Steam ID or placeholder entries
       const entriesToUpgrade = await Whitelist.findAll({
         where: {
           discord_user_id: discordUserId,
           source: 'role',
-          approved: false
+          approved: false,
+          [require('sequelize').Op.or]: [
+            { steamid64: steamId }, // Entries for this specific Steam ID
+            { steamid64: '00000000000000000' } // Placeholder entries (unlinked)
+          ]
           // Note: We check both revoked: false AND revoked: true entries
         },
         order: [['createdAt', 'DESC']], // Most recent first
@@ -415,6 +433,7 @@ class RoleWhitelistSyncService {
       this.logger.info('Upgrading unapproved/blocked role-based entries', {
         discordUserId,
         steamId,
+        linkConfidence,
         count: entriesToUpgrade.length
       });
 
