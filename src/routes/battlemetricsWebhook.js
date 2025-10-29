@@ -29,22 +29,40 @@ function validateBattleMetricsWebhook(req) {
 
   if (signature && sharedSecret) {
     try {
-      // BattleMetrics signs the raw request body with HMAC-SHA256
-      const rawBody = JSON.stringify(req.body);
-      const expectedSignature = crypto
-        .createHmac('sha256', sharedSecret)
-        .update(rawBody)
-        .digest('hex');
-
-      if (signature === expectedSignature) {
-        serviceLogger.debug('BattleMetrics webhook authenticated via X-Signature');
-        return true;
-      }
-
-      serviceLogger.warn('Invalid X-Signature', {
-        provided: signature.substring(0, 10) + '...',
-        expected: expectedSignature.substring(0, 10) + '...'
+      // BattleMetrics signature format: "t=<timestamp>,v1=<signature>"
+      // Parse the signature to extract timestamp and hash
+      const signatureParts = {};
+      signature.split(',').forEach(part => {
+        const [key, value] = part.split('=');
+        signatureParts[key] = value;
       });
+
+      const timestamp = signatureParts.t;
+      const providedHash = signatureParts.v1;
+
+      if (!timestamp || !providedHash) {
+        serviceLogger.warn('Invalid X-Signature format', { signature });
+      } else {
+        // BattleMetrics signs: timestamp + '.' + JSON body
+        const rawBody = JSON.stringify(req.body);
+        const signedPayload = `${timestamp}.${rawBody}`;
+
+        const expectedSignature = crypto
+          .createHmac('sha256', sharedSecret)
+          .update(signedPayload)
+          .digest('hex');
+
+        if (providedHash === expectedSignature) {
+          serviceLogger.debug('BattleMetrics webhook authenticated via X-Signature');
+          return true;
+        }
+
+        serviceLogger.warn('Invalid X-Signature hash', {
+          provided: providedHash.substring(0, 10) + '...',
+          expected: expectedSignature.substring(0, 10) + '...',
+          timestamp
+        });
+      }
     } catch (error) {
       serviceLogger.error('Error validating X-Signature', { error: error.message });
     }
