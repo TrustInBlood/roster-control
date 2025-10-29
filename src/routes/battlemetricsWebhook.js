@@ -29,16 +29,16 @@ function validateBattleMetricsWebhook(req) {
 
   if (signature && sharedSecret) {
     try {
-      // BattleMetrics signature format: "t=<timestamp>,v1=<signature>"
+      // BattleMetrics signature format: "t=<timestamp>,s=<signature>"
       // Parse the signature to extract timestamp and hash
       const signatureParts = {};
       signature.split(',').forEach(part => {
-        const [key, value] = part.split('=');
+        const [key, value] = part.split('=', 2);
         signatureParts[key] = value;
       });
 
       const timestamp = signatureParts.t;
-      const providedHash = signatureParts.v1;
+      const providedHash = signatureParts.s;
 
       if (!timestamp || !providedHash) {
         serviceLogger.warn('Invalid X-Signature format', { signature });
