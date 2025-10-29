@@ -43,8 +43,9 @@ function validateBattleMetricsWebhook(req) {
       if (!timestamp || !providedHash) {
         serviceLogger.warn('Invalid X-Signature format', { signature });
       } else {
-        // BattleMetrics signs: timestamp + '.' + JSON body
-        const rawBody = JSON.stringify(req.body);
+        // BattleMetrics signs: timestamp + '.' + raw request body
+        // Use req.rawBody which was preserved by express.json verify middleware
+        const rawBody = req.rawBody || JSON.stringify(req.body);
         const signedPayload = `${timestamp}.${rawBody}`;
 
         const expectedSignature = crypto
@@ -60,7 +61,10 @@ function validateBattleMetricsWebhook(req) {
         serviceLogger.warn('Invalid X-Signature hash', {
           provided: providedHash.substring(0, 10) + '...',
           expected: expectedSignature.substring(0, 10) + '...',
-          timestamp
+          timestamp,
+          bodyLength: rawBody.length,
+          bodySample: rawBody.substring(0, 100),
+          hasRawBody: !!req.rawBody
         });
       }
     } catch (error) {

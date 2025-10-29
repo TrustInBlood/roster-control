@@ -293,8 +293,13 @@ async function initializeWhitelist() {
     // Setup HTTP server
     const app = express();
 
-    // Add body parsing middleware
-    app.use(express.json());
+    // Add middleware to preserve raw body for signature verification
+    app.use(express.json({
+      verify: (req, res, buf, encoding) => {
+        // Store raw body for webhook signature verification
+        req.rawBody = buf.toString(encoding || 'utf8');
+      }
+    }));
     app.use(express.urlencoded({ extended: true }));
 
     // Setup whitelist routes and services
