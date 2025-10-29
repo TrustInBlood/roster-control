@@ -311,6 +311,12 @@ async function initializeWhitelist() {
     app.use('/webhook', donationRouter);
     loggerConsole.log('Donation webhook routes registered at /webhook/donations');
 
+    // Setup BattleMetrics webhook routes
+    const { setupBattleMetricsWebhook } = require('./routes/battlemetricsWebhook');
+    const battlemetricsRouter = setupBattleMetricsWebhook(client);
+    app.use('/webhook', battlemetricsRouter);
+    loggerConsole.log('BattleMetrics webhook routes registered at /webhook/battlemetrics/whitelist');
+
     // Start HTTP server
     const port = whitelistServices.config.http.port;
     const host = whitelistServices.config.http.host;
@@ -320,6 +326,7 @@ async function initializeWhitelist() {
       loggerConsole.log(`HTTP server started on ${host}:${port}`);
       loggerConsole.log(`  - Whitelist endpoint: http://${host}:${port}/whitelist`);
       loggerConsole.log(`  - Donation webhook: http://${host}:${port}/webhook/donations`);
+      loggerConsole.log(`  - BattleMetrics webhook: http://${host}:${port}/webhook/battlemetrics/whitelist`);
     });
 
     // Store for graceful shutdown
