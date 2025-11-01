@@ -13,9 +13,10 @@ const { logAccountLink } = require('../utils/discordLogger');
 const { console: loggerConsole } = require('../utils/logger');
 const battlemetricsService = require('../services/BattleMetricsService');
 
-// Track which tickets we've already prompted
+// Track which tickets we've already handled (either found Steam ID or prompted)
 // Populated on bot startup by scanning message history, cleaned up on channel delete
-const promptedTickets = new Set();
+// This prevents repeated prompts after we've either found a Steam ID or asked for one
+const handledTickets = new Set();
 
 /**
  * Initialize ticket prompt tracking on bot startup
@@ -49,7 +50,7 @@ async function initializeTicketPromptTracking(client) {
         );
 
         if (alreadyPrompted) {
-          promptedTickets.add(channel.id);
+          handledTickets.add(channel.id);
           alreadyPromptedCount++;
         }
       } catch (error) {
@@ -71,9 +72,9 @@ async function initializeTicketPromptTracking(client) {
  * @param {Channel} channel - Deleted channel
  */
 function handleChannelDelete(channel) {
-  if (promptedTickets.has(channel.id)) {
-    promptedTickets.delete(channel.id);
-    loggerConsole.log('Removed deleted channel from prompt tracking:', {
+  if (handledTickets.has(channel.id)) {
+    handledTickets.delete(channel.id);
+    loggerConsole.log('Removed deleted channel from ticket tracking:', {
       channelId: channel.id,
       channelName: channel.name
     });
@@ -91,16 +92,13 @@ async function handleTicketAutoLink(message) {
       return;
     }
 
-    // For ticket auto-linking, we need to check bot messages too (ticket tool creates embeds)
-    // But we need to associate the Steam ID with the ticket creator, not the bot
-    
-    // Skip if this is our own bot to avoid loops
-    if (message.author.id === message.client.user.id) return;
-
     // Check if this is a ticket channel
     if (!isTicketChannel(message.channel)) {
       return;
     }
+
+    // Skip our own bot messages to avoid loops
+    if (message.author.id === message.client.user.id) return;
 
     // Check if we have message content access or embeds
     if ((!message.content || message.content.length === 0) && (!message.embeds || message.embeds.length === 0)) {
@@ -109,8 +107,8 @@ async function handleTicketAutoLink(message) {
 
     // Extract Steam IDs from both message content and embeds
     let steamIds = extractSteamIds(message.content);
-    
-    // Also check embeds for Steam IDs
+
+    // Also check embeds for Steam IDs (ticket bot might include Steam IDs in embeds)
     if (message.embeds && message.embeds.length > 0) {
       for (const embed of message.embeds) {
         // Check embed description
@@ -118,7 +116,7 @@ async function handleTicketAutoLink(message) {
           const embedSteamIds = extractSteamIds(embed.description);
           steamIds = steamIds.concat(embedSteamIds);
         }
-        
+
         // Check embed fields
         if (embed.fields) {
           for (const field of embed.fields) {
@@ -130,14 +128,16 @@ async function handleTicketAutoLink(message) {
         }
       }
     }
-    
+
     // Remove duplicates
     steamIds = [...new Set(steamIds)];
 
     if (steamIds.length === 0) {
-      // Check if we should prompt for missing Steam ID
-      // Trigger on any message in ticket channel if we haven't prompted yet
-      await checkForMissingSteamId(message);
+      // Only prompt for missing Steam ID on human messages, not bot messages
+      // This prevents prompting on ticket tool messages like "Are you sure you want to close?"
+      if (!message.author.bot) {
+        await checkForMissingSteamId(message);
+      }
       return; // No Steam IDs found
     }
 
@@ -171,6 +171,10 @@ async function handleTicketAutoLink(message) {
     for (const steamId of steamIds) {
       await processTicketSteamId(message, steamId, targetUser);
     }
+
+    // Mark this ticket as handled - we found and processed Steam ID(s)
+    // This prevents prompting for Steam ID in future messages
+    handledTickets.add(message.channel.id);
 
   } catch (error) {
     // Don't let ticket auto-linking crash the bot
@@ -485,9 +489,9 @@ async function checkForMissingSteamId(message) {
   }
 
   // Check cache first (O(1))
-  // Cache is populated on startup by scanning all ticket channels
-  if (promptedTickets.has(message.channel.id)) {
-    return; // Already prompted this ticket
+  // Cache is populated on startup and tracks both Steam ID processing and prompts
+  if (handledTickets.has(message.channel.id)) {
+    return; // Already handled this ticket (either found Steam ID or prompted)
   }
 
   // Check if message has any Steam IDs
@@ -533,8 +537,8 @@ async function checkForMissingSteamId(message) {
 
     await message.channel.send({ embeds: [embed] });
 
-    // Mark this ticket as prompted (permanent cache)
-    promptedTickets.add(message.channel.id);
+    // Mark this ticket as handled (we've prompted for Steam ID)
+    handledTickets.add(message.channel.id);
 
     loggerConsole.log('Prompted for Steam ID in ticket:', {
       channelId: message.channel.id,
