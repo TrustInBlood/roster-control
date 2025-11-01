@@ -117,7 +117,7 @@ module.exports = {
         
         embed.addFields({
           name: 'ℹ️ How to Link',
-          value: 'Staff members can use `/linkid` command to link their Steam account and gain Squad server access.',
+          value: 'Staff members can use `/linkid` command to link their Steam account and gain Squad server admin permissions and whitelist access.',
           inline: false
         });
         
