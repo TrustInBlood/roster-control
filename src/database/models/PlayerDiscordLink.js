@@ -174,6 +174,41 @@ module.exports = (sequelize) => {
       returning: true
     });
 
+    // SYSTEMIC FIX: Auto-trigger role sync when confidence crosses 1.0 threshold
+    // This ensures security-blocked entries are automatically upgraded regardless of how confidence was upgraded
+    const confidenceCrossedThreshold = existingLink &&
+      parseFloat(existingLink.confidence_score) < 1.0 &&
+      parseFloat(finalConfidenceScore) >= 1.0;
+
+    if (confidenceCrossedThreshold) {
+      // Trigger role sync asynchronously (non-blocking - don't wait, don't fail parent operation)
+      // This will automatically upgrade any security-blocked whitelist entries
+      setImmediate(async () => {
+        try {
+          const { triggerUserRoleSync } = require('../../utils/triggerUserRoleSync');
+
+          // Check if Discord client is available
+          if (global.discordClient) {
+            await triggerUserRoleSync(global.discordClient, discordUserId, {
+              source: 'confidence_threshold_crossed',
+              skipNotification: false
+            });
+          }
+        } catch (syncError) {
+          // Log error but don't throw - this is a background operation
+          // The link was still created/updated successfully
+          const { console: loggerConsole } = require('../../utils/logger');
+          loggerConsole.error('Failed to auto-sync role after confidence upgrade', {
+            discordUserId,
+            steamid64,
+            oldConfidence: existingLink.confidence_score,
+            newConfidence: finalConfidenceScore,
+            error: syncError.message
+          });
+        }
+      });
+    }
+
     return { link, created };
   };
 

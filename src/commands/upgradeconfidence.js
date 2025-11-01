@@ -4,6 +4,7 @@ const { sendError, createResponseEmbed } = require('../utils/messageHandler');
 const { PlayerDiscordLink } = require('../database/models');
 const { logAccountLink } = require('../utils/discordLogger');
 const { console: loggerConsole } = require('../utils/logger');
+const { triggerUserRoleSync } = require('../utils/triggerUserRoleSync');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -132,6 +133,13 @@ module.exports = {
                   upgrade_type: 'super_admin_confidence_upgrade'
                 }
               }
+            });
+
+            // Trigger role-based whitelist sync to upgrade any security-blocked entries
+            // This is critical - when confidence reaches 1.0, security-blocked staff entries should be approved
+            await triggerUserRoleSync(interaction.client, targetUser.id, {
+              source: 'upgradeconfidence',
+              skipNotification: false
             });
 
             // Log the upgrade

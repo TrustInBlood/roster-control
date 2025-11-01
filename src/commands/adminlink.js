@@ -5,6 +5,7 @@ const { PlayerDiscordLink } = require('../database/models');
 const { isValidSteamId } = require('../utils/steamId');
 const { logAccountLink } = require('../utils/discordLogger');
 const { console: loggerConsole } = require('../utils/logger');
+const { triggerUserRoleSync } = require('../utils/triggerUserRoleSync');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -174,29 +175,10 @@ module.exports = {
         //
         // Note: Admin-created links have 0.7 confidence, which is below the 1.0 threshold for staff whitelist.
         // Users with staff roles will need to use /linkid to self-verify and get 1.0 confidence for staff access.
-        if (global.whitelistServices?.roleWhitelistSync) {
-          try {
-            const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
-            if (member) {
-              const { getHighestPriorityGroup } = require('../utils/environment');
-              const userGroup = getHighestPriorityGroup(member.roles.cache);
-
-              if (userGroup) {
-                loggerConsole.log(`Triggering role sync for linked user: ${targetUser.tag} (${userGroup})`);
-                await global.whitelistServices.roleWhitelistSync.syncUserRole(
-                  targetUser.id,
-                  userGroup,
-                  member,
-                  { source: 'adminlink', skipNotification: false }
-                );
-                loggerConsole.log(`Role sync completed for ${targetUser.tag}`);
-              }
-            }
-          } catch (syncError) {
-            loggerConsole.error('Failed to sync user role after adminlink:', syncError);
-            // Don't fail the command if sync fails - the link was still created successfully
-          }
-        }
+        await triggerUserRoleSync(interaction.client, targetUser.id, {
+          source: 'adminlink',
+          skipNotification: false
+        });
 
       } catch (error) {
         loggerConsole.error('Adminlink command error:', error);

@@ -72,6 +72,9 @@ client.on('ready', async () => {
   logger.info(`Logged in as ${client.user.tag}`);
   loggerConsole.log(`Bot logged in as ${client.user.tag}`);
 
+  // Make Discord client globally available for background operations (e.g., role sync triggers)
+  global.discordClient = client;
+
   // Initialize NotificationService
   notificationService.initialize(client);
   loggerConsole.log('NotificationService initialized');
