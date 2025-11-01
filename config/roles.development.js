@@ -7,15 +7,21 @@ const COMMAND_PERMISSIONS = {
   // Super admin commands (highest level access)
   'upgradeconfidence': ['1420532128541835284'], // Super admin only: Upgrade confidence scores to 1.0 (Test Super Admin role)
   'adminunlink': ['1420532128541835284'], // Super admin only: Forcibly unlink accounts and revoke all access
+  'sync': ['1420532128541835284'], // Super admin only: Sync Discord roles to database whitelist entries
 
   // Admin commands - Update these with your development server role IDs
-  'whitelist': ['1365205433236717598'], // Admin roles can use whitelist commands
+  'whitelist': ['1365205433236717598'], // Admin roles can use whitelist commands (parent command check)
+  'grant': ['1365205433236717598'],      // Admin roles can grant whitelist with Discord linking
+  'grant-steamid': ['1365205433236717598'], // Admin roles can grant Steam ID only whitelist
+  'info': ['1365205433236717598'],       // Admin roles can view whitelist info
+  'revoke': ['1365205433236717598'],     // Admin roles can revoke whitelist entries
   'duty': ['1365205433236717598'],      // Admin roles can use duty commands
   'dutystats': ['1365205433236717598'], // Admin roles can view duty statistics
   'adminlink': ['1365205433236717598'], // Admin roles can create Steam-Discord account links
   'whatsnew': ['1365205433236717598'],  // Admin roles can use whatsnew command
   'unlinkedstaff': ['1365205433236717598'], // Admin roles can view unlinked staff
   'auditwhitelist': ['1365205433236717598'], // Admin roles can audit whitelist security
+  'checkenv': ['1365205433236717598']    // Admin roles can check environment
 
   // Public commands
   'ping': [],  // Everyone can use

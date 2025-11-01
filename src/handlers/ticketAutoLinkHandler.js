@@ -4,12 +4,81 @@
  * when they provide Steam IDs in ticket channels
  */
 
+const { EmbedBuilder } = require('discord.js');
 const { looksLikeSteamId, isValidSteamId } = require('../utils/steamId');
 const { PlayerDiscordLink } = require('../database/models');
 const { channels } = require('../utils/environment');
 const { TICKET_CONFIG } = channels;
 const { logAccountLink } = require('../utils/discordLogger');
 const { console: loggerConsole } = require('../utils/logger');
+const battlemetricsService = require('../services/BattleMetricsService');
+
+// Track which tickets we've already prompted
+// Populated on bot startup by scanning message history, cleaned up on channel delete
+const promptedTickets = new Set();
+
+/**
+ * Initialize ticket prompt tracking on bot startup
+ * Scans all existing ticket channels to see if we've already prompted them
+ * @param {Client} client - Discord client
+ */
+async function initializeTicketPromptTracking(client) {
+  try {
+    const guild = await client.guilds.fetch(process.env.DISCORD_GUILD_ID);
+    const channels = await guild.channels.fetch();
+
+    let ticketChannelCount = 0;
+    let alreadyPromptedCount = 0;
+
+    for (const [, channel] of channels) {
+      // Skip non-text channels
+      if (!channel.isTextBased() || channel.isThread()) continue;
+
+      // Check if this is a ticket channel
+      if (!isTicketChannel(channel)) continue;
+
+      ticketChannelCount++;
+
+      // Check message history for existing prompt
+      try {
+        const recentMessages = await channel.messages.fetch({ limit: 20 });
+        const alreadyPrompted = recentMessages.some(msg =>
+          msg.author.id === client.user.id &&
+          msg.embeds.length > 0 &&
+          msg.embeds[0].title === '⚠️ Steam ID Required'
+        );
+
+        if (alreadyPrompted) {
+          promptedTickets.add(channel.id);
+          alreadyPromptedCount++;
+        }
+      } catch (error) {
+        loggerConsole.warn(`Failed to check prompt history for ticket channel ${channel.name}:`, error.message);
+      }
+    }
+
+    loggerConsole.log('Ticket prompt tracking initialized:', {
+      ticketChannels: ticketChannelCount,
+      alreadyPrompted: alreadyPromptedCount
+    });
+  } catch (error) {
+    loggerConsole.error('Error initializing ticket prompt tracking:', error);
+  }
+}
+
+/**
+ * Clean up prompt tracking when a channel is deleted
+ * @param {Channel} channel - Deleted channel
+ */
+function handleChannelDelete(channel) {
+  if (promptedTickets.has(channel.id)) {
+    promptedTickets.delete(channel.id);
+    loggerConsole.log('Removed deleted channel from prompt tracking:', {
+      channelId: channel.id,
+      channelName: channel.name
+    });
+  }
+}
 
 /**
  * Handles message scanning in ticket channels for Steam ID auto-linking
@@ -64,8 +133,11 @@ async function handleTicketAutoLink(message) {
     
     // Remove duplicates
     steamIds = [...new Set(steamIds)];
-    
+
     if (steamIds.length === 0) {
+      // Check if we should prompt for missing Steam ID
+      // Trigger on any message in ticket channel if we haven't prompted yet
+      await checkForMissingSteamId(message);
       return; // No Steam IDs found
     }
 
@@ -153,10 +225,14 @@ function extractSteamIds(content) {
     /id\s*:?\s*([0-9]{17})/gi,
     // Handle code blocks: ```\n76561198100210646```
     /```\s*([0-9]{17})\s*```/gi,
-    // Handle inline code: `76561198100210646`  
+    // Handle inline code: `76561198100210646`
     /`([0-9]{17})`/gi,
     // Handle Steam ID in question format: "What is your Steam 64 ID?** ```\n76561198100210646```"
-    /steam\s*64\s*id\?\*\*\s*```[^`]*([0-9]{17})[^`]*```/gi
+    /steam\s*64\s*id\?\*\*\s*```[^`]*([0-9]{17})[^`]*```/gi,
+    // Handle Steam profile URLs: https://steamcommunity.com/profiles/76561198100210646
+    /steamcommunity\.com\/profiles\/([0-9]{17})/gi,
+    // Handle full Steam URLs with http/https
+    /https?:\/\/steamcommunity\.com\/profiles\/([0-9]{17})/gi
   ];
   
   for (const pattern of labelPatterns) {
@@ -320,8 +396,150 @@ async function processTicketSteamId(message, steamId, targetUser) {
       // Skip logging for duplicates to avoid spam
     }
 
+    // BattleMetrics profile lookup
+    if (TICKET_CONFIG.BATTLEMETRICS_LOOKUP_ENABLED) {
+      await postBattleMetricsProfile(message, steamId);
+    }
+
   } catch (error) {
     loggerConsole.error('Error processing ticket Steam ID:', error);
+  }
+}
+
+/**
+ * Post BattleMetrics profile link to ticket channel
+ * @param {Message} message - Discord message object
+ * @param {string} steamId - Valid Steam ID64
+ */
+async function postBattleMetricsProfile(message, steamId) {
+  try {
+    // Call BattleMetrics API with configured timeout
+    const timeout = TICKET_CONFIG.BATTLEMETRICS_TIMEOUT_MS || 5000;
+    const result = await battlemetricsService.searchPlayerBySteamId(steamId, timeout);
+
+    // Post result based on whether player was found
+    if (result.found && result.profileUrl) {
+      const embed = new EmbedBuilder()
+        .setColor(0x00AE86) // BattleMetrics green color
+        .setTitle('🔍 BattleMetrics Profile Found')
+        .setDescription(`Player profile for Steam ID: \`${steamId}\``)
+        .addFields(
+          { name: 'Player Name', value: result.playerData.name || 'Unknown', inline: true },
+          { name: 'BM Profile', value: `[View Profile](${result.profileUrl})`, inline: true }
+          // Future: Add ban count, playtime, last seen, etc.
+        )
+        .setTimestamp()
+        .setFooter({ text: 'BattleMetrics Profile Lookup' });
+
+      await message.channel.send({ embeds: [embed] });
+
+      loggerConsole.log('Posted BattleMetrics profile to ticket:', {
+        channelId: message.channel.id,
+        steamId,
+        playerName: result.playerData.name
+      });
+    } else if (!result.found && !result.error) {
+      // Player not found in BattleMetrics - post notification
+      const embed = new EmbedBuilder()
+        .setColor(0xFF6B6B) // Red color for not found
+        .setTitle('❌ BattleMetrics Profile Not Found')
+        .setDescription(`No BattleMetrics profile found for Steam ID: \`${steamId}\``)
+        .addFields(
+          {
+            name: 'What does this mean?',
+            value: 'This player has not been seen on any servers tracked by BattleMetrics, or their profile is private.',
+            inline: false
+          }
+        )
+        .setTimestamp()
+        .setFooter({ text: 'BattleMetrics Profile Lookup' });
+
+      await message.channel.send({ embeds: [embed] });
+
+      loggerConsole.log('BattleMetrics profile not found:', {
+        channelId: message.channel.id,
+        steamId
+      });
+    } else if (result.error) {
+      // Log errors but don't spam the channel with error messages
+      loggerConsole.warn('BattleMetrics lookup failed:', {
+        steamId,
+        error: result.error
+      });
+    }
+  } catch (error) {
+    // Non-blocking - don't crash the handler if BM lookup fails
+    loggerConsole.error('Error posting BattleMetrics profile:', error);
+  }
+}
+
+/**
+ * Check if a ticket message is missing a Steam ID and prompt user
+ * Prompts once at ticket start, then never again for that channel
+ * @param {Message} message - Discord message object
+ */
+async function checkForMissingSteamId(message) {
+  // Only prompt if configured to do so
+  if (!TICKET_CONFIG.PROMPT_MISSING_STEAMID) {
+    return;
+  }
+
+  // Check cache first (O(1))
+  // Cache is populated on startup by scanning all ticket channels
+  if (promptedTickets.has(message.channel.id)) {
+    return; // Already prompted this ticket
+  }
+
+  // Check if message has any Steam IDs
+  let steamIds = extractSteamIds(message.content);
+
+  // Also check embeds
+  if (message.embeds && message.embeds.length > 0) {
+    for (const embed of message.embeds) {
+      if (embed.description) {
+        const embedSteamIds = extractSteamIds(embed.description);
+        steamIds = steamIds.concat(embedSteamIds);
+      }
+      if (embed.fields) {
+        for (const field of embed.fields) {
+          if (field.value) {
+            const fieldSteamIds = extractSteamIds(field.value);
+            steamIds = steamIds.concat(fieldSteamIds);
+          }
+        }
+      }
+    }
+  }
+
+  // If no Steam ID found, prompt the user
+  if (steamIds.length === 0) {
+    const embed = new EmbedBuilder()
+      .setColor(0xFFA500) // Orange for info/warning
+      .setTitle('⚠️ Steam ID Required')
+      .setDescription('To help us assist you better, please provide your **Steam ID64**.')
+      .addFields(
+        {
+          name: 'How to find your Steam ID64',
+          value: '1. Open your Steam profile\n2. Right-click anywhere and select "Copy Page URL"\n3. Paste the URL here, or just the 17-digit number from the URL',
+          inline: false
+        },
+        {
+          name: 'What it looks like',
+          value: 'URL: `https://steamcommunity.com/profiles/76561234567890123`\nOr just: `76561234567890123`',
+          inline: false
+        }
+      )
+      .setFooter({ text: 'Just paste your Steam profile URL or Steam ID64 in this channel' });
+
+    await message.channel.send({ embeds: [embed] });
+
+    // Mark this ticket as prompted (permanent cache)
+    promptedTickets.add(message.channel.id);
+
+    loggerConsole.log('Prompted for Steam ID in ticket:', {
+      channelId: message.channel.id,
+      channelName: message.channel.name
+    });
   }
 }
 
@@ -332,14 +550,14 @@ async function processTicketSteamId(message, steamId, targetUser) {
 async function getTicketLinkStats() {
   try {
     const ticketLinks = await PlayerDiscordLink.findBySource('ticket');
-    
+
     return {
       totalTicketLinks: ticketLinks.length,
       recentLinks: ticketLinks.filter(link => {
         const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
         return link.created_at > dayAgo;
       }).length,
-      averageConfidence: ticketLinks.length > 0 ? 
+      averageConfidence: ticketLinks.length > 0 ?
         ticketLinks.reduce((sum, link) => sum + parseFloat(link.confidence_score), 0) / ticketLinks.length : 0
     };
   } catch (error) {
@@ -352,5 +570,8 @@ module.exports = {
   handleTicketAutoLink,
   getTicketLinkStats,
   extractSteamIds, // Export for testing
-  isTicketChannel   // Export for testing
+  isTicketChannel,   // Export for testing
+  checkForMissingSteamId,  // Export for use in message handler
+  initializeTicketPromptTracking, // Export for bot startup
+  handleChannelDelete // Export for channelDelete event
 };

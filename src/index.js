@@ -25,6 +25,7 @@ const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const { handleVoiceStateUpdate } = require('./handlers/voiceStateHandler');
 const { setupRoleChangeHandler } = require('./handlers/roleChangeHandler');
 const { handleLegacyCommands } = require('./handlers/legacyCommandHandler');
+const { initializeTicketPromptTracking, handleChannelDelete } = require('./handlers/ticketAutoLinkHandler');
 const DutyStatusSyncService = require('./services/DutyStatusSyncService');
 const { setupWhitelistRoutes } = require('./services/WhitelistIntegration');
 const { databaseManager } = require('./database/index');
@@ -97,6 +98,9 @@ client.on('ready', async () => {
   setTimeout(async () => {
     await performStartupSync(client);
 
+    // Initialize ticket prompt tracking after startup sync
+    await initializeTicketPromptTracking(client);
+
     // Perform initial staff role sync for all guilds after startup (if not skipped)
     setTimeout(async () => {
       const skipInitialStaffSync = process.env.SKIP_INITIAL_STAFF_SYNC === 'true';
@@ -145,6 +149,20 @@ client.on('messageCreate', async (message) => {
       stack: error.stack,
       userId: message.author?.id,
       guildId: message.guild?.id
+    });
+  }
+});
+
+// Channel delete handler - cleanup ticket prompt tracking
+client.on('channelDelete', async (channel) => {
+  try {
+    handleChannelDelete(channel);
+  } catch (error) {
+    loggerConsole.error('Error in channelDelete handler:', error);
+    logger.error('channelDelete handler failed', {
+      error: error.message,
+      stack: error.stack,
+      channelId: channel?.id
     });
   }
 });

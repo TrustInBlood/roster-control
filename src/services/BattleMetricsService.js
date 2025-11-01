@@ -271,6 +271,82 @@ class BattleMetricsService {
   }
 
   /**
+   * Search for a player by Steam ID
+   * @param {string} steamId - Steam ID64 to search for
+   * @param {number} timeout - Request timeout in milliseconds (default: 5000)
+   * @returns {Promise<Object>} Player data or null if not found
+   */
+  async searchPlayerBySteamId(steamId, timeout = 5000) {
+    try {
+      loggerConsole.log('Searching BattleMetrics for player:', steamId);
+
+      const response = await this.axiosInstance.get('/players', {
+        params: {
+          'filter[search]': steamId
+        },
+        timeout: timeout
+      });
+
+      // Check if we got any results
+      if (!response.data || !response.data.data || response.data.data.length === 0) {
+        loggerConsole.log('Player not found in BattleMetrics:', steamId);
+        return {
+          found: false,
+          profileUrl: null,
+          playerData: null
+        };
+      }
+
+      // Get the first matching player
+      const player = response.data.data[0];
+      const playerId = player.id;
+      const playerName = player.attributes?.name || 'Unknown';
+
+      loggerConsole.log('BattleMetrics player found:', {
+        id: playerId,
+        name: playerName,
+        steamId: steamId
+      });
+
+      // Construct profile URL (RCON players path for full player details)
+      const profileUrl = `https://www.battlemetrics.com/rcon/players/${playerId}`;
+
+      return {
+        found: true,
+        profileUrl: profileUrl,
+        playerData: {
+          id: playerId,
+          name: playerName,
+          steamId: steamId
+          // Future: Add banCount, playtime, lastSeen, etc. from response
+        }
+      };
+
+    } catch (error) {
+      // Handle timeout specifically
+      if (error.code === 'ECONNABORTED') {
+        loggerConsole.warn('BattleMetrics player search timed out:', {
+          steamId,
+          timeout
+        });
+      } else {
+        loggerConsole.error('Error searching BattleMetrics for player:', {
+          steamId,
+          error: error.message,
+          status: error.response?.status
+        });
+      }
+
+      return {
+        found: false,
+        profileUrl: null,
+        playerData: null,
+        error: error.message
+      };
+    }
+  }
+
+  /**
    * Test connection to BattleMetrics API
    * @returns {Promise<boolean>} Connection status
    */
@@ -279,7 +355,7 @@ class BattleMetricsService {
       loggerConsole.log('Testing BattleMetrics connection...');
       loggerConsole.log('Token:', this.token ? `${this.token.substring(0, 10)}...` : 'NOT SET');
       loggerConsole.log('Ban List ID:', this.banListId || 'NOT SET');
-      
+
       // Test with a small request to the ban list
       const response = await this.axiosInstance.get('/bans', {
         params: {

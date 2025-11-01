@@ -58,15 +58,21 @@ const NOTIFICATION_ROUTES = {
 const TICKET_CONFIG = {
   // Enable automatic Steam ID linking from ticket channels
   AUTO_LINK_ENABLED: true,
-    
+
   // Pattern to identify ticket channels (channels starting with this will be monitored)
   CHANNEL_NAME_PATTERN: 'ticket-',
-    
+
   // Alternative: Specific category ID to monitor (uncomment to use instead of pattern)
   // CATEGORY_ID: '1234567890123456789',
-    
+
   // Log all automatic linking activities
-  LOG_AUTO_LINKS: true
+  LOG_AUTO_LINKS: true,
+
+  // BattleMetrics integration settings
+  BATTLEMETRICS_LOOKUP_ENABLED: true,  // Enable automatic BM profile lookup for Steam IDs
+  LOOKUP_ALL_STEAMIDS: true,            // If false, only lookup first Steam ID in ticket
+  PROMPT_MISSING_STEAMID: true,         // Ask user for Steam ID if none provided
+  BATTLEMETRICS_TIMEOUT_MS: 5000        // Timeout for BM API calls in milliseconds
 };
 
 module.exports = {
