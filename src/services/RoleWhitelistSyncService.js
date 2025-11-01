@@ -69,10 +69,8 @@ class RoleWhitelistSyncService {
         });
 
         if (!primaryLink || !primaryLink.steamid64) {
-          // User has no Steam link - create/update unlinked entry for staff
-          if (newGroup && newGroup !== 'Member') {
-            await this._handleUnlinkedStaff(discordUserId, newGroup, memberData, source, transaction);
-          }
+          // User has no Steam link - skip creating database entry
+          // The /unlinkedstaff command will find them via Discord roles + PlayerDiscordLink queries
           return {
             success: true,
             reason: 'no_steam_link',
@@ -695,49 +693,6 @@ class RoleWhitelistSyncService {
         error: error.message
       });
       // Don't throw - this is not critical enough to fail the sync
-    }
-  }
-
-  /**
-   * Handle unlinked staff members (those with staff roles but no Steam link)
-   * @private
-   */
-  async _handleUnlinkedStaff(discordUserId, groupName, memberData, source, transaction) {
-    // Create a placeholder entry for tracking purposes
-    // This won't grant actual whitelist access but helps with auditing
-    await Whitelist.create({
-      type: 'staff',
-      steamid64: '00000000000000000', // Placeholder Steam ID for unlinked users
-      discord_user_id: discordUserId,
-      discord_username: memberData?.user?.tag || '',
-      username: memberData?.displayName || memberData?.user?.username || '',
-      source: 'role',
-      role_name: groupName,
-      approved: false, // Not approved since no Steam link
-      revoked: false,
-      granted_by: 'SYSTEM',
-      granted_at: new Date(),
-      reason: `Unlinked staff role: ${groupName}`,
-      expiration: null,
-      metadata: {
-        roleSync: true,
-        unlinkedStaff: true,
-        syncSource: source,
-        requiresSteamLink: true,
-        discordGuildId: memberData?.guild?.id,
-        syncedAt: new Date().toISOString()
-      }
-    }, { transaction });
-
-    this.logger.warn('Created placeholder entry for unlinked staff', {
-      discordUserId,
-      groupName,
-      reason: 'no_steam_link'
-    });
-
-    // FIX 5.1: Invalidate cache after creating placeholder entry
-    if (this.whitelistService) {
-      this.whitelistService.invalidateCache();
     }
   }
 
