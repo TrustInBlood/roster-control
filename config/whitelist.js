@@ -37,7 +37,8 @@ const config = {
         host: '216.114.75.101',
         port: 10206,
         token: process.env.SQUADJS_TOKEN_SERVER1,
-        enabled: true
+        enabled: true,
+        seedThreshold: 50
       },
       {
         id: 'server2',
@@ -45,7 +46,8 @@ const config = {
         host: '216.114.75.101',
         port: 10207,
         token: process.env.SQUADJS_TOKEN_SERVER2,
-        enabled: true
+        enabled: true,
+        seedThreshold: 30
       },
       {
         id: 'server3',
@@ -53,7 +55,8 @@ const config = {
         host: '216.114.75.101',
         port: 10205,
         token: process.env.SQUADJS_TOKEN_SERVER3,
-        enabled: true
+        enabled: true,
+        seedThreshold: 50
       },
       {
         id: 'server4',
@@ -61,7 +64,8 @@ const config = {
         host: '216.114.75.101',
         port: 10204,
         token: process.env.SQUADJS_TOKEN_SERVER4,
-        enabled: true
+        enabled: true,
+        seedThreshold: 50
       },
       {
         id: 'server5',
@@ -69,7 +73,8 @@ const config = {
         host: '216.114.75.101',
         port: 10208,
         token: process.env.SQUADJS_TOKEN_SERVER5,
-        enabled: true
+        enabled: true,
+        seedThreshold: 50
       }
     ].filter(server => server.enabled && server.token), // Only include enabled servers with tokens
 

@@ -109,23 +109,62 @@ const PlayerSession = sequelize.define('PlayerSession', {
  * Create a new active session for a player
  * @param {number} playerId - Player ID from players table
  * @param {string} serverId - Server identifier
+ * @param {Object} metadata - Optional metadata (seed tracking, etc.)
  * @returns {Promise<PlayerSession>} - Created session
  */
-PlayerSession.createSession = async function(playerId, serverId) {
+PlayerSession.createSession = async function(playerId, serverId, metadata = null) {
   return await this.create({
     player_id: playerId,
     serverId: serverId,
     sessionStart: new Date(),
-    isActive: true
+    isActive: true,
+    metadata: metadata
   });
+};
+
+/**
+ * Append player count snapshot to all active sessions on a server
+ * @param {string} serverId - Server identifier
+ * @param {number} playerCount - Current player count on server
+ * @returns {Promise<number>} - Number of sessions updated
+ */
+PlayerSession.appendPlayerCountSnapshot = async function(serverId, playerCount) {
+  const activeSessions = await this.findAll({
+    where: { serverId: serverId, isActive: true }
+  });
+
+  const snapshot = {
+    timestamp: new Date().toISOString(),
+    count: playerCount
+  };
+
+  let updatedCount = 0;
+
+  for (const session of activeSessions) {
+    const metadata = session.metadata || {};
+
+    if (!metadata.playerCountSnapshots) {
+      metadata.playerCountSnapshots = [];
+    }
+
+    metadata.playerCountSnapshots.push(snapshot);
+    session.metadata = metadata;
+    session.changed('metadata', true); // Force Sequelize to recognize JSON change
+
+    await session.save();
+    updatedCount++;
+  }
+
+  return updatedCount;
 };
 
 /**
  * End an active session and calculate duration
  * @param {number} sessionId - Session ID to end
+ * @param {Object} finalMetadata - Optional metadata to merge (e.g., finalPlayerCount)
  * @returns {Promise<PlayerSession|null>} - Updated session or null if not found
  */
-PlayerSession.endSession = async function(sessionId) {
+PlayerSession.endSession = async function(sessionId, finalMetadata = null) {
   const session = await this.findByPk(sessionId);
 
   if (!session || !session.isActive) {
@@ -139,6 +178,12 @@ PlayerSession.endSession = async function(sessionId) {
   session.sessionEnd = endTime;
   session.durationMinutes = durationMinutes;
   session.isActive = false;
+
+  // Merge final metadata if provided
+  if (finalMetadata) {
+    session.metadata = { ...session.metadata, ...finalMetadata };
+    session.changed('metadata', true); // Force Sequelize to recognize JSON change
+  }
 
   await session.save();
   return session;

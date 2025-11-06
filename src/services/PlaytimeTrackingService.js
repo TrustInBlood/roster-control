@@ -76,7 +76,11 @@ class PlaytimeTrackingService {
       }
 
       // Process the playerlist and detect joins/leaves
-      await this.processPlayerList(serverId, playerList);
+      await this.processPlayerList(serverId, playerList, server);
+
+      // Append player count snapshot to all active sessions on this server
+      const playerCount = playerList.length;
+      await PlayerSession.appendPlayerCountSnapshot(serverId, playerCount);
 
     } catch (error) {
       loggerConsole.error(`Error polling server ${serverId}:`, error.message);
@@ -105,8 +109,9 @@ class PlaytimeTrackingService {
    * Process playerlist and detect joins/leaves via diff
    * @param {string} serverId - Server identifier
    * @param {Array} playerList - Current playerlist from SquadJS
+   * @param {Object} server - Server configuration
    */
-  async processPlayerList(serverId, playerList) {
+  async processPlayerList(serverId, playerList, server) {
     // Build set of current steamIds on server
     const currentPlayers = new Set();
     const playerDataMap = new Map(); // steamId -> player data
@@ -122,6 +127,8 @@ class PlaytimeTrackingService {
       }
     }
 
+    const playerCount = currentPlayers.size;
+
     // Get active sessions for this server
     const activeSessionKeys = Array.from(this.activeSessions.keys())
       .filter(key => key.startsWith(`${serverId}:`));
@@ -134,14 +141,14 @@ class PlaytimeTrackingService {
     for (const steamId of currentPlayers) {
       if (!activeSteamIds.has(steamId)) {
         const playerData = playerDataMap.get(steamId);
-        await this.handleNewPlayer(serverId, playerData);
+        await this.handleNewPlayer(serverId, playerData, playerCount, server);
       }
     }
 
     // Detect departed players (in active but not in current)
     for (const steamId of activeSteamIds) {
       if (!currentPlayers.has(steamId)) {
-        await this.handleDepartedPlayer(serverId, steamId);
+        await this.handleDepartedPlayer(serverId, steamId, playerCount);
       }
     }
   }
@@ -150,18 +157,33 @@ class PlaytimeTrackingService {
    * Handle a new player joining
    * @param {string} serverId - Server identifier
    * @param {Object} playerData - Player data { steamId, eosId, username }
+   * @param {number} playerCount - Current player count on server
+   * @param {Object} server - Server configuration
    */
-  async handleNewPlayer(serverId, playerData) {
+  async handleNewPlayer(serverId, playerData, playerCount, server) {
     const { steamId, eosId, username } = playerData;
 
     try {
       // Step 1: Find or create Player record
       const player = await Player.findOrCreateByIdentifiers(steamId, eosId, username);
 
-      // Step 2: Create new PlayerSession
-      const session = await PlayerSession.createSession(player.id, serverId);
+      // Step 2: Build session metadata with seed tracking
+      const joinTimestamp = new Date().toISOString();
+      const metadata = {
+        seedThreshold: server.seedThreshold || 40, // Default to 40 if not configured
+        initialPlayerCount: playerCount,
+        playerCountSnapshots: [
+          {
+            timestamp: joinTimestamp,
+            count: playerCount
+          }
+        ]
+      };
 
-      // Step 3: Add to in-memory tracking
+      // Step 3: Create new PlayerSession with metadata
+      const session = await PlayerSession.createSession(player.id, serverId, metadata);
+
+      // Step 4: Add to in-memory tracking
       const sessionKey = `${serverId}:${steamId}`;
       this.activeSessions.set(sessionKey, {
         playerId: player.id,
@@ -170,10 +192,10 @@ class PlaytimeTrackingService {
         joinTime: session.sessionStart
       });
 
-      // Step 4: Update Player activity stats
+      // Step 5: Update Player activity stats
       await player.updateActivity(serverId);
 
-      // Step 5: Update Server connection count
+      // Step 6: Update Server connection count
       const serverRecord = await Server.findByServerId(serverId);
       if (serverRecord) {
         await serverRecord.addConnection();
@@ -190,8 +212,9 @@ class PlaytimeTrackingService {
    * Handle a player leaving
    * @param {string} serverId - Server identifier
    * @param {string} steamId - Steam ID of departed player
+   * @param {number} playerCount - Current player count on server (after player left)
    */
-  async handleDepartedPlayer(serverId, steamId) {
+  async handleDepartedPlayer(serverId, steamId, playerCount) {
     const sessionKey = `${serverId}:${steamId}`;
     const sessionData = this.activeSessions.get(sessionKey);
 
@@ -203,8 +226,11 @@ class PlaytimeTrackingService {
     try {
       const { playerId, sessionId, username } = sessionData;
 
-      // Step 1: End the session
-      const session = await PlayerSession.endSession(sessionId);
+      // Step 1: End the session with final player count
+      const finalMetadata = {
+        finalPlayerCount: playerCount
+      };
+      const session = await PlayerSession.endSession(sessionId, finalMetadata);
 
       if (!session) {
         loggerConsole.warn(`Failed to end session ${sessionId} for ${steamId}`);
