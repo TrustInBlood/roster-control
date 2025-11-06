@@ -2,6 +2,7 @@ const WhitelistService = require('./WhitelistService');
 const RoleWhitelistSyncService = require('./RoleWhitelistSyncService');
 const SquadJSConnectionManager = require('./SquadJSConnectionManager');
 const SquadJSLinkingService = require('./SquadJSLinkingService');
+const PlaytimeTrackingService = require('./PlaytimeTrackingService');
 const { VerificationCode } = require('../database/models');
 const { config: whitelistConfig, validateConfig } = require('../../config/whitelist');
 
@@ -87,13 +88,18 @@ async function setupWhitelistRoutes(app, _sequelize, logger, discordClient) {
 
   const connectionManager = new SquadJSConnectionManager(logger, whitelistConfig);
   const squadJSService = new SquadJSLinkingService(logger, discordClient, whitelistConfig, whitelistService, connectionManager);
-  
+  const playtimeTrackingService = new PlaytimeTrackingService(logger, connectionManager);
+
   try {
     await connectionManager.connect();
     squadJSService.initialize();
+    await playtimeTrackingService.initialize();
   } catch (error) {
     logger.error('Failed to connect to SquadJS servers', { error: error.message });
   }
+
+  // Make playtime tracking service globally available for shutdown handling
+  global.playtimeTrackingService = playtimeTrackingService;
 
   const cleanupInterval = setInterval(async () => {
     try {
@@ -106,9 +112,10 @@ async function setupWhitelistRoutes(app, _sequelize, logger, discordClient) {
     }
   }, whitelistConfig.verification.cleanupIntervalMs);
 
-  const gracefulShutdown = () => {
+  const gracefulShutdown = async () => {
     logger.info('Shutting down whitelist integration');
     clearInterval(cleanupInterval);
+    await playtimeTrackingService.shutdown();
     squadJSService.destroy();
     connectionManager.disconnect();
   };

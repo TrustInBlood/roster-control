@@ -6,6 +6,7 @@ const DutyStatusChange = require('./DutyStatusChange');
 const Admin = require('./Admin');
 const Server = require('./Server');
 const AuditLog = require('./AuditLog');
+const PlayerSession = require('./PlayerSession');
 
 // Import and initialize whitelist models (factory functions)
 const GroupFactory = require('./Group');
@@ -20,6 +21,10 @@ const PlayerDiscordLink = PlayerDiscordLinkFactory(sequelize);
 const VerificationCode = VerificationCodeFactory(sequelize);
 const UnlinkHistory = UnlinkHistoryFactory(sequelize);
 
+// Define associations
+PlayerSession.belongsTo(Player, { foreignKey: 'player_id', as: 'player' });
+Player.hasMany(PlayerSession, { foreignKey: 'player_id', as: 'sessions' });
+
 // Export all models
 module.exports = {
   Player,
@@ -31,5 +36,6 @@ module.exports = {
   Whitelist,
   PlayerDiscordLink,
   VerificationCode,
-  UnlinkHistory
+  UnlinkHistory,
+  PlayerSession
 };

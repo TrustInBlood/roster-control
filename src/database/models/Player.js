@@ -149,10 +149,48 @@ Player.getRosterMembers = function() {
 
 Player.getActivePlayers = function(hours = 24) {
   const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000);
-  return this.findAll({ 
-    where: { 
-      lastSeen: { [Op.gte]: cutoff } 
-    } 
+  return this.findAll({
+    where: {
+      lastSeen: { [Op.gte]: cutoff }
+    }
+  });
+};
+
+Player.findOrCreateByIdentifiers = async function(steamId, eosId, username) {
+  // Try to find by steamId first
+  let player = await this.findBySteamId(steamId);
+
+  if (player) {
+    // Update username if it changed
+    if (player.username !== username) {
+      player.username = username;
+      await player.save();
+    }
+    return player;
+  }
+
+  // Try to find by eosId if provided
+  if (eosId) {
+    player = await this.findByEosId(eosId);
+
+    if (player) {
+      // Update username if it changed
+      if (player.username !== username) {
+        player.username = username;
+        await player.save();
+      }
+      return player;
+    }
+  }
+
+  // Create new player record
+  return await this.create({
+    steamId: steamId,
+    eosId: eosId || '', // Required field, use empty string if not provided
+    username: username,
+    rosterStatus: false,
+    joinCount: 0,
+    totalPlayTime: 0
   });
 };
 

@@ -377,11 +377,15 @@ async function initializeWhitelist() {
 }
 
 // Graceful shutdown handler
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   loggerConsole.log('\n🛑 Received SIGINT, shutting down gracefully...');
 
+  if (global.playtimeTrackingService) {
+    await global.playtimeTrackingService.shutdown();
+  }
+
   if (global.whitelistServices) {
-    global.whitelistServices.gracefulShutdown();
+    await global.whitelistServices.gracefulShutdown();
   }
 
   if (global.httpServer) {
@@ -389,16 +393,20 @@ process.on('SIGINT', () => {
       loggerConsole.log('HTTP server closed');
     });
   }
-    
+
   client.destroy();
   process.exit(0);
 });
 
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   loggerConsole.log('\n🛑 Received SIGTERM, shutting down gracefully...');
 
+  if (global.playtimeTrackingService) {
+    await global.playtimeTrackingService.shutdown();
+  }
+
   if (global.whitelistServices) {
-    global.whitelistServices.gracefulShutdown();
+    await global.whitelistServices.gracefulShutdown();
   }
 
   if (global.httpServer) {
@@ -406,7 +414,7 @@ process.on('SIGTERM', () => {
       loggerConsole.log('HTTP server closed');
     });
   }
-    
+
   client.destroy();
   process.exit(0);
 });

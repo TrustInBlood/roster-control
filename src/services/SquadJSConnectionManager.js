@@ -313,6 +313,10 @@ class SquadJSConnectionManager {
   getServerConnection(serverId) {
     return this.connections.get(serverId);
   }
+
+  getConnections() {
+    return this.connections;
+  }
 }
 
 module.exports = SquadJSConnectionManager;
