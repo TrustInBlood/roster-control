@@ -1,5 +1,4 @@
 const { Whitelist } = require('../database/models');
-const { Op } = require('sequelize');
 const { createServiceLogger } = require('../utils/logger');
 
 /**
@@ -116,109 +115,32 @@ class InGameCommandService {
         steamID: player.steamID
       });
 
-      // Query database for all active whitelist entries
-      // Users may have multiple entries (staff + whitelist), so we need to prioritize
-      const allEntries = await Whitelist.findAll({
-        where: {
-          [Op.or]: [
-            { steamid64: player.steamID },
-            { eosID: player.eosID }
-          ],
-          approved: true,
-          revoked: false
-        },
-        order: [['granted_at', 'DESC']]
-      });
-
-      // Filter out expired entries
-      const now = new Date();
-      const activeEntries = allEntries.filter(entry => {
-        // Permanent entries (no expiration) are always active
-        if (!entry.expiration) return true;
-
-        // Check if expiration is in the future
-        const expirationDate = new Date(entry.expiration);
-        return expirationDate > now;
-      });
+      // Use the same method as /whitelist info command for consistency
+      const whitelistStatus = await Whitelist.getActiveWhitelistForUser(player.steamID);
 
       let responseMessage;
       let broadcastMessage;
 
-      if (activeEntries.length === 0) {
+      if (!whitelistStatus.hasWhitelist) {
         // No whitelist entry found
         responseMessage = 'No current whitelist.';
         broadcastMessage = `${player.name}'s not currently whitelisted.`;
+
         this.logger.info('Player has no active whitelist', {
           serverId: server.id,
           playerName: player.name,
-          steamID: player.steamID
+          steamID: player.steamID,
+          status: whitelistStatus.status
         });
-
-        // Send targeted response to player via RCON warn
-        const warnSent = this.connectionManager.sendRCONWarn(
-          server.id,
-          player.steamID,
-          responseMessage
-        );
-
-        if (!warnSent) {
-          this.logger.warn('Failed to send RCON warn to player', {
-            serverId: server.id,
-            playerName: player.name,
-            steamID: player.steamID,
-            message: responseMessage
-          });
-        }
-
-        // Broadcast message to all players
-        const broadcastSent = this.connectionManager.sendRCONBroadcast(
-          server.id,
-          broadcastMessage
-        );
-
-        if (!broadcastSent) {
-          this.logger.warn('Failed to send RCON broadcast', {
-            serverId: server.id,
-            playerName: player.name,
-            message: broadcastMessage
-          });
-        }
       } else {
-        // Prioritize entries: staff > permanent whitelist > temporary whitelist with longest expiration
-        let whitelistEntry = null;
-
-        // First, check for staff entries (type: 'staff')
-        const staffEntry = activeEntries.find(e => e.type === 'staff');
-        if (staffEntry) {
-          whitelistEntry = staffEntry;
-        } else {
-          // No staff entry, check for permanent whitelists
-          const permanentEntry = activeEntries.find(e =>
-            e.duration_value === null && e.duration_type === null
-          );
-          if (permanentEntry) {
-            whitelistEntry = permanentEntry;
-          } else {
-            // No permanent entry, get the one with longest expiration
-            whitelistEntry = activeEntries.sort((a, b) => {
-              if (!a.expiration) return -1;
-              if (!b.expiration) return 1;
-              return new Date(b.expiration) - new Date(a.expiration);
-            })[0];
-          }
-        }
-
-        // Player has an active whitelist (whitelistEntry is guaranteed to exist here)
-        // Check if permanent based on duration fields (null = permanent)
-        const isPermanent = whitelistEntry.duration_value === null && whitelistEntry.duration_type === null;
-
-        if (isPermanent) {
+        // Player has an active whitelist
+        if (whitelistStatus.status === 'Active (permanent)') {
           // Permanent whitelist (role-based or manually granted permanent)
           responseMessage = 'Whitelisted (Permanent)';
           broadcastMessage = `${player.name}'s Whitelisted (Permanent)`;
-        } else if (whitelistEntry.expiration) {
+        } else if (whitelistStatus.expiration) {
           // Temporary whitelist with expiration
-          const expirationDate = new Date(whitelistEntry.expiration);
+          const expirationDate = whitelistStatus.expiration;
           const now = new Date();
           const daysLeft = Math.ceil((expirationDate - now) / (1000 * 60 * 60 * 24));
 
@@ -231,7 +153,7 @@ class InGameCommandService {
           responseMessage = `Whitelisted until ${formattedDate}`;
           broadcastMessage = `${player.name}'s Whitelisted until ${formattedDate} (${daysLeft} day${daysLeft !== 1 ? 's' : ''} left)`;
         } else {
-          // Fallback: no expiration date set
+          // Fallback: status says active but no expiration
           responseMessage = 'Whitelisted (Permanent)';
           broadcastMessage = `${player.name}'s Whitelisted (Permanent)`;
         }
@@ -240,42 +162,39 @@ class InGameCommandService {
           serverId: server.id,
           playerName: player.name,
           steamID: player.steamID,
-          type: whitelistEntry.type,
-          expiration: whitelistEntry.expiration,
-          duration_value: whitelistEntry.duration_value,
-          duration_type: whitelistEntry.duration_type,
-          isPermanent: isPermanent
+          status: whitelistStatus.status,
+          expiration: whitelistStatus.expiration
         });
+      }
 
-        // Send targeted response to player via RCON warn
-        const warnSent = this.connectionManager.sendRCONWarn(
-          server.id,
-          player.steamID,
-          responseMessage
-        );
+      // Send targeted response to player via RCON warn
+      const warnSent = this.connectionManager.sendRCONWarn(
+        server.id,
+        player.steamID,
+        responseMessage
+      );
 
-        if (!warnSent) {
-          this.logger.warn('Failed to send RCON warn to player', {
-            serverId: server.id,
-            playerName: player.name,
-            steamID: player.steamID,
-            message: responseMessage
-          });
-        }
+      if (!warnSent) {
+        this.logger.warn('Failed to send RCON warn to player', {
+          serverId: server.id,
+          playerName: player.name,
+          steamID: player.steamID,
+          message: responseMessage
+        });
+      }
 
-        // Broadcast message to all players
-        const broadcastSent = this.connectionManager.sendRCONBroadcast(
-          server.id,
-          broadcastMessage
-        );
+      // Broadcast message to all players
+      const broadcastSent = this.connectionManager.sendRCONBroadcast(
+        server.id,
+        broadcastMessage
+      );
 
-        if (!broadcastSent) {
-          this.logger.warn('Failed to send RCON broadcast', {
-            serverId: server.id,
-            playerName: player.name,
-            message: broadcastMessage
-          });
-        }
+      if (!broadcastSent) {
+        this.logger.warn('Failed to send RCON broadcast', {
+          serverId: server.id,
+          playerName: player.name,
+          message: broadcastMessage
+        });
       }
 
     } catch (error) {
