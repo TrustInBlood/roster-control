@@ -100,9 +100,10 @@ class BattleMetricsService {
           currentPage: pageCount,
           totalFetched: allWhitelists.length,
           batchSize: processedBatch.length,
-          hasMore: !!nextUrl
+          hasMore: !!nextUrl,
+          lastBatch: processedBatch // Include batch data for date-based early termination
         });
-        
+
         // If progress callback returns false, stop fetching
         if (shouldStop === false) {
           break;

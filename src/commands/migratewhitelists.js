@@ -27,6 +27,14 @@ module.exports = {
     .addStringOption(option =>
       option.setName('targetfilter')
         .setDescription('Only migrate entries containing this text (e.g., "service member")')
+        .setRequired(false))
+    .addStringOption(option =>
+      option.setName('sincedate')
+        .setDescription('Only migrate entries created on or after this date (format: YYYY-MM-DD)')
+        .setRequired(false))
+    .addBooleanOption(option =>
+      option.setName('donationsonly')
+        .setDescription('Only migrate webhook-based donation entries (Rewarded Whitelist via Donation)')
         .setRequired(false)),
 
   async execute(interaction) {
@@ -38,6 +46,23 @@ module.exports = {
         const limit = interaction.options.getInteger('limit') ?? null;
         const skipDuplicates = interaction.options.getBoolean('skipduplicates') ?? true;
         const targetFilter = interaction.options.getString('targetfilter')?.toLowerCase() || null;
+        const sinceDateStr = interaction.options.getString('sincedate') || null;
+        const donationsOnly = interaction.options.getBoolean('donationsonly') ?? false;
+
+        // Validate and parse sincedate if provided
+        let sinceDate = null;
+        if (sinceDateStr) {
+          const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+          if (!datePattern.test(sinceDateStr)) {
+            await sendError(interaction, 'Invalid date format. Please use YYYY-MM-DD (e.g., 2025-09-01)');
+            return;
+          }
+          sinceDate = new Date(sinceDateStr);
+          if (isNaN(sinceDate.getTime())) {
+            await sendError(interaction, 'Invalid date. Please check the date and try again.');
+            return;
+          }
+        }
 
         // Test BattleMetrics connection first
         const connectionOk = await BattleMetricsService.testConnection();
@@ -47,8 +72,17 @@ module.exports = {
         }
 
         // Create progress embed
+        const filterDescriptions = [];
+        if (donationsOnly) filterDescriptions.push('Donations only');
+        if (sinceDate) filterDescriptions.push(`Since ${sinceDateStr}`);
+        if (targetFilter) filterDescriptions.push(`Target: "${targetFilter}"`);
+
+        const title = filterDescriptions.length > 0
+          ? `Filtered Migration (${filterDescriptions.join(', ')})`
+          : 'Migrating BattleMetrics Whitelists';
+
         const progressEmbed = new EmbedBuilder()
-          .setTitle(targetFilter ? `Targeted Migration: ${targetFilter}` : 'Migrating BattleMetrics Whitelists')
+          .setTitle(title)
           .setDescription(dryRun ? '**DRY RUN MODE** - No database changes will be made' : 'Fetching whitelist data from BattleMetrics...')
           .setColor(0x5865f2)
           .addFields([
@@ -62,22 +96,55 @@ module.exports = {
 
         // Fetch whitelists with progress updates (use server-side search if targetFilter specified)
         let totalFetched = 0;
-        const searchFilter = targetFilter; // Use targetFilter as server-side search
+        let oldEntriesEncountered = 0;
+        const OLD_ENTRIES_THRESHOLD = 50; // Stop if we see 50 consecutive entries older than sinceDate
+
+        // Use server-side search if targetFilter is specified, or use 'donation' for donationsOnly
+        const searchFilter = donationsOnly ? 'donation' : targetFilter;
+
+        // Use the provided limit or no limit
+        const effectiveLimit = limit;
         const whitelists = await BattleMetricsService.fetchAllActiveWhitelists(async (progress) => {
           totalFetched = progress.totalFetched;
-          
+
           // Stop fetching if we've reached the limit
-          if (limit && totalFetched >= limit) {
-            loggerConsole.log(`Reached limit of ${limit} entries, stopping fetch...`);
+          if (effectiveLimit && totalFetched >= effectiveLimit) {
+            loggerConsole.log(`Reached limit of ${effectiveLimit} entries, stopping fetch...`);
             return false; // Signal to stop fetching
           }
-          
+
+          // If date filtering is enabled, check if recent entries are too old
+          // BattleMetrics returns entries in reverse chronological order (newest first)
+          if (sinceDate && progress.lastBatch && progress.lastBatch.length > 0) {
+            let batchOldCount = 0;
+            for (const entry of progress.lastBatch) {
+              const createdAt = entry.battlemetricsMetadata?.originalCreatedAt;
+              if (createdAt) {
+                const entryDate = new Date(createdAt);
+                if (entryDate < sinceDate) {
+                  batchOldCount++;
+                }
+              }
+            }
+
+            // If entire batch is older than sinceDate, we've gone too far back in time
+            if (batchOldCount === progress.lastBatch.length) {
+              oldEntriesEncountered += batchOldCount;
+              if (oldEntriesEncountered >= OLD_ENTRIES_THRESHOLD) {
+                loggerConsole.log(`Encountered ${oldEntriesEncountered} consecutive entries older than ${sinceDateStr}, stopping fetch...`);
+                return false; // Signal to stop fetching
+              }
+            } else {
+              oldEntriesEncountered = 0; // Reset counter if we found recent entries
+            }
+          }
+
           progressEmbed.setFields([
             { name: 'Status', value: `Fetching page ${progress.currentPage}...`, inline: false },
             { name: 'Progress', value: `${progress.totalFetched} entries fetched${limit ? ` (limit: ${limit})` : ''}`, inline: true },
             { name: 'Mode', value: dryRun ? 'Dry Run' : 'Live Migration', inline: true }
           ]);
-          
+
           try {
             await interaction.editReply({ embeds: [progressEmbed] });
           } catch (editError) {
@@ -86,12 +153,41 @@ module.exports = {
         }, searchFilter);
 
         // Server-side filtering already applied via search parameter
-        if (targetFilter) {
-          loggerConsole.log(`Server-side search for "${targetFilter}" returned ${whitelists.length} entries`);
+        if (searchFilter) {
+          loggerConsole.log(`Server-side search for "${searchFilter}" returned ${whitelists.length} entries`);
+        }
+
+        // Apply date filtering if specified (client-side, as BM API doesn't support date filtering)
+        let filteredWhitelists = whitelists;
+        let dateFilteredCount = 0;
+        if (sinceDate) {
+          filteredWhitelists = whitelists.filter(entry => {
+            // Check if entry has a creation timestamp in metadata
+            const createdAt = entry.battlemetricsMetadata?.originalCreatedAt;
+            if (!createdAt) return true; // Keep entries without timestamp (safer than excluding)
+
+            const entryDate = new Date(createdAt);
+            return entryDate >= sinceDate;
+          });
+          dateFilteredCount = whitelists.length - filteredWhitelists.length;
+          loggerConsole.log(`Date filter (since ${sinceDateStr}): ${filteredWhitelists.length} entries kept, ${dateFilteredCount} filtered out`);
+        }
+
+        // Apply donation-only filtering if specified (exact match on webhook format)
+        let donationFilteredWhitelists = filteredWhitelists;
+        let donationFilteredCount = 0;
+        if (donationsOnly) {
+          donationFilteredWhitelists = filteredWhitelists.filter(entry => {
+            const reason = entry.reason || '';
+            // Exact match for webhook-based donations
+            return reason === 'Rewarded Whitelist via Donation';
+          });
+          donationFilteredCount = filteredWhitelists.length - donationFilteredWhitelists.length;
+          loggerConsole.log(`Donation filter (exact match): ${donationFilteredWhitelists.length} entries kept, ${donationFilteredCount} filtered out`);
         }
 
         // Apply limit if specified (as a safety net)
-        const finalWhitelists = limit ? whitelists.slice(0, limit) : whitelists;
+        const finalWhitelists = limit ? donationFilteredWhitelists.slice(0, limit) : donationFilteredWhitelists;
 
         // Categorize by priority
         const categories = BattleMetricsService.categorizeWhitelists(finalWhitelists);
@@ -211,6 +307,11 @@ module.exports = {
               if (!dryRun) {
                 // Create new whitelist entry
                 const duration = BattleMetricsService.calculateDuration(entry.expiresAt);
+
+                // Determine source: donation if reason matches webhook format, otherwise import
+                const isDonation = (entry.reason || '').includes('Rewarded Whitelist via Donation');
+                const source = isDonation ? 'donation' : 'import';
+
                 const whitelistData = {
                   steamid64: steamId,
                   eosID: entry.player.eosId,
@@ -220,7 +321,8 @@ module.exports = {
                   duration_type: duration.type,
                   granted_by: interaction.user.id,
                   note: entry.note || `BM ID: ${entry.id}`,
-                  metadata: entry.battlemetricsMetadata
+                  metadata: entry.battlemetricsMetadata,
+                  source: source
                 };
 
                 await Whitelist.grantWhitelist(whitelistData);
@@ -270,6 +372,26 @@ module.exports = {
             ].join('\n'), inline: false }
           ])
           .setTimestamp();
+
+        // Add filter statistics if filters were applied
+        if (sinceDate || searchFilter || donationsOnly) {
+          const filterStats = [];
+          if (searchFilter) {
+            filterStats.push(`Server-side search for "${searchFilter}": ${whitelists.length} entries returned`);
+          }
+          if (sinceDate && dateFilteredCount > 0) {
+            filterStats.push(`Date filter (since ${sinceDateStr}): ${dateFilteredCount} entries filtered out, ${filteredWhitelists.length} kept`);
+          }
+          if (donationsOnly && donationFilteredCount > 0) {
+            filterStats.push(`Donation filter (exact match): ${donationFilteredCount} entries filtered out, ${donationFilteredWhitelists.length} kept`);
+          }
+
+          if (filterStats.length > 0) {
+            resultsEmbed.addFields([
+              { name: '🔍 Filter Statistics', value: filterStats.join('\n'), inline: false }
+            ]);
+          }
+        }
 
         // Add skip details if any were skipped
         if (skippedCount > 0) {

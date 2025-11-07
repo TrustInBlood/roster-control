@@ -25,8 +25,16 @@ function getRoleForReason(reason) {
     'donator': WHITELIST_AWARD_ROLES.DONATOR,
     // 'reporting' has no specific role
   };
-  
+
   return roleMapping[reason] || null;
+}
+
+// Helper function to redact email addresses from text
+function redactEmails(text) {
+  if (!text) return text;
+  // Regex pattern to match email addresses
+  const emailPattern = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
+  return text.replace(emailPattern, '[email redacted]');
 }
 
 // Note: Steam ID resolution is now handled by accountLinking utility
@@ -1448,7 +1456,9 @@ async function handleInfo(interaction) {
       if (entriesToShow.length > 0) {
         const stackingInfo = entriesToShow.map(entry => {
           const reason = entry.reason || 'Unknown';
-          const note = entry.note ? `: ${entry.note}` : '';
+          // Redact emails from note before displaying
+          const redactedNote = entry.note ? redactEmails(entry.note) : '';
+          const note = redactedNote ? `: ${redactedNote}` : '';
 
           // Calculate remaining time for this entry
           if (!entry.duration_value || !entry.duration_type || entry.duration_value === 0) {

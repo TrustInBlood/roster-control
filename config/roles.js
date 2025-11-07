@@ -39,8 +39,8 @@ const COMMAND_PERMISSIONS = {
   'ondutytutor': [DISCORD_ROLES.TUTOR],
   'offdutytutor': [DISCORD_ROLES.TUTOR],
 
-  // Shelved commands (restricted to no one for now)
-  'migratewhitelists': ['DISABLED'],  // SHELVED - Set to invalid role ID to disable
+  // Migration commands (super admin only)
+  'migratewhitelists': [DISCORD_ROLES.SUPER_ADMIN],  // Super admin only: Import whitelists from BattleMetrics
 
   // Public commands
   'ping': [],      // Everyone can use
