@@ -12,6 +12,10 @@ class InGameCommandService {
     this.connectionManager = connectionManager;
     this.config = config;
     this.boundHandleChatMessage = null;
+
+    // Rate limiting: Track last command usage per player (steamID -> timestamp)
+    this.commandCooldowns = new Map();
+    this.cooldownDuration = 600000; // 10 minutes in milliseconds
   }
 
   /**
@@ -23,6 +27,11 @@ class InGameCommandService {
     // Register handler for CHAT_MESSAGE events
     this.boundHandleChatMessage = this.handleChatMessage.bind(this);
     this.connectionManager.registerEventHandler('CHAT_MESSAGE', this.boundHandleChatMessage);
+
+    // Set up periodic cleanup of expired cooldowns (every 5 minutes)
+    this.cleanupInterval = setInterval(() => {
+      this.cleanupExpiredCooldowns();
+    }, 300000); // 5 minutes
 
     this.logger.info('In-game command service initialized successfully');
   }
@@ -39,6 +48,42 @@ class InGameCommandService {
 
       // Route to appropriate command handler
       if (message === '!mywhitelist') {
+        // Check rate limit
+        if (this.isOnCooldown(player.steamID)) {
+          const remainingSeconds = this.getRemainingCooldown(player.steamID);
+          const remainingMinutes = Math.floor(remainingSeconds / 60);
+          const remainingSecondsOnly = remainingSeconds % 60;
+
+          let timeMessage;
+          if (remainingMinutes > 0) {
+            timeMessage = `${remainingMinutes} minute${remainingMinutes !== 1 ? 's' : ''}`;
+            if (remainingSecondsOnly > 0) {
+              timeMessage += ` and ${remainingSecondsOnly} second${remainingSecondsOnly !== 1 ? 's' : ''}`;
+            }
+          } else {
+            timeMessage = `${remainingSeconds} second${remainingSeconds !== 1 ? 's' : ''}`;
+          }
+
+          this.logger.info('Player on cooldown for !mywhitelist', {
+            serverId: server.id,
+            playerName: player.name,
+            steamID: player.steamID,
+            remainingSeconds
+          });
+
+          // Send cooldown message to player only (not broadcast)
+          this.connectionManager.sendRCONWarn(
+            server.id,
+            player.steamID,
+            `Please wait ${timeMessage} before using !mywhitelist again.`
+          );
+          return;
+        }
+
+        // Update cooldown
+        this.updateCooldown(player.steamID);
+
+        // Process command
         await this.handleMyWhitelistCommand(player, server);
       }
       // Add more commands here as needed
@@ -243,6 +288,74 @@ class InGameCommandService {
   }
 
   /**
+   * Check if a player is on cooldown for commands
+   * @param {string} steamID - Player's Steam ID
+   * @returns {boolean} True if player is on cooldown
+   */
+  isOnCooldown(steamID) {
+    if (!this.commandCooldowns.has(steamID)) {
+      return false;
+    }
+
+    const lastUse = this.commandCooldowns.get(steamID);
+    const now = Date.now();
+    const timeSinceLastUse = now - lastUse;
+
+    return timeSinceLastUse < this.cooldownDuration;
+  }
+
+  /**
+   * Get remaining cooldown time in seconds
+   * @param {string} steamID - Player's Steam ID
+   * @returns {number} Remaining seconds (rounded up)
+   */
+  getRemainingCooldown(steamID) {
+    if (!this.commandCooldowns.has(steamID)) {
+      return 0;
+    }
+
+    const lastUse = this.commandCooldowns.get(steamID);
+    const now = Date.now();
+    const timeSinceLastUse = now - lastUse;
+    const remainingMs = this.cooldownDuration - timeSinceLastUse;
+
+    return Math.ceil(remainingMs / 1000);
+  }
+
+  /**
+   * Update cooldown timestamp for a player
+   * @param {string} steamID - Player's Steam ID
+   */
+  updateCooldown(steamID) {
+    this.commandCooldowns.set(steamID, Date.now());
+  }
+
+  /**
+   * Clean up expired cooldown entries to prevent memory leaks
+   */
+  cleanupExpiredCooldowns() {
+    const now = Date.now();
+    let cleanedCount = 0;
+
+    for (const [steamID, timestamp] of this.commandCooldowns.entries()) {
+      const timeSinceLastUse = now - timestamp;
+
+      // Remove entries older than the cooldown duration
+      if (timeSinceLastUse >= this.cooldownDuration) {
+        this.commandCooldowns.delete(steamID);
+        cleanedCount++;
+      }
+    }
+
+    if (cleanedCount > 0) {
+      this.logger.debug('Cleaned up expired cooldowns', {
+        cleanedCount,
+        remainingCount: this.commandCooldowns.size
+      });
+    }
+  }
+
+  /**
    * Cleanup - unregister event handlers
    */
   shutdown() {
@@ -252,6 +365,15 @@ class InGameCommandService {
       // This is here for completeness if that feature is added
       this.boundHandleChatMessage = null;
     }
+
+    // Clear cleanup interval
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+
+    // Clear cooldown tracking
+    this.commandCooldowns.clear();
   }
 }
 
