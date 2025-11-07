@@ -98,7 +98,14 @@ class InGameCommandService {
         });
       } else {
         // Player has an active whitelist
-        if (whitelistEntry.expiration) {
+        // Check if permanent based on duration fields (null = permanent)
+        const isPermanent = whitelistEntry.duration_value === null && whitelistEntry.duration_type === null;
+
+        if (isPermanent) {
+          // Permanent whitelist (role-based or manually granted permanent)
+          responseMessage = 'Whitelisted (Permanent)';
+          broadcastMessage = `${player.name}'s Whitelisted (Permanent)`;
+        } else if (whitelistEntry.expiration) {
           // Temporary whitelist with expiration
           const expirationDate = new Date(whitelistEntry.expiration);
           const now = new Date();
@@ -113,7 +120,7 @@ class InGameCommandService {
           responseMessage = `Whitelisted until ${formattedDate}`;
           broadcastMessage = `${player.name}'s Whitelisted until ${formattedDate} (${daysLeft} day${daysLeft !== 1 ? 's' : ''} left)`;
         } else {
-          // Permanent whitelist (no expiration)
+          // Fallback: no expiration date set
           responseMessage = 'Whitelisted (Permanent)';
           broadcastMessage = `${player.name}'s Whitelisted (Permanent)`;
         }
@@ -124,7 +131,9 @@ class InGameCommandService {
           steamID: player.steamID,
           type: whitelistEntry.type,
           expiration: whitelistEntry.expiration,
-          isPermanent: !whitelistEntry.expiration
+          duration_value: whitelistEntry.duration_value,
+          duration_type: whitelistEntry.duration_type,
+          isPermanent: isPermanent
         });
       }
 
