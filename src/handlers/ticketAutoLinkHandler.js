@@ -47,7 +47,7 @@ async function initializeTicketPromptTracking(client) {
           msg.author.id === client.user.id &&
           msg.embeds.length > 0 &&
           (msg.embeds[0].title === '⚠️ Steam ID Required' ||
-           msg.embeds[0].title === 'BattleMetrics Profile Found')
+           msg.embeds[0].title === '🔍 BattleMetrics Profile Found')
         );
 
         if (alreadyHandled) {
