@@ -130,10 +130,21 @@ class InGameCommandService {
         order: [['granted_at', 'DESC']]
       });
 
+      // Filter out expired entries
+      const now = new Date();
+      const activeEntries = allEntries.filter(entry => {
+        // Permanent entries (no expiration) are always active
+        if (!entry.expiration) return true;
+
+        // Check if expiration is in the future
+        const expirationDate = new Date(entry.expiration);
+        return expirationDate > now;
+      });
+
       let responseMessage;
       let broadcastMessage;
 
-      if (allEntries.length === 0) {
+      if (activeEntries.length === 0) {
         // No whitelist entry found
         responseMessage = 'No current whitelist.';
         broadcastMessage = `${player.name}'s not currently whitelisted.`;
@@ -177,19 +188,19 @@ class InGameCommandService {
         let whitelistEntry = null;
 
         // First, check for staff entries (type: 'staff')
-        const staffEntry = allEntries.find(e => e.type === 'staff');
+        const staffEntry = activeEntries.find(e => e.type === 'staff');
         if (staffEntry) {
           whitelistEntry = staffEntry;
         } else {
           // No staff entry, check for permanent whitelists
-          const permanentEntry = allEntries.find(e =>
+          const permanentEntry = activeEntries.find(e =>
             e.duration_value === null && e.duration_type === null
           );
           if (permanentEntry) {
             whitelistEntry = permanentEntry;
           } else {
             // No permanent entry, get the one with longest expiration
-            whitelistEntry = allEntries.sort((a, b) => {
+            whitelistEntry = activeEntries.sort((a, b) => {
               if (!a.expiration) return -1;
               if (!b.expiration) return 1;
               return new Date(b.expiration) - new Date(a.expiration);
