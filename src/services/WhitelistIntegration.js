@@ -3,6 +3,7 @@ const RoleWhitelistSyncService = require('./RoleWhitelistSyncService');
 const SquadJSConnectionManager = require('./SquadJSConnectionManager');
 const SquadJSLinkingService = require('./SquadJSLinkingService');
 const PlaytimeTrackingService = require('./PlaytimeTrackingService');
+const InGameCommandService = require('./InGameCommandService');
 const { VerificationCode } = require('../database/models');
 const { config: whitelistConfig, validateConfig } = require('../../config/whitelist');
 
@@ -89,11 +90,13 @@ async function setupWhitelistRoutes(app, _sequelize, logger, discordClient) {
   const connectionManager = new SquadJSConnectionManager(logger, whitelistConfig);
   const squadJSService = new SquadJSLinkingService(logger, discordClient, whitelistConfig, whitelistService, connectionManager);
   const playtimeTrackingService = new PlaytimeTrackingService(logger, connectionManager);
+  const inGameCommandService = new InGameCommandService(connectionManager, whitelistConfig);
 
   try {
     await connectionManager.connect();
     squadJSService.initialize();
     await playtimeTrackingService.initialize();
+    inGameCommandService.initialize();
   } catch (error) {
     logger.error('Failed to connect to SquadJS servers', { error: error.message });
   }
@@ -116,6 +119,7 @@ async function setupWhitelistRoutes(app, _sequelize, logger, discordClient) {
     logger.info('Shutting down whitelist integration');
     clearInterval(cleanupInterval);
     await playtimeTrackingService.shutdown();
+    inGameCommandService.shutdown();
     squadJSService.destroy();
     connectionManager.disconnect();
   };
@@ -137,6 +141,7 @@ async function setupWhitelistRoutes(app, _sequelize, logger, discordClient) {
     roleWhitelistSync,
     connectionManager,
     squadJSService,
+    inGameCommandService,
     gracefulShutdown,
     config: whitelistConfig
   };
