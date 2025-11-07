@@ -40,16 +40,17 @@ async function initializeTicketPromptTracking(client) {
 
       ticketChannelCount++;
 
-      // Check message history for existing prompt
+      // Check message history for existing prompt OR confirmed Steam ID
       try {
         const recentMessages = await channel.messages.fetch({ limit: 20 });
-        const alreadyPrompted = recentMessages.some(msg =>
+        const alreadyHandled = recentMessages.some(msg =>
           msg.author.id === client.user.id &&
           msg.embeds.length > 0 &&
-          msg.embeds[0].title === '⚠️ Steam ID Required'
+          (msg.embeds[0].title === '⚠️ Steam ID Required' ||
+           msg.embeds[0].title === 'BattleMetrics Profile Found')
         );
 
-        if (alreadyPrompted) {
+        if (alreadyHandled) {
           handledTickets.add(channel.id);
           alreadyPromptedCount++;
         }
