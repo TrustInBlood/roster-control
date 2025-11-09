@@ -22,7 +22,7 @@ const COMMAND_PERMISSIONS = {
   'unlinkedstaff': ['1365205433236717598'], // Admin roles can view unlinked staff
   'auditwhitelist': ['1365205433236717598'], // Admin roles can audit whitelist security
   'checkenv': ['1365205433236717598'],    // Admin roles can check environment
-  'migratewhitelists': ['1420532128541835284'], // Super admin only: Import whitelists from BattleMetrics
+
   // Public commands
   'ping': [],  // Everyone can use
   'help': [],  // Everyone can use

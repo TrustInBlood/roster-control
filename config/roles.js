@@ -39,9 +39,6 @@ const COMMAND_PERMISSIONS = {
   'ondutytutor': [DISCORD_ROLES.TUTOR],
   'offdutytutor': [DISCORD_ROLES.TUTOR],
 
-  // Shelved commands (restricted to no one for now)
-  'migratewhitelists': ['DISABLED'],  // SHELVED - Set to invalid role ID to disable
-
   // Public commands
   'ping': [],      // Everyone can use
   'help': [],      // Everyone can use
