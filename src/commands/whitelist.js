@@ -1455,8 +1455,8 @@ async function handleInfo(interaction) {
 
       if (entriesToShow.length > 0) {
         const stackingInfo = entriesToShow.map(entry => {
-          const reason = entry.reason || 'Unknown';
-          // Redact emails from note before displaying
+          // Redact emails from both reason and note before displaying
+          const reason = redactEmails(entry.reason) || 'Unknown';
           const redactedNote = entry.note ? redactEmails(entry.note) : '';
           const note = redactedNote ? `: ${redactedNote}` : '';
 
