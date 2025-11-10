@@ -2,6 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const { console: loggerConsole, createServiceLogger } = require('../utils/logger');
 const { Whitelist } = require('../database/models');
+const notificationService = require('../services/NotificationService');
 
 const serviceLogger = createServiceLogger('BattleMetricsWebhook');
 const router = express.Router();
@@ -193,6 +194,36 @@ function setupBattleMetricsWebhook(client) {
         days,
         expirationDate: result.expirationDate
       });
+
+      // Send Discord notification
+      try {
+        const expirationDateFormatted = new Date(result.expirationDate).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: 'UTC'
+        });
+
+        await notificationService.sendNotification('whitelist', {
+          content: `**BattleMetrics Whitelist Granted**\n` +
+            `A new whitelist has been granted via BattleMetrics webhook.\n\n` +
+            `**Player:** ${username || 'Unknown'}\n` +
+            `**Steam ID:** ${steamid64}\n` +
+            `**Duration:** ${days} days\n` +
+            `**Reason:** ${reason || 'BattleMetrics Webhook'}\n` +
+            `**Granted By:** ${admin}\n` +
+            `**Expires:** ${expirationDateFormatted} UTC`
+        });
+      } catch (notificationError) {
+        serviceLogger.error('Failed to send BattleMetrics whitelist notification', {
+          error: notificationError.message,
+          steamid64,
+          username
+        });
+        // Don't fail the webhook if notification fails
+      }
 
       // Respond to webhook with success
       res.status(200).json({
