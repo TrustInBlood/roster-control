@@ -954,6 +954,223 @@ class RoleWhitelistSyncService {
 
     return blockedEntry;
   }
+
+  /**
+   * Clean up role-based whitelist entries for users who left the Discord server
+   * This is run periodically to catch users who left before guildMemberRemove handler was implemented
+   * @param {string} guildId - Discord guild ID
+   * @param {Object} options - Cleanup options
+   */
+  async cleanupDepartedMembers(guildId, options = {}) {
+    const { dryRun = false, sendNotification = false } = options;
+
+    if (!this.discordClient) {
+      throw new Error('Discord client not available for departed members cleanup');
+    }
+
+    this.logger.info('Starting departed members cleanup', { guildId, dryRun });
+
+    try {
+      // Fetch guild and all members
+      const guild = await this.discordClient.guilds.fetch(guildId);
+      await guild.members.fetch();
+      const guildMembers = guild.members.cache;
+
+      this.logger.debug('Fetched guild members', {
+        guildId,
+        memberCount: guildMembers.size
+      });
+
+      // Find all active role-based whitelist entries
+      const activeRoleEntries = await Whitelist.findAll({
+        where: {
+          source: 'role',
+          revoked: false
+        },
+        order: [['discord_user_id', 'ASC']]
+      });
+
+      if (activeRoleEntries.length === 0) {
+        this.logger.info('No active role-based entries found for cleanup');
+        return {
+          success: true,
+          departedUsersFound: 0,
+          entriesRevoked: 0
+        };
+      }
+
+      // Group entries by Discord user ID
+      const entriesByUser = new Map();
+      for (const entry of activeRoleEntries) {
+        if (!entry.discord_user_id) {
+          continue;
+        }
+
+        if (!entriesByUser.has(entry.discord_user_id)) {
+          entriesByUser.set(entry.discord_user_id, []);
+        }
+        entriesByUser.get(entry.discord_user_id).push(entry);
+      }
+
+      this.logger.debug('Grouped entries by user', {
+        uniqueUsers: entriesByUser.size
+      });
+
+      // Check which users have left
+      const departedUsers = [];
+      for (const [discordUserId, entries] of entriesByUser) {
+        const member = guildMembers.get(discordUserId);
+        if (!member) {
+          // User not in guild - they left
+          departedUsers.push({
+            discordUserId,
+            entries
+          });
+        }
+      }
+
+      if (departedUsers.length === 0) {
+        this.logger.info('No departed users found with active role-based entries');
+        return {
+          success: true,
+          departedUsersFound: 0,
+          entriesRevoked: 0
+        };
+      }
+
+      this.logger.info('Found departed users with active role-based entries', {
+        departedUsersCount: departedUsers.length,
+        totalEntries: departedUsers.reduce((sum, u) => sum + u.entries.length, 0)
+      });
+
+      if (dryRun) {
+        return {
+          success: true,
+          dryRun: true,
+          departedUsersFound: departedUsers.length,
+          entriesRevoked: departedUsers.reduce((sum, u) => sum + u.entries.length, 0),
+          departedUsers: departedUsers.map(u => ({
+            discordUserId: u.discordUserId,
+            entryCount: u.entries.length,
+            steamIds: [...new Set(u.entries.map(e => e.steamid64))]
+          }))
+        };
+      }
+
+      // Revoke entries for departed users
+      const revokedAt = new Date();
+      let totalRevoked = 0;
+      const revokedSummary = [];
+
+      for (const user of departedUsers) {
+        const userSteamIds = [...new Set(user.entries.map(e => e.steamid64))];
+        const userRoles = [...new Set(user.entries.map(e => e.role_name))];
+
+        for (const entry of user.entries) {
+          await entry.update({
+            revoked: true,
+            revoked_by: 'SYSTEM',
+            revoked_at: revokedAt,
+            revoked_reason: 'Periodic cleanup - user left Discord server',
+            metadata: {
+              ...entry.metadata,
+              periodicCleanup: true,
+              cleanupDate: revokedAt.toISOString(),
+              previousRole: entry.role_name
+            }
+          });
+
+          totalRevoked++;
+        }
+
+        revokedSummary.push({
+          discordUserId: user.discordUserId,
+          steamIds: userSteamIds,
+          roles: userRoles,
+          entriesRevoked: user.entries.length
+        });
+
+        this.logger.info('Revoked entries for departed user', {
+          discordUserId: user.discordUserId,
+          entriesRevoked: user.entries.length,
+          steamIds: userSteamIds
+        });
+      }
+
+      // Log to audit trail
+      await AuditLog.create({
+        actionType: 'WHITELIST_PERIODIC_CLEANUP',
+        actorType: 'system',
+        actorId: 'PERIODIC_CLEANUP',
+        actorName: 'RoleWhitelistSyncService.cleanupDepartedMembers',
+        targetType: 'multiple_users',
+        targetId: departedUsers.map(u => u.discordUserId).join(','),
+        targetName: `${departedUsers.length} departed users`,
+        guildId: guildId,
+        description: `Periodic cleanup: Revoked ${totalRevoked} role-based whitelist entries for ${departedUsers.length} departed users`,
+        beforeState: null,
+        afterState: null,
+        metadata: {
+          totalRevoked,
+          departedUsersCount: departedUsers.length,
+          revokedSummary: revokedSummary.slice(0, 20), // Limit to first 20
+          cleanupDate: revokedAt.toISOString()
+        },
+        severity: 'info'
+      });
+
+      // Send Discord notification if requested
+      if (sendNotification && totalRevoked > 0) {
+        try {
+          const summaryText = revokedSummary.slice(0, 5).map(s =>
+            `• User ID \`${s.discordUserId}\`: ${s.entriesRevoked} ${s.entriesRevoked === 1 ? 'entry' : 'entries'} (${s.roles.join(', ')})`
+          ).join('\n');
+
+          const moreText = revokedSummary.length > 5
+            ? `\n...and ${revokedSummary.length - 5} more users`
+            : '';
+
+          await notificationService.sendNotification('whitelist', {
+            content: `**Periodic Whitelist Cleanup**\n` +
+              `Revoked role-based entries for users who left Discord.\n\n` +
+              `**Summary:**\n` +
+              `• Entries revoked: **${totalRevoked}**\n` +
+              `• Departed users: **${departedUsers.length}**\n\n` +
+              `**Sample:**\n${summaryText}${moreText}`
+          });
+        } catch (notificationError) {
+          this.logger.error('Failed to send cleanup notification', {
+            error: notificationError.message
+          });
+        }
+      }
+
+      // Invalidate whitelist cache
+      if (this.whitelistService) {
+        this.whitelistService.invalidateCache();
+      }
+
+      this.logger.info('Departed members cleanup completed', {
+        departedUsersFound: departedUsers.length,
+        entriesRevoked: totalRevoked
+      });
+
+      return {
+        success: true,
+        departedUsersFound: departedUsers.length,
+        entriesRevoked: totalRevoked,
+        revokedSummary
+      };
+
+    } catch (error) {
+      this.logger.error('Departed members cleanup failed', {
+        guildId,
+        error: error.message
+      });
+
+      throw error;
+    }
+  }
 }
 
 module.exports = RoleWhitelistSyncService;

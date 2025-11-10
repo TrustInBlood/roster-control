@@ -3,11 +3,12 @@ const { discordRoles } = require('../utils/environment');
 const { getAllStaffRoles } = discordRoles;
 
 class StaffRoleSyncService {
-  constructor(client, logger = null) {
+  constructor(client, logger = null, roleWhitelistSync = null) {
     this.client = client;
     this.logger = logger || createServiceLogger('StaffRoleSync');
     this.staffRoleId = discordRoles.DISCORD_ROLES.STAFF;
     this.staffRoles = getAllStaffRoles();
+    this.roleWhitelistSync = roleWhitelistSync; // For departed members cleanup
 
     // Remove the STAFF role from the staff roles list to prevent circular logic
     this.individualStaffRoles = this.staffRoles.filter(roleId => roleId !== this.staffRoleId);
@@ -285,6 +286,31 @@ class StaffRoleSyncService {
           try {
             this.logger.info('Running periodic staff role sync', { guildId, guildName: guild.name });
             await this.bulkSyncGuildStaffRoles(guildId, { source: 'periodic' });
+
+            // Also cleanup departed members' whitelist entries
+            if (this.roleWhitelistSync) {
+              try {
+                const cleanupResult = await this.roleWhitelistSync.cleanupDepartedMembers(guildId, {
+                  dryRun: false,
+                  sendNotification: true // Only send notification if entries were found and revoked
+                });
+
+                if (cleanupResult.departedUsersFound > 0) {
+                  this.logger.info('Departed members cleanup completed', {
+                    guildId,
+                    guildName: guild.name,
+                    departedUsersFound: cleanupResult.departedUsersFound,
+                    entriesRevoked: cleanupResult.entriesRevoked
+                  });
+                }
+              } catch (cleanupError) {
+                this.logger.error('Departed members cleanup failed', {
+                  guildId,
+                  guildName: guild.name,
+                  error: cleanupError.message
+                });
+              }
+            }
           } catch (error) {
             this.logger.error('Periodic sync failed for guild', {
               guildId,

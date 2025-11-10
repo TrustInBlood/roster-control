@@ -17,7 +17,7 @@ class RoleChangeHandler {
     this.dutyFactory = new DutyStatusFactory();
     this.processingUsers = new Set(); // Prevent duplicate processing
     this.roleWhitelistSync = new RoleWhitelistSyncService(logger, client); // New sync service
-    this.staffRoleSync = new StaffRoleSyncService(client, logger); // Staff role sync service
+    this.staffRoleSync = new StaffRoleSyncService(client, logger, this.roleWhitelistSync); // Pass roleWhitelistSync for departed members cleanup
     this.trackedRoles = getAllTrackedRoles(); // Get all staff/member roles
     this.staffRoles = getAllStaffRoles(); // Get all individual staff roles
 
