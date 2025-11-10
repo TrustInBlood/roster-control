@@ -26,6 +26,7 @@ const { handleVoiceStateUpdate } = require('./handlers/voiceStateHandler');
 const { setupRoleChangeHandler } = require('./handlers/roleChangeHandler');
 const { handleLegacyCommands } = require('./handlers/legacyCommandHandler');
 const { initializeTicketPromptTracking, handleChannelDelete } = require('./handlers/ticketAutoLinkHandler');
+const { handleGuildMemberRemove } = require('./handlers/guildMemberRemoveHandler');
 const DutyStatusSyncService = require('./services/DutyStatusSyncService');
 const { setupWhitelistRoutes } = require('./services/WhitelistIntegration');
 const { databaseManager } = require('./database/index');
@@ -163,6 +164,22 @@ client.on('channelDelete', async (channel) => {
       error: error.message,
       stack: error.stack,
       channelId: channel?.id
+    });
+  }
+});
+
+// Guild member remove handler - auto-revoke whitelist entries
+client.on('guildMemberRemove', async (member) => {
+  try {
+    await handleGuildMemberRemove(member);
+  } catch (error) {
+    loggerConsole.error('Error in guildMemberRemove handler:', error);
+    logger.error('guildMemberRemove handler failed', {
+      error: error.message,
+      stack: error.stack,
+      userId: member.user?.id,
+      userTag: member.user?.tag,
+      guildId: member.guild?.id
     });
   }
 });
