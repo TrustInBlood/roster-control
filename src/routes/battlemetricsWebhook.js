@@ -206,15 +206,19 @@ function setupBattleMetricsWebhook(client) {
           timeZone: 'UTC'
         });
 
-        await notificationService.sendNotification('whitelist', {
-          content: `**BattleMetrics Whitelist Granted**\n` +
-            `A new whitelist has been granted via BattleMetrics webhook.\n\n` +
-            `**Player:** ${username || 'Unknown'}\n` +
-            `**Steam ID:** ${steamid64}\n` +
-            `**Duration:** ${days} days\n` +
-            `**Reason:** ${reason || 'BattleMetrics Webhook'}\n` +
-            `**Granted By:** ${admin}\n` +
-            `**Expires:** ${expirationDateFormatted} UTC`
+        await notificationService.send('whitelist', {
+          title: 'BattleMetrics Whitelist Granted',
+          description: 'A new whitelist has been granted via BattleMetrics webhook.',
+          fields: [
+            { name: 'Player', value: username || 'Unknown', inline: true },
+            { name: 'Steam ID', value: `\`${steamid64}\``, inline: true },
+            { name: 'Duration', value: `${days} days`, inline: true },
+            { name: 'Reason', value: reason || 'BattleMetrics Webhook', inline: false },
+            { name: 'Granted By', value: admin, inline: true },
+            { name: 'Expires', value: `${expirationDateFormatted} UTC`, inline: true }
+          ],
+          colorType: 'whitelist_grant',
+          timestamp: true
         });
       } catch (notificationError) {
         serviceLogger.error('Failed to send BattleMetrics whitelist notification', {

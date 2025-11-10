@@ -104,13 +104,17 @@ async function handleGuildMemberRemove(member) {
       const steamIds = revokedEntries.map(e => e.steamid64).filter((v, i, a) => a.indexOf(v) === i);
       const roleNames = [...new Set(revokedEntries.map(e => e.role_name).filter(Boolean))];
 
-      await notificationService.sendNotification('whitelist', {
-        content: `**Role-Based Whitelist Auto-Revocation**\n` +
-          `User **${discordUsername}** left the Discord server.\n` +
-          `Automatically revoked **${revokedEntries.length}** role-based whitelist ${revokedEntries.length === 1 ? 'entry' : 'entries'}.\n\n` +
-          `**Steam IDs:** ${steamIds.join(', ')}\n` +
-          `**Previous Roles:** ${roleNames.join(', ')}\n` +
-          `**Note:** Manual grants (donations, seeding, etc.) were preserved.`
+      await notificationService.send('whitelist', {
+        title: 'Role-Based Whitelist Auto-Revocation',
+        description: `User **${discordUsername}** left the Discord server. Automatically revoked **${revokedEntries.length}** role-based whitelist ${revokedEntries.length === 1 ? 'entry' : 'entries'}.`,
+        fields: [
+          { name: 'User', value: discordUsername, inline: false },
+          { name: 'Steam IDs', value: steamIds.join(', '), inline: false },
+          { name: 'Previous Roles', value: roleNames.join(', '), inline: false },
+          { name: 'Note', value: 'Manual grants (donations, seeding, etc.) were preserved.', inline: false }
+        ],
+        colorType: 'whitelist_revoke',
+        timestamp: true
       });
     } catch (notificationError) {
       logger.error('Failed to send whitelist revocation notification', {

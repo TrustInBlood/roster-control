@@ -1130,13 +1130,15 @@ class RoleWhitelistSyncService {
             ? `\n...and ${revokedSummary.length - 5} more users`
             : '';
 
-          await notificationService.sendNotification('whitelist', {
-            content: `**Periodic Whitelist Cleanup**\n` +
-              `Revoked role-based entries for users who left Discord.\n\n` +
-              `**Summary:**\n` +
-              `• Entries revoked: **${totalRevoked}**\n` +
-              `• Departed users: **${departedUsers.length}**\n\n` +
-              `**Sample:**\n${summaryText}${moreText}`
+          await notificationService.send('whitelist', {
+            title: 'Periodic Whitelist Cleanup',
+            description: `Revoked role-based entries for users who left Discord.\n\n${summaryText}${moreText}`,
+            fields: [
+              { name: 'Entries Revoked', value: `**${totalRevoked}**`, inline: true },
+              { name: 'Departed Users', value: `**${departedUsers.length}**`, inline: true }
+            ],
+            colorType: 'whitelist_revoke',
+            timestamp: true
           });
         } catch (notificationError) {
           this.logger.error('Failed to send cleanup notification', {
