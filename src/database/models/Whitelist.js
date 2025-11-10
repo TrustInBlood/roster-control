@@ -460,10 +460,13 @@ module.exports = (sequelize) => {
     // Calculate expiration date based on duration
     if (duration_value && duration_type) {
       expiration = new Date(granted_at);
+      // Ensure duration_value is a number
+      const durationNum = parseInt(duration_value, 10);
+
       if (duration_type === 'months') {
-        expiration.setMonth(expiration.getMonth() + duration_value);
+        expiration.setMonth(expiration.getMonth() + durationNum);
       } else if (duration_type === 'days') {
-        expiration.setDate(expiration.getDate() + duration_value);
+        expiration.setDate(expiration.getDate() + durationNum);
       }
     }
 

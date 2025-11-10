@@ -135,7 +135,10 @@ function setupBattleMetricsWebhook(client) {
       }
 
       // Parse webhook data
-      const { steamid64, username, days, reason, admin } = req.body;
+      const { steamid64, username, days: daysRaw, reason, admin } = req.body;
+
+      // Parse days as integer
+      const days = parseInt(daysRaw, 10);
 
       // Validate required fields
       if (!steamid64) {
@@ -143,8 +146,8 @@ function setupBattleMetricsWebhook(client) {
         return res.status(400).json({ error: 'Missing required field: steamid64' });
       }
 
-      if (!days || days <= 0) {
-        serviceLogger.error('Invalid days value', { days, body: req.body });
+      if (!days || isNaN(days) || days <= 0) {
+        serviceLogger.error('Invalid days value', { days: daysRaw, body: req.body });
         return res.status(400).json({ error: 'Invalid days value. Must be a positive number.' });
       }
 
@@ -197,15 +200,6 @@ function setupBattleMetricsWebhook(client) {
 
       // Send Discord notification
       try {
-        const expirationDateFormatted = new Date(result.expirationDate).toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          timeZone: 'UTC'
-        });
-
         await notificationService.send('whitelist', {
           title: 'BattleMetrics Whitelist Granted',
           description: 'A new whitelist has been granted via BattleMetrics webhook.',
@@ -214,8 +208,7 @@ function setupBattleMetricsWebhook(client) {
             { name: 'Steam ID', value: `\`${steamid64}\``, inline: true },
             { name: 'Duration', value: `${days} days`, inline: true },
             { name: 'Reason', value: reason || 'BattleMetrics Webhook', inline: false },
-            { name: 'Granted By', value: admin, inline: true },
-            { name: 'Expires', value: `${expirationDateFormatted} UTC`, inline: true }
+            { name: 'Granted By', value: admin, inline: true }
           ],
           colorType: 'whitelist_grant',
           timestamp: true
@@ -292,10 +285,6 @@ async function grantBattleMetricsWhitelist({ steamid64, username, days, reason, 
         admin: admin
       }
     });
-
-    // Calculate expiration date for response
-    const expirationDate = new Date();
-    expirationDate.setDate(expirationDate.getDate() + days);
 
     serviceLogger.info('BattleMetrics whitelist entry created', {
       id: whitelistEntry.id,
