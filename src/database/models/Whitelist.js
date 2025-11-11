@@ -467,6 +467,10 @@ module.exports = (sequelize) => {
         expiration.setMonth(expiration.getMonth() + durationNum);
       } else if (duration_type === 'days') {
         expiration.setDate(expiration.getDate() + durationNum);
+      } else if (duration_type === 'hours') {
+        // For hour-based durations (supports fractional days via integer hours)
+        const millisecondsPerHour = 60 * 60 * 1000;
+        expiration = new Date(granted_at.getTime() + (durationNum * millisecondsPerHour));
       }
     }
 

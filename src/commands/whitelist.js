@@ -37,6 +37,46 @@ function redactEmails(text) {
   return text.replace(emailPattern, '[email redacted]');
 }
 
+// Helper function to calculate expiration date from duration
+function calculateExpirationDate(grantedAt, durationValue, durationType) {
+  const grantedDate = new Date(grantedAt);
+  const expiration = new Date(grantedDate);
+
+  if (durationType === 'days') {
+    expiration.setDate(expiration.getDate() + durationValue);
+  } else if (durationType === 'months') {
+    expiration.setMonth(expiration.getMonth() + durationValue);
+  } else if (durationType === 'hours') {
+    const millisecondsPerHour = 60 * 60 * 1000;
+    return new Date(grantedDate.getTime() + (durationValue * millisecondsPerHour));
+  }
+
+  return expiration;
+}
+
+// Helper function to format duration for display
+function formatDuration(durationValue, durationType) {
+  if (!durationValue || !durationType) return null;
+
+  if (durationType === 'hours') {
+    // Convert hours to days for cleaner display
+    const days = durationValue / 24;
+    if (days === Math.floor(days)) {
+      // Whole number of days
+      return `${days} ${days === 1 ? 'day' : 'days'}`;
+    } else {
+      // Fractional days - show as decimal
+      return `${days.toFixed(2)} days`;
+    }
+  } else if (durationType === 'days') {
+    return `${durationValue} ${durationValue === 1 ? 'day' : 'days'}`;
+  } else if (durationType === 'months') {
+    return `${durationValue} ${durationValue === 1 ? 'month' : 'months'}`;
+  }
+
+  return `${durationValue} ${durationType}`;
+}
+
 // Note: Steam ID resolution is now handled by accountLinking utility
 
 // Helper function to get user info from steamid or discord user (with auto-linking)
@@ -1289,16 +1329,9 @@ async function handleInfo(interaction) {
         return entry.duration_value !== 0; // Exclude entries with 0 duration (expired)
       }
       
-      // Calculate actual expiration date
-      const grantedDate = new Date(entry.granted_at);
-      const expirationDate = new Date(grantedDate);
-      
-      if (entry.duration_type === 'days') {
-        expirationDate.setDate(expirationDate.getDate() + entry.duration_value);
-      } else if (entry.duration_type === 'months') {
-        expirationDate.setMonth(expirationDate.getMonth() + entry.duration_value);
-      }
-      
+      // Calculate actual expiration date using helper function
+      const expirationDate = calculateExpirationDate(entry.granted_at, entry.duration_value, entry.duration_type);
+
       return expirationDate > now; // Only include if not expired
     });
 
@@ -1465,20 +1498,15 @@ async function handleInfo(interaction) {
             return `• ${reason}${note}: permanent`;
           }
 
-          const grantedDate = new Date(entry.granted_at);
-          const expirationDate = new Date(grantedDate);
-
-          if (entry.duration_type === 'days') {
-            expirationDate.setDate(expirationDate.getDate() + entry.duration_value);
-          } else if (entry.duration_type === 'months') {
-            expirationDate.setMonth(expirationDate.getMonth() + entry.duration_value);
-          }
-
+          const expirationDate = calculateExpirationDate(entry.granted_at, entry.duration_value, entry.duration_type);
           const now = new Date();
           const remainingMs = expirationDate - now;
           const remainingDays = Math.ceil(remainingMs / (1000 * 60 * 60 * 24));
 
-          return `• ${reason}${note}: ${remainingDays} days`;
+          // Format the original duration for display
+          const durationDisplay = formatDuration(entry.duration_value, entry.duration_type);
+
+          return `• ${reason}${note}: ${durationDisplay} (${remainingDays} days remaining)`;
         });
         whitelistEntries.push(...stackingInfo);
       }

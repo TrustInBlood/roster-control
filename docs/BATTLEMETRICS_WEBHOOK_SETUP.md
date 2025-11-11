@@ -60,6 +60,8 @@ BATTLEMETRICS_WEBHOOK_TOKEN=your_secure_token_here
 }
 ```
 
+**Note**: The `days` field supports fractional values (e.g., `2.5` for 2.5 days). Fractional days are internally converted to hours for precise storage while maintaining backwards compatibility.
+
 #### Template Variables Explained
 
 BattleMetrics provides these template variables for webhook payloads:
@@ -78,7 +80,7 @@ BattleMetrics provides these template variables for webhook payloads:
 | Field | Type | Required | Description | Example |
 |-------|------|----------|-------------|---------|
 | `steamid64` | string | Yes | Player's Steam64 ID | `"76561198123456789"` |
-| `days` | number | Yes | Duration in days | `30` |
+| `days` | number | Yes | Duration in days (supports fractional values like 2.5) | `30` or `2.5` |
 | `admin` | string | Yes | Admin identifier/name | `"BM_Admin_John"` |
 | `username` | string | No | Player's in-game name | `"PlayerName"` |
 | `reason` | string | No | Reason for whitelist | `"BattleMetrics subscription"` |
@@ -125,6 +127,17 @@ curl -X POST 'http://your-server:3001/webhook/battlemetrics/whitelist?token=your
     "username": "TestPlayer",
     "days": 30,
     "reason": "Test whitelist",
+    "admin": "TestAdmin"
+  }'
+
+# Test with fractional days (2.5 days)
+curl -X POST 'http://your-server:3001/webhook/battlemetrics/whitelist?token=your_token' \
+  -H "Content-Type: application/json" \
+  -d '{
+    "steamid64": "76561198123456789",
+    "username": "TestPlayer",
+    "days": 2.5,
+    "reason": "Trial access",
     "admin": "TestAdmin"
   }'
 
@@ -212,10 +225,11 @@ Simpler but less secure. Token is passed in the URL query string.
 ## How Whitelist Entries Work
 
 1. **Database Storage**: Each webhook request creates a new whitelist entry in the database
-2. **Duration Stacking**: Multiple entries for the same Steam ID will stack their durations
-3. **Expiration**: Entries automatically expire after the specified number of days
-4. **Squad Integration**: Entries are automatically included in Squad server whitelist files
-5. **Audit Trail**: All entries track who granted them (admin field) and when
+2. **Fractional Days**: Days are internally converted to hours for precise storage (e.g., 2.5 days = 60 hours), then displayed as days in the UI
+3. **Duration Stacking**: Multiple entries for the same Steam ID will stack their durations
+4. **Expiration**: Entries automatically expire after the specified duration
+5. **Squad Integration**: Entries are automatically included in Squad server whitelist files
+6. **Audit Trail**: All entries track who granted them (admin field) and when
 
 ## Example Use Cases
 
@@ -226,10 +240,10 @@ Grant 30-day whitelist access to players who subscribe to your BattleMetrics com
 Grant extended whitelist access (90+ days) to VIP members.
 
 ### 3. Trial Access
-Grant short-term access (7 days) for trial periods.
+Grant short-term access (7 days) for trial periods, or use fractional days (2.5 days) for precise control.
 
 ### 4. Event Participants
-Grant temporary access (3 days) to event participants.
+Grant temporary access (3 days) to event participants, or use fractional values like 0.5 days for 12-hour access.
 
 ### 5. Manual Admin Grants
 Allow admins to manually trigger whitelist grants through BattleMetrics interface.

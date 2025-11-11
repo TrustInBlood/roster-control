@@ -137,8 +137,8 @@ function setupBattleMetricsWebhook(client) {
       // Parse webhook data
       const { steamid64, username, days: daysRaw, reason, admin } = req.body;
 
-      // Parse days as integer
-      const days = parseInt(daysRaw, 10);
+      // Parse days as float to allow fractional days (e.g., 2.5)
+      const days = parseFloat(daysRaw);
 
       // Validate required fields
       if (!steamid64) {
@@ -150,6 +150,9 @@ function setupBattleMetricsWebhook(client) {
         serviceLogger.error('Invalid days value', { days: daysRaw, body: req.body });
         return res.status(400).json({ error: 'Invalid days value. Must be a positive number.' });
       }
+
+      // Convert days to hours for storage (keeps INTEGER column, supports fractional days)
+      const hours = Math.round(days * 24);
 
       if (!admin) {
         serviceLogger.error('Missing required field: admin', { body: req.body });
@@ -175,7 +178,8 @@ function setupBattleMetricsWebhook(client) {
       const result = await grantBattleMetricsWhitelist({
         steamid64,
         username,
-        days,
+        hours,
+        days, // Keep for logging/display
         reason: reason || 'BattleMetrics subscription',
         admin
       });
@@ -261,28 +265,31 @@ function setupBattleMetricsWebhook(client) {
  * @param {Object} params - Whitelist parameters
  * @param {string} params.steamid64 - Steam ID
  * @param {string} params.username - Player username
- * @param {number} params.days - Duration in days
+ * @param {number} params.hours - Duration in hours
+ * @param {number} params.days - Duration in days (for logging/display)
  * @param {string} params.reason - Reason for whitelist
  * @param {string} params.admin - Admin identifier or name who issued the whitelist
  * @returns {Promise<Object>} Result object with success status
  */
-async function grantBattleMetricsWhitelist({ steamid64, username, days, reason, admin }) {
+async function grantBattleMetricsWhitelist({ steamid64, username, hours, days, reason, admin }) {
   try {
     // Create whitelist entry using existing model method
+    // Store as hours (INTEGER) to support fractional days without database changes
     const whitelistEntry = await Whitelist.grantWhitelist({
       steamid64,
       eosID: null,
       username: username || null,
       discord_username: null,
       reason: reason || 'BattleMetrics subscription',
-      duration_value: days,
-      duration_type: 'days',
+      duration_value: hours,
+      duration_type: 'hours',
       granted_by: admin,
       note: null,
       metadata: {
         source: 'battlemetrics',
         webhookTimestamp: new Date().toISOString(),
-        admin: admin
+        admin: admin,
+        originalDays: days // Store original days value for reference
       }
     });
 
