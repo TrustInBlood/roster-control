@@ -774,9 +774,10 @@ async function handleDurationSelection(interaction, grantData) {
 async function showDonatorDurationSelection(interaction, grantData) {
   const { discordUser, userInfo } = grantData;
 
-  // Generate unique ID for this specific interaction to prevent cross-contamination
+  // Generate unique IDs for this specific interaction to prevent cross-contamination
   const interactionId = interaction.id;
   const donatorDurationId = `donator_duration_${interactionId}`;
+  const customModalId = `donator_custom_modal_${interactionId}`;
 
   const durationEmbed = createResponseEmbed({
     title: '💎 Donator Duration Selection',
@@ -799,6 +800,12 @@ async function showDonatorDurationSelection(interaction, grantData) {
         description: '1 year donator access',
         value: '1y',
         emoji: '🗓️'
+      },
+      {
+        label: 'Custom',
+        description: 'Enter custom end date',
+        value: 'custom',
+        emoji: '✏️'
       }
     ]);
 
@@ -817,6 +824,223 @@ async function showDonatorDurationSelection(interaction, grantData) {
   });
 
   durationCollector.on('collect', async (selectInteraction) => {
+    if (selectInteraction.values[0] === 'custom') {
+      // Helper function to validate date and show appropriate error
+      const validateCustomDate = (endDateStr) => {
+        // Validate date format (YYYY-MM-DD)
+        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (!dateRegex.test(endDateStr)) {
+          return { valid: false, error: 'Invalid date format. Please use YYYY-MM-DD format (e.g., 2026-12-31).' };
+        }
+
+        const endDate = new Date(endDateStr + 'T23:59:59');
+
+        // Check if date is valid (catches invalid dates like 2222-22-22, 2026-13-01, etc.)
+        if (isNaN(endDate.getTime())) {
+          return { valid: false, error: 'Invalid date. Please enter a valid calendar date.' };
+        }
+
+        // Verify the date components match what was entered (catches edge cases)
+        const [year, month, day] = endDateStr.split('-').map(Number);
+        if (endDate.getFullYear() !== year || endDate.getMonth() + 1 !== month || endDate.getDate() !== day) {
+          return { valid: false, error: 'Invalid date. Please enter a valid calendar date.' };
+        }
+
+        const now = new Date();
+
+        // Validate that date is in the future
+        if (endDate <= now) {
+          return { valid: false, error: 'End date must be in the future.' };
+        }
+
+        // Validate that date is not too far in the future (e.g., max 10 years)
+        const maxDate = new Date();
+        maxDate.setFullYear(maxDate.getFullYear() + 10);
+        if (endDate > maxDate) {
+          return { valid: false, error: 'End date cannot be more than 10 years in the future.' };
+        }
+
+        // Calculate duration in days from now
+        const durationDays = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
+
+        return {
+          valid: true,
+          endDate,
+          durationDays,
+          durationText: `until ${endDate.toLocaleDateString()}`
+        };
+      };
+
+      // Show modal and handle validation with retry button
+      const customDateModal = new ModalBuilder()
+        .setCustomId(customModalId)
+        .setTitle('Custom Donator End Date');
+
+      const dateInput = new TextInputBuilder()
+        .setCustomId('custom_date_input')
+        .setLabel('End Date (YYYY-MM-DD)')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('e.g., 2026-12-31')
+        .setRequired(true)
+        .setMinLength(10)
+        .setMaxLength(10);
+
+      const dateRow = new ActionRowBuilder().addComponents(dateInput);
+      customDateModal.addComponents(dateRow);
+
+      await selectInteraction.showModal(customDateModal);
+
+      try {
+        const modalResponse = await selectInteraction.awaitModalSubmit({
+          filter: (i) => i.customId === customModalId && i.user.id === grantData.originalUser.id,
+          time: 300000
+        });
+
+        const endDateStr = modalResponse.fields.getTextInputValue('custom_date_input').trim();
+        const validation = validateCustomDate(endDateStr);
+
+        if (!validation.valid) {
+          // Generate unique button IDs for retry/cancel
+          const retryButtonId = `retry_custom_date_${interactionId}`;
+          const cancelButtonId = `cancel_custom_date_${interactionId}`;
+
+          // Show error message with retry button
+          const errorEmbed = createResponseEmbed({
+            title: '❌ Invalid Date',
+            description: `**Error:** ${validation.error}\n\n**Your input:** \`${endDateStr}\`\n\nPlease try again or cancel.`,
+            color: 0xff0000
+          });
+
+          const retryRow = new ActionRowBuilder()
+            .addComponents(
+              new ButtonBuilder()
+                .setCustomId(retryButtonId)
+                .setLabel('Try Again')
+                .setStyle(ButtonStyle.Primary)
+                .setEmoji('🔄'),
+              new ButtonBuilder()
+                .setCustomId(cancelButtonId)
+                .setLabel('Cancel')
+                .setStyle(ButtonStyle.Secondary)
+                .setEmoji('❌')
+            );
+
+          await modalResponse.update({
+            embeds: [errorEmbed],
+            components: [retryRow]
+          });
+
+          // Wait for retry or cancel button
+          const retryCollector = interaction.channel.createMessageComponentCollector({
+            componentType: ComponentType.Button,
+            filter: (i) => (i.customId === retryButtonId || i.customId === cancelButtonId) && i.user.id === grantData.originalUser.id,
+            time: 300000
+          });
+
+          retryCollector.on('collect', async (buttonInteraction) => {
+            if (buttonInteraction.customId === cancelButtonId) {
+              await buttonInteraction.update({
+                content: '❌ Custom date input cancelled.',
+                embeds: [],
+                components: []
+              });
+              retryCollector.stop('cancelled');
+              return;
+            }
+
+            // User clicked "Try Again" - show the modal again on this NEW button interaction
+            const retryModal = new ModalBuilder()
+              .setCustomId(customModalId)
+              .setTitle('⚠️ Custom Donator End Date');
+
+            const retryDateInput = new TextInputBuilder()
+              .setCustomId('custom_date_input')
+              .setLabel('End Date (YYYY-MM-DD)')
+              .setStyle(TextInputStyle.Short)
+              .setPlaceholder('e.g., 2026-12-31')
+              .setRequired(true)
+              .setMinLength(10)
+              .setMaxLength(10);
+
+            const retryDateRow = new ActionRowBuilder().addComponents(retryDateInput);
+            retryModal.addComponents(retryDateRow);
+
+            await buttonInteraction.showModal(retryModal);
+
+            // Recursively handle the retry (this will create another collector if validation fails again)
+            try {
+              const retryModalResponse = await buttonInteraction.awaitModalSubmit({
+                filter: (i) => i.customId === customModalId && i.user.id === grantData.originalUser.id,
+                time: 300000
+              });
+
+              const retryDateStr = retryModalResponse.fields.getTextInputValue('custom_date_input').trim();
+              const retryValidation = validateCustomDate(retryDateStr);
+
+              if (!retryValidation.valid) {
+                // Still invalid - show error again with retry button (recursion)
+                const retryErrorEmbed = createResponseEmbed({
+                  title: '❌ Invalid Date',
+                  description: `**Error:** ${retryValidation.error}\n\n**Your input:** \`${retryDateStr}\`\n\nPlease try again or cancel.`,
+                  color: 0xff0000
+                });
+
+                await retryModalResponse.update({
+                  embeds: [retryErrorEmbed],
+                  components: [retryRow]
+                });
+                // Collector will continue waiting for retry/cancel
+              } else {
+                // Valid date - proceed with confirmation
+                if (!retryModalResponse.deferred && !retryModalResponse.replied) {
+                  await retryModalResponse.deferUpdate();
+                }
+                await handleConfirmation(retryModalResponse, {
+                  ...grantData,
+                  durationValue: retryValidation.durationDays,
+                  durationType: 'days',
+                  durationText: retryValidation.durationText
+                });
+                retryCollector.stop('completed');
+              }
+
+            } catch (retryError) {
+              loggerConsole.error('Retry modal submission error:', retryError);
+            }
+          });
+
+          return;
+        }
+
+        // Valid date - proceed with confirmation
+        if (!modalResponse.deferred && !modalResponse.replied) {
+          await modalResponse.deferUpdate();
+        }
+        await handleConfirmation(modalResponse, {
+          ...grantData,
+          durationValue: validation.durationDays,
+          durationType: 'days',
+          durationText: validation.durationText
+        });
+
+      } catch (error) {
+        loggerConsole.error('Modal submission error:', error);
+        // Modal timed out or errored - update the original message
+        try {
+          await selectInteraction.editReply({
+            content: '❌ Custom date input timed out. Please try the command again.',
+            embeds: [],
+            components: []
+          });
+        } catch (editError) {
+          loggerConsole.error('Failed to update message after modal timeout:', editError);
+        }
+      }
+
+      return;
+    }
+
+    // Handle preset duration selections (6m or 1y)
     try {
       const duration = selectInteraction.values[0] === '6m' ? { value: 6, type: 'months', text: '6 months' } : { value: 12, type: 'months', text: '1 year' };
 
