@@ -304,7 +304,7 @@ class StaffRoleSyncService {
                   });
                 }
               } catch (cleanupError) {
-                this.logger.error('Departed members cleanup failed', {
+                this.logger.warn('Departed members cleanup failed - will retry in 60 minutes', {
                   guildId,
                   guildName: guild.name,
                   error: cleanupError.message

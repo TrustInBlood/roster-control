@@ -973,7 +973,7 @@ class RoleWhitelistSyncService {
     try {
       // Fetch guild and all members
       const guild = await this.discordClient.guilds.fetch(guildId);
-      await guild.members.fetch();
+      await guild.members.fetch({ time: 60000 }); // 60 second timeout for large guilds
       const guildMembers = guild.members.cache;
 
       this.logger.debug('Fetched guild members', {
@@ -1165,7 +1165,7 @@ class RoleWhitelistSyncService {
       };
 
     } catch (error) {
-      this.logger.error('Departed members cleanup failed', {
+      this.logger.warn('Departed members cleanup failed - will retry in 60 minutes', {
         guildId,
         error: error.message
       });
