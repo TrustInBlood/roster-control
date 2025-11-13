@@ -1679,12 +1679,58 @@ async function handleInfo(interaction) {
       }
     }
 
-    // Show database whitelist expiration if it's the primary source or there's no role-based access
+    // Calculate stacked expiration for database entries (excluding role-based permanent entries)
     const hasRoleBasedAccess = authorityStatus?.sources?.roleBased?.isActive;
-    if (!hasRoleBasedAccess && whitelistStatus.expiration) {
+
+    // Filter database entries (non-role, non-permanent) to calculate their stacked expiration
+    const databaseEntries = activeEntries.filter(entry =>
+      entry.source !== 'role' &&
+      entry.duration_value &&
+      entry.duration_type &&
+      entry.duration_value !== 0
+    );
+
+    if (databaseEntries.length > 0) {
+      // Calculate stacked expiration from database entries
+      const earliestEntry = databaseEntries.sort((a, b) => new Date(a.granted_at) - new Date(b.granted_at))[0];
+      let stackedExpiration = new Date(earliestEntry.granted_at);
+
+      let totalMonths = 0;
+      let totalDays = 0;
+
+      databaseEntries.forEach(entry => {
+        if (entry.duration_type === 'months') {
+          totalMonths += entry.duration_value;
+        } else if (entry.duration_type === 'days') {
+          totalDays += entry.duration_value;
+        }
+      });
+
+      if (totalMonths > 0) {
+        stackedExpiration.setMonth(stackedExpiration.getMonth() + totalMonths);
+      }
+      if (totalDays > 0) {
+        stackedExpiration.setDate(stackedExpiration.getDate() + totalDays);
+      }
+
+      const expiresInDays = Math.ceil((stackedExpiration - now) / (1000 * 60 * 60 * 24));
+      const fieldName = hasRoleBasedAccess
+        ? '📅 Database Expiration (Stacked)'
+        : '📅 Stacked Expiration';
+
       embed.addFields({
-        name: whitelistStatus.hasWhitelist ? 'Expires' : 'Expired',
-        value: whitelistStatus.expiration.toLocaleDateString(),
+        name: fieldName,
+        value: `${stackedExpiration.toLocaleDateString()} (${expiresInDays} days)`,
+        inline: true
+      });
+    } else if (!hasRoleBasedAccess && whitelistStatus.expiration) {
+      // Fallback: if no database entries but whitelistStatus has expiration, show it
+      const expiresInDays = Math.ceil((whitelistStatus.expiration - now) / (1000 * 60 * 60 * 24));
+      embed.addFields({
+        name: whitelistStatus.hasWhitelist ? '📅 Stacked Expiration' : 'Expired',
+        value: whitelistStatus.hasWhitelist
+          ? `${whitelistStatus.expiration.toLocaleDateString()} (${expiresInDays} days)`
+          : whitelistStatus.expiration.toLocaleDateString(),
         inline: true
       });
     }
@@ -1717,20 +1763,18 @@ async function handleInfo(interaction) {
           const redactedNote = entry.note ? redactEmails(entry.note) : '';
           const note = redactedNote ? `: ${redactedNote}` : '';
 
-          // Calculate remaining time for this entry
+          // Format permanent entries
           if (!entry.duration_value || !entry.duration_type || entry.duration_value === 0) {
             return `• ${reason}${note}: permanent`;
           }
 
-          const expirationDate = calculateExpirationDate(entry.granted_at, entry.duration_value, entry.duration_type);
-          const now = new Date();
-          const remainingMs = expirationDate - now;
-          const remainingDays = Math.ceil(remainingMs / (1000 * 60 * 60 * 24));
-
           // Format the original duration for display
           const durationDisplay = formatDuration(entry.duration_value, entry.duration_type);
 
-          return `• ${reason}${note}: ${durationDisplay} (${remainingDays} days remaining)`;
+          // Show granted date instead of misleading "days remaining"
+          const grantedDate = new Date(entry.granted_at).toLocaleDateString();
+
+          return `• ${reason}${note}: ${durationDisplay} (granted ${grantedDate})`;
         });
         whitelistEntries.push(...stackingInfo);
       }
@@ -1738,7 +1782,7 @@ async function handleInfo(interaction) {
 
     if (whitelistEntries.length > 0) {
       const totalEntries = whitelistEntries.length;
-      const entryLabel = hasRoleBasedAccessForEntries ? 'Whitelist Sources' : 'Active Whitelist Entries';
+      const entryLabel = hasRoleBasedAccessForEntries ? 'Whitelist Sources' : 'Active Whitelist Entries (Stacked)';
 
       embed.addFields({
         name: `${entryLabel} (${totalEntries})`,
