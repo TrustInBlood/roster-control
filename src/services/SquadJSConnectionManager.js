@@ -6,9 +6,22 @@ class SquadJSConnectionManager {
     this.config = config;
     this.connections = new Map(); // serverId -> socket connection
     this.eventHandlers = new Map(); // eventName -> Set of handler functions
-    
+    this.reconnectTimers = new Map(); // serverId -> timeout reference
+
     this.connectionConfig = config.squadjs.connection;
     this.servers = config.squadjs.servers;
+
+    // Connection state constants
+    this.STATES = {
+      CONNECTING: 'connecting',
+      CONNECTED: 'connected',
+      FAILED: 'failed',
+      DEGRADED: 'degraded'
+    };
+
+    // Configuration
+    this.MAX_ATTEMPTS = this.connectionConfig.reconnectionAttempts || 10;
+    this.DEGRADED_RETRY_INTERVAL = 5 * 60 * 1000; // 5 minutes
   }
 
   async connect() {
@@ -29,55 +42,170 @@ class SquadJSConnectionManager {
 
   async connectToServer(server) {
     const socketUrl = `http://${server.host}:${server.port}`;
-    
-    this.logger.info('Connecting to SquadJS server', { 
+
+    this.logger.info('Connecting to SquadJS server', {
       serverId: server.id,
       serverName: server.name,
-      url: socketUrl 
+      url: socketUrl
     });
 
     const socket = io(socketUrl, {
       auth: {
         token: server.token
       },
-      reconnection: true,
-      reconnectionAttempts: this.connectionConfig.reconnectionAttempts,
-      reconnectionDelay: this.connectionConfig.reconnectionDelay,
+      reconnection: false, // Disable auto-reconnection, we'll handle manually
       timeout: this.connectionConfig.timeout
     });
 
-    this.connections.set(server.id, { socket, server, reconnectAttempts: 0 });
+    this.connections.set(server.id, {
+      socket,
+      server,
+      reconnectAttempts: 0,
+      state: this.STATES.CONNECTING,
+      lastAttemptTime: Date.now(),
+      disconnectedAt: null
+    });
     this.setupEventHandlers(socket, server);
+  }
+
+  // Calculate exponential backoff delay
+  getReconnectDelay(attempt) {
+    if (attempt <= this.MAX_ATTEMPTS) {
+      // Exponential backoff: 5s, 10s, 20s, 40s, 60s (max)
+      const baseDelay = this.connectionConfig.reconnectionDelay || 5000;
+      const delay = Math.min(baseDelay * Math.pow(2, attempt - 1), 60000);
+      return delay;
+    }
+    // Degraded mode: 5 minutes
+    return this.DEGRADED_RETRY_INTERVAL;
+  }
+
+  // Manual reconnection handler
+  scheduleReconnect(serverId) {
+    const connection = this.connections.get(serverId);
+    if (!connection) return;
+
+    // Clear any existing timer
+    if (this.reconnectTimers.has(serverId)) {
+      clearTimeout(this.reconnectTimers.get(serverId));
+    }
+
+    const delay = this.getReconnectDelay(connection.reconnectAttempts);
+
+    const timer = setTimeout(() => {
+      this.attemptReconnect(serverId);
+    }, delay);
+
+    this.reconnectTimers.set(serverId, timer);
+  }
+
+  attemptReconnect(serverId) {
+    const connection = this.connections.get(serverId);
+    if (!connection) return;
+
+    connection.lastAttemptTime = Date.now();
+
+    // Try to reconnect
+    if (connection.socket && !connection.socket.connected) {
+      connection.socket.connect();
+    }
   }
 
   setupEventHandlers(socket, server) {
     const connection = this.connections.get(server.id);
 
     socket.on('connect', () => {
-      this.logger.info('Connected to SquadJS server successfully', {
-        serverId: server.id,
-        serverName: server.name
-      });
+      const wasDisconnected = connection.disconnectedAt !== null;
+      const downtime = wasDisconnected
+        ? Math.round((Date.now() - connection.disconnectedAt) / 1000 / 60)
+        : 0;
+
+      // Log successful connection
+      if (wasDisconnected && downtime > 0) {
+        this.logger.info('SquadJS server reconnected', {
+          serverId: server.id,
+          serverName: server.name,
+          downtimeMinutes: downtime,
+          previousAttempts: connection.reconnectAttempts
+        });
+      } else {
+        this.logger.info('Connected to SquadJS server successfully', {
+          serverId: server.id,
+          serverName: server.name
+        });
+      }
+
+      // Reset connection state
       connection.reconnectAttempts = 0;
+      connection.state = this.STATES.CONNECTED;
+      connection.disconnectedAt = null;
+
+      // Clear any pending reconnect timers
+      if (this.reconnectTimers.has(server.id)) {
+        clearTimeout(this.reconnectTimers.get(server.id));
+        this.reconnectTimers.delete(server.id);
+      }
     });
 
     socket.on('disconnect', (reason) => {
-      this.logger.warn('Disconnected from SquadJS server', { 
+      connection.state = this.STATES.FAILED;
+      connection.disconnectedAt = Date.now();
+
+      this.logger.warn('Disconnected from SquadJS server', {
         serverId: server.id,
         serverName: server.name,
-        reason 
+        reason
       });
+
+      // Schedule reconnection
+      this.scheduleReconnect(server.id);
     });
 
     socket.on('connect_error', (error) => {
       connection.reconnectAttempts++;
-      this.logger.error('Failed to connect to SquadJS server', { 
+      const attempt = connection.reconnectAttempts;
+
+      // Determine log level based on attempt count
+      let logLevel;
+      let logMessage;
+
+      if (attempt <= 3) {
+        // First 3 attempts: ERROR
+        logLevel = 'error';
+        logMessage = 'Failed to connect to SquadJS server';
+      } else if (attempt <= this.MAX_ATTEMPTS) {
+        // Attempts 4-10: WARN
+        logLevel = 'warn';
+        logMessage = 'SquadJS server connection failing';
+        connection.state = this.STATES.FAILED;
+      } else {
+        // After 10 attempts: WARN (degraded mode)
+        logLevel = 'warn';
+        logMessage = 'SquadJS server in degraded mode - retrying every 5 minutes';
+        connection.state = this.STATES.DEGRADED;
+      }
+
+      // Calculate next retry delay
+      const nextRetryDelay = this.getReconnectDelay(attempt);
+      const nextRetrySeconds = Math.round(nextRetryDelay / 1000);
+
+      this.logger[logLevel](logMessage, {
         serverId: server.id,
         serverName: server.name,
         error: error.message,
-        attempt: connection.reconnectAttempts,
-        maxAttempts: this.connectionConfig.reconnectionAttempts
+        attempt: attempt,
+        maxAttempts: this.MAX_ATTEMPTS,
+        state: connection.state,
+        nextRetryIn: `${nextRetrySeconds}s`
       });
+
+      // Record disconnection time if not already set
+      if (!connection.disconnectedAt) {
+        connection.disconnectedAt = Date.now();
+      }
+
+      // Schedule next reconnection attempt
+      this.scheduleReconnect(server.id);
     });
 
     this.setupEventForwarding(socket, server);
@@ -281,6 +409,13 @@ class SquadJSConnectionManager {
   }
 
   disconnect() {
+    // Clear all reconnection timers
+    for (const [serverId, timer] of this.reconnectTimers) {
+      clearTimeout(timer);
+    }
+    this.reconnectTimers.clear();
+
+    // Disconnect all sockets
     for (const [serverId, connection] of this.connections) {
       if (connection.socket) {
         connection.socket.disconnect();
@@ -304,10 +439,25 @@ class SquadJSConnectionManager {
       status[serverId] = {
         serverName: connection.server.name,
         connected: connection.socket && connection.socket.connected,
-        reconnectAttempts: connection.reconnectAttempts
+        reconnectAttempts: connection.reconnectAttempts,
+        state: connection.state,
+        disconnectedAt: connection.disconnectedAt,
+        lastAttemptTime: connection.lastAttemptTime
       };
     }
     return status;
+  }
+
+  // Helper method for other services to check if server is in degraded state
+  isServerDegraded(serverId) {
+    const connection = this.connections.get(serverId);
+    return connection && connection.state === this.STATES.DEGRADED;
+  }
+
+  // Helper method to check if server is connected
+  isServerConnected(serverId) {
+    const connection = this.connections.get(serverId);
+    return connection && connection.socket && connection.socket.connected;
   }
 
   getServerConnection(serverId) {

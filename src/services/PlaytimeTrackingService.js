@@ -67,6 +67,18 @@ class PlaytimeTrackingService {
    */
   async pollServer(serverId, socket, server) {
     try {
+      // Check connection state - skip polling if server is degraded
+      if (this.connectionManager.isServerDegraded(serverId)) {
+        // Server is in degraded mode - don't poll
+        return;
+      }
+
+      // Check if socket is connected
+      if (!socket || !socket.connected) {
+        // Socket is not connected - don't attempt to poll
+        return;
+      }
+
       // Request playerlist from SquadJS (reads from cache, no server query)
       const playerList = await this.getPlayerList(socket);
 
@@ -83,7 +95,17 @@ class PlaytimeTrackingService {
       await PlayerSession.appendPlayerCountSnapshot(serverId, playerCount);
 
     } catch (error) {
-      loggerConsole.error(`Error polling server ${serverId}:`, error.message);
+      // Determine log level based on connection state
+      const connection = this.connectionManager.getServerConnection(serverId);
+      const isDisconnected = connection && (connection.state === 'failed' || connection.state === 'degraded');
+
+      if (isDisconnected) {
+        // Server is known to be offline - log as debug to reduce noise
+        loggerConsole.debug(`Error polling offline server ${serverId}:`, error.message);
+      } else {
+        // Server should be online - log as error
+        loggerConsole.error(`Error polling server ${serverId}:`, error.message);
+      }
     }
   }
 
