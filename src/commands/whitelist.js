@@ -642,6 +642,12 @@ async function showReasonSelectionButtons(interaction, grantData) {
         description: 'Temporary reporting access (3-365 days)',
         value: 'reporting',
         emoji: '📋'
+      },
+      {
+        label: 'Custom',
+        description: 'Custom reason and duration',
+        value: 'custom',
+        emoji: '⚙️'
       }
     ]);
 
@@ -753,15 +759,19 @@ async function handleDurationSelection(interaction, grantData) {
       durationText: '6 months'
     });
     break;
-      
+
   case 'donator':
     await showDonatorDurationSelection(interaction, grantData);
     break;
-      
+
   case 'reporting':
     await showReportingDurationSelection(interaction, grantData);
     break;
-      
+
+  case 'custom':
+    await showCustomWhitelistSelection(interaction, grantData);
+    break;
+
   default:
     await interaction.update({
       content: '❌ Invalid whitelist type selected.',
@@ -1231,6 +1241,151 @@ async function showReportingDurationSelection(interaction, grantData) {
       }
     }
   });
+}
+
+async function showCustomWhitelistSelection(interaction, grantData) {
+  const { discordUser, userInfo } = grantData;
+
+  // Generate unique ID for this specific interaction
+  const interactionId = interaction.id;
+  const customModalId = `custom_whitelist_modal_${interactionId}`;
+
+  // Show modal for custom reason and duration input
+  const customModal = new ModalBuilder()
+    .setCustomId(customModalId)
+    .setTitle('⚙️ Custom Whitelist');
+
+  const reasonInput = new TextInputBuilder()
+    .setCustomId('custom_reason_input')
+    .setLabel('Reason')
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder('e.g., event-organizer, content-creator, vip')
+    .setRequired(true)
+    .setMinLength(3)
+    .setMaxLength(50);
+
+  const daysInput = new TextInputBuilder()
+    .setCustomId('custom_days_input')
+    .setLabel('Duration (days)')
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder('Enter number of days (1-3650)')
+    .setRequired(true)
+    .setMinLength(1)
+    .setMaxLength(4);
+
+  const reasonRow = new ActionRowBuilder().addComponents(reasonInput);
+  const daysRow = new ActionRowBuilder().addComponents(daysInput);
+  customModal.addComponents(reasonRow, daysRow);
+
+  // Wait a moment then show the button to open modal (Discord API timing)
+  setTimeout(async () => {
+    try {
+      // We need to use a button interaction to show the modal
+      const confirmEmbed = createResponseEmbed({
+        title: '⚙️ Custom Whitelist',
+        description: `**Steam ID:** ${userInfo.steamid64}\n${discordUser ? `**Discord User:** <@${discordUser.id}>` : '**Discord User:** Not linked'}\n\nClick the button below to enter custom whitelist details.`,
+        color: 0x9b59b6
+      });
+
+      const showModalButtonId = `show_custom_modal_${interactionId}`;
+      const cancelButtonId = `cancel_custom_modal_${interactionId}`;
+
+      const buttonRow = new ActionRowBuilder()
+        .addComponents(
+          new ButtonBuilder()
+            .setCustomId(showModalButtonId)
+            .setLabel('Enter Details')
+            .setStyle(ButtonStyle.Primary)
+            .setEmoji('📝'),
+          new ButtonBuilder()
+            .setCustomId(cancelButtonId)
+            .setLabel('Cancel')
+            .setStyle(ButtonStyle.Secondary)
+            .setEmoji('❌')
+        );
+
+      await interaction.editReply({
+        content: '',
+        embeds: [confirmEmbed],
+        components: [buttonRow]
+      });
+
+      // Wait for button click
+      const buttonCollector = interaction.channel.createMessageComponentCollector({
+        componentType: ComponentType.Button,
+        filter: (i) => (i.customId === showModalButtonId || i.customId === cancelButtonId) && i.user.id === grantData.originalUser.id,
+        time: 300000
+      });
+
+      buttonCollector.on('collect', async (buttonInteraction) => {
+        if (buttonInteraction.customId === cancelButtonId) {
+          await buttonInteraction.update({
+            content: '❌ Custom whitelist cancelled.',
+            embeds: [],
+            components: []
+          });
+          buttonCollector.stop('cancelled');
+          return;
+        }
+
+        // Show the modal
+        await buttonInteraction.showModal(customModal);
+
+        try {
+          const modalResponse = await buttonInteraction.awaitModalSubmit({
+            filter: (i) => i.customId === customModalId && i.user.id === grantData.originalUser.id,
+            time: 300000
+          });
+
+          const customReason = modalResponse.fields.getTextInputValue('custom_reason_input').trim();
+          const customDaysStr = modalResponse.fields.getTextInputValue('custom_days_input').trim();
+          const customDays = parseInt(customDaysStr);
+
+          // Validate inputs
+          if (!customReason || customReason.length < 3) {
+            await modalResponse.reply({
+              content: '❌ Reason must be at least 3 characters long.',
+              flags: MessageFlags.Ephemeral
+            });
+            return;
+          }
+
+          if (isNaN(customDays) || customDays < 1 || customDays > 3650) {
+            await modalResponse.reply({
+              content: '❌ Please enter a valid number of days between 1 and 3650 (10 years).',
+              flags: MessageFlags.Ephemeral
+            });
+            return;
+          }
+
+          // Proceed with confirmation
+          if (!modalResponse.deferred && !modalResponse.replied) {
+            await modalResponse.deferUpdate();
+          }
+          await handleConfirmation(modalResponse, {
+            ...grantData,
+            reason: customReason,
+            durationValue: customDays,
+            durationType: 'days',
+            durationText: `${customDays} day${customDays > 1 ? 's' : ''}`
+          });
+
+          buttonCollector.stop('completed');
+
+        } catch (error) {
+          loggerConsole.error('Custom whitelist modal submission error:', error);
+        }
+      });
+
+    } catch (error) {
+      loggerConsole.error('Failed to show custom whitelist form:', error);
+      await interaction.editReply({
+        content: '❌ Failed to show custom whitelist form. Please try again.',
+        embeds: [],
+        components: []
+      });
+    }
+  }, 500);
 }
 
 async function handleConfirmation(interaction, grantData) {
