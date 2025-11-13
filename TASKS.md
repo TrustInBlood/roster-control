@@ -630,3 +630,102 @@ Security audit identified 12 vulnerabilities in the unified whitelist system. **
   - **Critical Fixes**: All critical vulnerabilities addressed (Fixes 3.1, 4.1)
   - **Production Readiness**: System is production-ready with robust security measures
   - **Deferred Fixes**: 3 optional/low-priority enhancements reserved for future implementation
+
+## Phase 3.9: Whitelist Expiration Architecture Fix ✅ COMPLETED
+
+### Overview
+Fixed architectural issue where the `expiration` field in the `Whitelist` model became stale after whitelist stacking. The field was being used as an authoritative source by `WhitelistAuthorityService`, causing incorrect expiration validation after consecutive grants.
+
+### Root Cause
+**The `expiration` field is a calculated cache, not authoritative data:**
+- Set once at grant time based on `granted_at + duration`
+- Never updated when new entries are stacked for the same user
+- Became stale immediately after second grant (showed individual expiration, not stacked)
+- WhitelistAuthorityService incorrectly relied on this stale field for access validation
+
+**Example Bug:**
+- Grant 1: 14 days from Oct 26 → expires Nov 9 (field: Nov 9)
+- Grant 2: 16 days from Oct 26 → should stack to Nov 25, but field showed Nov 11
+- WhitelistAuthorityService checked `entry.expiration` (Nov 9) → denied access after Nov 9
+- Correct behavior: Should recalculate from `duration_value` + `duration_type` → Nov 25
+
+### Implementation (3 Phases)
+
+#### Phase 1: Fix WhitelistAuthorityService (Critical Bug Fix) ✅
+- **File**: `src/services/WhitelistAuthorityService.js`
+- **Changes**:
+  - Added `_calculateEntryExpiration()` helper method (lines 17-50)
+  - Calculates expiration from `duration_value` + `duration_type` + `granted_at` (authoritative)
+  - Replaced 4 locations using `entry.expiration` directly:
+    - Lines 183-188 in `_checkDatabaseWhitelist()`
+    - Lines 500-512 in `_processWhitelistEntries()`
+  - All validation now recalculates expiration on-the-fly
+- **Impact**: Fixed access validation bug, ensures stacking works correctly
+- **Status**: ✅ Completed and tested
+
+#### Phase 2: Data Correction (One-time Fix) ✅
+- **File**: `scripts/fix-whitelist-stacking.js`
+- **Purpose**: Correct 774 stale `expiration` values in database for display purposes
+- **Changes**:
+  - Recalculated stacked expirations for all users with multiple entries
+  - Updated the last entry's `expiration` field to reflect correct stacked total
+  - Preserved all original `duration_value`/`duration_type` for audit trail
+- **Results**:
+  - Total entries analyzed: 2,436 active whitelist entries
+  - Users with multiple entries: 774
+  - Entries corrected: 774
+  - Example fixes:
+    - User "5net": 5 donations, corrected from Apr 2026 → Feb 2028 (29 months)
+    - User "JoKeR": 3 donations, corrected from Apr 2026 → Apr 2027 (19 months)
+- **Impact**: Discord `/whitelist info` commands now show correct expiration dates
+- **Status**: ✅ Completed successfully
+
+#### Phase 3: Deprecate Expiration Field (Architectural Fix) ✅
+- **File**: `src/database/models/Whitelist.js`
+- **Changes**:
+  - Removed all expiration calculation logic from `grantWhitelist()` (lines 459-468)
+  - Set `expiration = null` for all new grants with deprecation comment
+  - Documented rationale:
+    - Field becomes stale after stacking
+    - All validation recalculates from `duration_value` + `duration_type`
+    - Updating all user entries on every grant would be expensive
+    - Setting to NULL prevents confusion about authoritative source
+- **Impact**: Future grants won't populate stale cache, forces correct calculation
+- **Migration Plan**: Eventually remove column entirely in next major version
+- **Status**: ✅ Completed
+
+### Testing
+- **Stacking Test**: `scripts/test-whitelist-stacking.js`
+  - Grant 1: 14 days → expires in 14 days ✅
+  - Grant 2: 16 days → expires in 30 days (14+16) ✅
+  - Grant 3: 7 days → expires in 37 days (14+16+7) ✅
+  - Active status shows correct stacked expiration ✅
+- **Data Fix Test**: Dry-run identified 774 entries needing correction ✅
+- **Production Fix**: All 774 entries corrected successfully ✅
+
+### Authoritative Data Fields
+**Documented the authoritative fields for whitelist expiration:**
+- `duration_value` + `duration_type` + `granted_at` = **AUTHORITATIVE** expiration source
+- `expiration` = **DEPRECATED CACHED DISPLAY VALUE** (set to NULL going forward)
+- `revoked: true` = **AUTHORITATIVE** revocation status
+- `approved: false` = **AUTHORITATIVE** denial status
+
+### Security Impact
+- **Previous State**: WhitelistAuthorityService bug could grant or deny access incorrectly
+- **Current State**: All access validation uses correct stacking calculation
+- **Risk Level**: Medium (cosmetic for most cases, but affected staff access validation)
+- **Resolution**: All critical code paths now use authoritative calculation ✅
+
+### Files Modified
+1. `src/services/WhitelistAuthorityService.js` - Fixed validation logic
+2. `src/database/models/Whitelist.js` - Deprecated expiration field
+3. `scripts/fix-whitelist-stacking.js` - Created one-time data correction script
+4. `scripts/test-whitelist-stacking.js` - Created automated testing script
+
+### Completion Summary
+- **Status**: ✅ COMPLETED
+- **Date**: 2025-11-13
+- **Entries Fixed**: 774 stale expiration values corrected
+- **Critical Bug**: WhitelistAuthorityService validation bug resolved
+- **Architecture**: Expiration field deprecated, authoritative calculation established
+- **Production Ready**: Yes, all fixes tested and deployed

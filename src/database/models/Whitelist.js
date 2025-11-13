@@ -455,127 +455,17 @@ module.exports = (sequelize) => {
     metadata = null
   }) {
     const granted_at = new Date();
-    let expiration = null;
 
-    // Calculate expiration date based on duration
-    if (duration_value && duration_type) {
-      // STACKING FIX: Check for existing active whitelist entries to stack from their expiration
-      const existingEntries = await this.findAll({
-        where: {
-          steamid64: steamid64,
-          approved: true,
-          revoked: false,
-          source: { [require('sequelize').Op.ne]: 'role' } // Exclude role-based permanent entries
-        },
-        order: [['granted_at', 'ASC']]
-      });
-
-      // Determine the base date for the new expiration
-      let baseDate = granted_at; // Default to current time
-
-      if (existingEntries.length > 0) {
-        // Calculate stacked expiration from existing entries (same logic as getActiveWhitelistForUser)
-        const now = new Date();
-
-        // Check for permanent whitelist (any entry with null duration)
-        const hasPermanent = existingEntries.some(entry =>
-          (entry.duration_value === null && entry.duration_type === null));
-
-        if (hasPermanent) {
-          // User already has permanent access - new grant doesn't extend it
-          // Use current time as base (grant is essentially redundant but still created)
-          baseDate = granted_at;
-        } else {
-          // Filter out entries that have already expired individually
-          const validEntries = [];
-
-          existingEntries.forEach(entry => {
-            // Skip entries with 0 duration (these are expired)
-            if (entry.duration_value === 0) return;
-
-            // Calculate individual expiration date
-            const grantedDate = new Date(entry.granted_at);
-            const entryExpiration = new Date(grantedDate);
-
-            if (entry.duration_type === 'days') {
-              entryExpiration.setDate(entryExpiration.getDate() + entry.duration_value);
-            } else if (entry.duration_type === 'months') {
-              entryExpiration.setMonth(entryExpiration.getMonth() + entry.duration_value);
-            } else if (entry.duration_type === 'hours') {
-              const millisecondsPerHour = 60 * 60 * 1000;
-              entryExpiration.setTime(grantedDate.getTime() + (entry.duration_value * millisecondsPerHour));
-            }
-
-            // Only include entries that haven't expired yet
-            if (entryExpiration > now) {
-              validEntries.push(entry);
-            }
-          });
-
-          if (validEntries.length > 0) {
-            // Stack durations from valid entries to get the current expiration
-            const earliestEntry = validEntries.sort((a, b) => new Date(a.granted_at) - new Date(b.granted_at))[0];
-            let stackedExpiration = new Date(earliestEntry.granted_at);
-
-            // Add up all valid durations
-            let totalMonths = 0;
-            let totalDays = 0;
-            let totalHours = 0;
-
-            validEntries.forEach(entry => {
-              if (entry.duration_type === 'months') {
-                totalMonths += entry.duration_value;
-              } else if (entry.duration_type === 'days') {
-                totalDays += entry.duration_value;
-              } else if (entry.duration_type === 'hours') {
-                totalHours += entry.duration_value;
-              }
-            });
-
-            // Apply the stacked duration
-            if (totalMonths > 0) {
-              stackedExpiration.setMonth(stackedExpiration.getMonth() + totalMonths);
-            }
-            if (totalDays > 0) {
-              stackedExpiration.setDate(stackedExpiration.getDate() + totalDays);
-            }
-            if (totalHours > 0) {
-              const millisecondsPerHour = 60 * 60 * 1000;
-              stackedExpiration.setTime(stackedExpiration.getTime() + (totalHours * millisecondsPerHour));
-            }
-
-            // Use the stacked expiration as the base for the new grant
-            baseDate = stackedExpiration;
-          }
-          // If validEntries.length === 0, all entries expired, use granted_at as base
-        }
-      }
-
-      // Calculate new expiration from the base date (either now or stacked expiration)
-      expiration = new Date(baseDate);
-      const durationNum = parseInt(duration_value, 10);
-
-      if (duration_type === 'months') {
-        expiration.setMonth(expiration.getMonth() + durationNum);
-      } else if (duration_type === 'days') {
-        expiration.setDate(expiration.getDate() + durationNum);
-      } else if (duration_type === 'hours') {
-        // For hour-based durations (supports fractional days via integer hours)
-        const millisecondsPerHour = 60 * 60 * 1000;
-        expiration = new Date(baseDate.getTime() + (durationNum * millisecondsPerHour));
-      }
-
-      // Log stacking information
-      if (existingEntries.length > 0) {
-        loggerConsole.info('Stacking whitelist grant', {
-          steamid64,
-          existingEntries: existingEntries.length,
-          baseDate: baseDate.toISOString(),
-          newExpiration: expiration.toISOString(),
-          newDuration: `${durationNum} ${duration_type}`
-        });
-      }
-    }
+    // DEPRECATED: expiration field is no longer used as authoritative source
+    // All code should calculate expiration from duration_value + duration_type + granted_at
+    // Setting to NULL to make it clear this field is not maintained
+    //
+    // Rationale:
+    // - The expiration field becomes stale after stacking (when new entries are added)
+    // - All validation code now calculates expiration on-the-fly from duration fields
+    // - Keeping this field would require updating ALL user entries on every grant (expensive)
+    // - Setting to NULL prevents confusion about which field is authoritative
+    const expiration = null;
 
     // Ensure default whitelist group exists and get its ID
     const { ensureDefaultWhitelistGroup } = require('../../utils/ensureDefaultGroup');

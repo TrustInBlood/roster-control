@@ -15,6 +15,40 @@ const { console: loggerConsole } = require('../utils/logger');
  */
 class WhitelistAuthorityService {
   /**
+   * Calculate the expiration date for a whitelist entry
+   * Uses duration_value + duration_type + granted_at (authoritative source)
+   * NOT entry.expiration (stale cache that doesn't update with stacking)
+   * @private
+   * @param {Object} entry - Whitelist entry
+   * @returns {Date|null} Calculated expiration date, or null if permanent
+   */
+  static _calculateEntryExpiration(entry) {
+    // Permanent entries have no duration
+    if (!entry.duration_value || !entry.duration_type) {
+      return null; // Permanent
+    }
+
+    // Expired entries marked with 0 duration
+    if (entry.duration_value === 0) {
+      return new Date(0); // Epoch = definitely expired
+    }
+
+    // Calculate expiration from granted_at + duration
+    const grantedDate = new Date(entry.granted_at);
+    const calculatedExpiration = new Date(grantedDate);
+
+    if (entry.duration_type === 'days') {
+      calculatedExpiration.setDate(calculatedExpiration.getDate() + entry.duration_value);
+    } else if (entry.duration_type === 'months') {
+      calculatedExpiration.setMonth(calculatedExpiration.getMonth() + entry.duration_value);
+    } else if (entry.duration_type === 'hours') {
+      const millisecondsPerHour = 60 * 60 * 1000;
+      calculatedExpiration.setTime(grantedDate.getTime() + (entry.duration_value * millisecondsPerHour));
+    }
+
+    return calculatedExpiration;
+  }
+  /**
    * Get comprehensive whitelist status for a user
    * @param {string} discordUserId - Discord user ID
    * @param {string|null} steamId - Steam ID64 (optional, will be looked up if not provided)
@@ -179,13 +213,16 @@ class WhitelistAuthorityService {
     let hasPermamentAccess = false;
 
     for (const entry of entries) {
+      // Calculate expiration from duration (NOT from stale expiration field)
+      const calculatedExpiration = this._calculateEntryExpiration(entry);
+
       // Check if entry has expired
-      if (entry.expiration && new Date(entry.expiration) <= now) {
+      if (calculatedExpiration !== null && calculatedExpiration <= now) {
         continue; // Skip expired entries
       }
 
       // Check if this is a permanent entry (no expiration)
-      if (!entry.expiration) {
+      if (calculatedExpiration === null) {
         hasPermamentAccess = true;
       }
 
@@ -497,7 +534,9 @@ class WhitelistAuthorityService {
     // Check for active entries (considering expiration)
     const now = new Date();
     const activeEntries = entries.filter(entry => {
-      return !entry.expiration || new Date(entry.expiration) > now;
+      // Calculate expiration from duration (NOT from stale expiration field)
+      const calculatedExpiration = this._calculateEntryExpiration(entry);
+      return calculatedExpiration === null || calculatedExpiration > now;
     });
 
     if (activeEntries.length === 0) {
@@ -509,7 +548,10 @@ class WhitelistAuthorityService {
     }
 
     // Check for permanent access
-    const hasPermamentAccess = activeEntries.some(entry => !entry.expiration);
+    const hasPermamentAccess = activeEntries.some(entry => {
+      const calculatedExpiration = this._calculateEntryExpiration(entry);
+      return calculatedExpiration === null;
+    });
 
     // Calculate effective expiration for temporary entries
     let effectiveExpiration = null;
