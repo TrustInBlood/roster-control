@@ -203,6 +203,9 @@ module.exports = (sequelize) => {
           entryExpiration.setDate(entryExpiration.getDate() + entry.duration_value);
         } else if (entry.duration_type === 'months') {
           entryExpiration.setMonth(entryExpiration.getMonth() + entry.duration_value);
+        } else if (entry.duration_type === 'hours') {
+          const millisecondsPerHour = 60 * 60 * 1000;
+          entryExpiration.setTime(grantedDate.getTime() + (entry.duration_value * millisecondsPerHour));
         }
 
         // Only include entries that haven't expired yet
@@ -223,12 +226,15 @@ module.exports = (sequelize) => {
       // Add up all valid durations
       let totalMonths = 0;
       let totalDays = 0;
+      let totalHours = 0;
 
       validEntries.forEach(entry => {
         if (entry.duration_type === 'months') {
           totalMonths += entry.duration_value;
         } else if (entry.duration_type === 'days') {
           totalDays += entry.duration_value;
+        } else if (entry.duration_type === 'hours') {
+          totalHours += entry.duration_value;
         }
       });
 
@@ -238,6 +244,10 @@ module.exports = (sequelize) => {
       }
       if (totalDays > 0) {
         stackedExpiration.setDate(stackedExpiration.getDate() + totalDays);
+      }
+      if (totalHours > 0) {
+        const millisecondsPerHour = 60 * 60 * 1000;
+        stackedExpiration.setTime(stackedExpiration.getTime() + (totalHours * millisecondsPerHour));
       }
 
       // Check if the stacked expiration is still in the future
@@ -363,17 +373,20 @@ module.exports = (sequelize) => {
     activeEntries.forEach(entry => {
       // Skip entries with 0 duration (these are expired)
       if (entry.duration_value === 0) return;
-      
+
       // Calculate individual expiration date
       const grantedDate = new Date(entry.granted_at);
       const entryExpiration = new Date(grantedDate);
-      
+
       if (entry.duration_type === 'days') {
         entryExpiration.setDate(entryExpiration.getDate() + entry.duration_value);
       } else if (entry.duration_type === 'months') {
         entryExpiration.setMonth(entryExpiration.getMonth() + entry.duration_value);
+      } else if (entry.duration_type === 'hours') {
+        const millisecondsPerHour = 60 * 60 * 1000;
+        entryExpiration.setTime(grantedDate.getTime() + (entry.duration_value * millisecondsPerHour));
       }
-      
+
       // Only include entries that haven't expired yet
       if (entryExpiration > now) {
         validEntries.push(entry);
@@ -386,18 +399,21 @@ module.exports = (sequelize) => {
       activeEntries.forEach(entry => {
         const grantedDate = new Date(entry.granted_at);
         const entryExpiration = new Date(grantedDate);
-        
+
         if (entry.duration_type === 'days') {
           entryExpiration.setDate(entryExpiration.getDate() + entry.duration_value);
         } else if (entry.duration_type === 'months') {
           entryExpiration.setMonth(entryExpiration.getMonth() + entry.duration_value);
+        } else if (entry.duration_type === 'hours') {
+          const millisecondsPerHour = 60 * 60 * 1000;
+          entryExpiration.setTime(grantedDate.getTime() + (entry.duration_value * millisecondsPerHour));
         }
-        
+
         if (!mostRecentExpiration || entryExpiration > mostRecentExpiration) {
           mostRecentExpiration = entryExpiration;
         }
       });
-      
+
       return { hasWhitelist: false, status: 'Expired', expiration: mostRecentExpiration };
     }
 
@@ -408,12 +424,15 @@ module.exports = (sequelize) => {
     // Add up all valid durations
     let totalMonths = 0;
     let totalDays = 0;
+    let totalHours = 0;
 
     validEntries.forEach(entry => {
       if (entry.duration_type === 'months') {
         totalMonths += entry.duration_value;
       } else if (entry.duration_type === 'days') {
         totalDays += entry.duration_value;
+      } else if (entry.duration_type === 'hours') {
+        totalHours += entry.duration_value;
       }
     });
 
@@ -423,6 +442,10 @@ module.exports = (sequelize) => {
     }
     if (totalDays > 0) {
       stackedExpiration.setDate(stackedExpiration.getDate() + totalDays);
+    }
+    if (totalHours > 0) {
+      const millisecondsPerHour = 60 * 60 * 1000;
+      stackedExpiration.setTime(stackedExpiration.getTime() + (totalHours * millisecondsPerHour));
     }
 
     return { hasWhitelist: true, status: 'Active', expiration: stackedExpiration };

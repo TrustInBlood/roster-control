@@ -1852,12 +1852,15 @@ async function handleInfo(interaction) {
 
       let totalMonths = 0;
       let totalDays = 0;
+      let totalHours = 0;
 
       databaseEntries.forEach(entry => {
         if (entry.duration_type === 'months') {
           totalMonths += entry.duration_value;
         } else if (entry.duration_type === 'days') {
           totalDays += entry.duration_value;
+        } else if (entry.duration_type === 'hours') {
+          totalHours += entry.duration_value;
         }
       });
 
@@ -1866,6 +1869,10 @@ async function handleInfo(interaction) {
       }
       if (totalDays > 0) {
         stackedExpiration.setDate(stackedExpiration.getDate() + totalDays);
+      }
+      if (totalHours > 0) {
+        const millisecondsPerHour = 60 * 60 * 1000;
+        stackedExpiration.setTime(stackedExpiration.getTime() + (totalHours * millisecondsPerHour));
       }
 
       const expiresInDays = Math.ceil((stackedExpiration - now) / (1000 * 60 * 60 * 24));
