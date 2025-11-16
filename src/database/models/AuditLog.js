@@ -2,6 +2,50 @@ const { DataTypes, Op } = require('sequelize');
 const { sequelize } = require('../../../config/database');
 const { console: loggerConsole } = require('../../utils/logger');
 
+/**
+ * AuditLog Action Types Reference
+ *
+ * This model supports arbitrary action types via STRING field.
+ * Below is a comprehensive list of action types used throughout the system.
+ *
+ * ROLE & DUTY MANAGEMENT:
+ * - ROLE_SYNC - Role changes synced to whitelist
+ * - ROLE_SYNC_ERROR - Failed role sync
+ * - DUTY_STATUS_CHANGE - Admin/tutor duty status changed
+ *
+ * WHITELIST OPERATIONS:
+ * - WHITELIST_GRANT - Manual whitelist granted
+ * - WHITELIST_EXTEND - Whitelist duration extended
+ * - WHITELIST_REVOKE - Whitelist manually revoked
+ * - WHITELIST_PERIODIC_CLEANUP - Departed members cleanup
+ * - SECURITY_UPGRADE - Security-blocked entry auto-upgraded
+ *
+ * ACCOUNT LINKING:
+ * - confidence_change - Link confidence score changed
+ * - LINK_CREATED - New Steam-Discord link created
+ * - LINK_UPGRADED - Link confidence upgraded
+ * - LINK_REMOVED - Link deleted/unlinked
+ *
+ * MEMBER & STAFF SCRUBBING:
+ * - SCRUB_PREVIEW - Admin previewed scrub candidates
+ * - SCRUB_EXECUTED - Admin executed scrub operation
+ * - MEMBER_SCRUB - Member role removed for unlinked account
+ * - STAFF_SCRUB - Staff roles removed for unlinked account
+ * - STAFF_ARCHIVE_CREATED - Staff role archive entry created
+ * - STAFF_ROLES_RESTORED - Staff roles restored from archive
+ * - BATTLEMETRICS_FLAG_REMOVED - BattleMetrics flag removed
+ *
+ * ADMINISTRATION:
+ * - ADMIN_ACTION - Generic admin action
+ * - PERMISSION_CHANGE - Permission level changed
+ * - CONFIG_UPDATE - System configuration updated
+ *
+ * ERRORS & SECURITY:
+ * - ERROR - General error occurred
+ * - SECURITY_EVENT - Security-related event
+ * - RATE_LIMIT_HIT - Rate limit exceeded
+ */
+
 const AuditLog = sequelize.define('AuditLog', {
   // Auto-increment primary key
   id: {

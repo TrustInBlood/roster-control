@@ -85,10 +85,10 @@ Semi-automated system to remove unlinked Discord members, demote unlinked staff,
 
 ---
 
-### Task 1.2: Create Database Migration for StaffRoleArchive
+### ✅ Task 1.2: Create Database Migration for StaffRoleArchive
 
 **File:** `migrations/029-create-staff-role-archive-table.js`
-**Status:** PENDING
+**Status:** COMPLETED
 **Dependencies:** Task 1.1 (model created)
 
 **Actions:**
@@ -123,7 +123,7 @@ module.exports = {
 
 ---
 
-### Task 1.3: Update Models Index
+### ✅ Task 1.3: Update Models Index
 
 **File:** `src/database/models/index.js`
 **Status:** COMPLETED
@@ -136,13 +136,13 @@ module.exports = {
 
 ---
 
-### Task 1.4: Document New AuditLog Action Types
+### ✅ Task 1.4: Document New AuditLog Action Types
 
-**File:** Documentation only (no code changes needed)
-**Status:** PENDING
+**File:** `src/database/models/AuditLog.js` (documentation block added)
+**Status:** COMPLETED
 **Dependencies:** None
 
-**New Action Types to Use:**
+**New Action Types Documented:**
 - `MEMBER_SCRUB` - Member role removed for unlinked account
 - `STAFF_SCRUB` - Staff roles removed for unlinked account
 - `BATTLEMETRICS_FLAG_REMOVED` - BM "=B&B= Member" flag removed
@@ -1024,11 +1024,11 @@ async function handleRestore(interaction) {
 
 ## Implementation Checklist
 
-### Phase 1: Database ✅ 1/4 Complete
+### Phase 1: Database ✅✅ 4/4 COMPLETE
 - [x] Create StaffRoleArchive model
 - [x] Update models/index.js
-- [ ] Create migration for StaffRoleArchive
-- [ ] Document AuditLog action types
+- [x] Create migration for StaffRoleArchive (migration #029 executed successfully)
+- [x] Document AuditLog action types (comprehensive documentation added)
 
 ### Phase 2: BattleMetrics 0/2 Complete
 - [ ] Extend BattleMetricsService with write methods
@@ -1121,10 +1121,16 @@ async function handleRestore(interaction) {
 ## Progress Tracking
 
 **Started:** 2025-11-15
-**Current Phase:** Phase 1 - Database & Model Extensions
-**Overall Progress:** ~10% (2/19 tasks complete)
+**Current Phase:** Phase 2 - BattleMetrics Write Integration
+**Overall Progress:** ~21% (4/19 tasks complete)
+
+**✅ PHASE 1 COMPLETE - Database & Model Extensions:**
+- ✅ Created comprehensive implementation plan (MEMBER_STAFF_SCRUBBING_PLAN.md)
+- ✅ Created StaffRoleArchive model with full method suite (21 fields, 10 indexes, 12 methods)
+- ✅ Created and executed migration #029 for staff_role_archives table
+- ✅ Documented all AuditLog action types including 7 new scrub-related types
 
 **Next Steps:**
-1. Create migration for StaffRoleArchive table
-2. Test migration in development
-3. Begin BattleMetrics write method implementation
+1. Begin Phase 2: Extend BattleMetricsService with write methods (Task 2.1)
+2. Create BattleMetricsScrubService (Task 2.2)
+3. Begin Phase 3: Core scrubbing services
