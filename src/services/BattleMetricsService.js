@@ -373,6 +373,585 @@ class BattleMetricsService {
       return false;
     }
   }
+
+  // ============================================================================
+  // WRITE OPERATIONS (for scrubbing system)
+  // ============================================================================
+
+  /**
+   * Search for players with a specific flag by searching player-flags endpoint
+   * @param {string} flagName - Flag name to search for (e.g., "=B&B= Member")
+   * @param {Function} onProgress - Progress callback
+   * @returns {Promise<Array>} Players with the specified flag
+   */
+  async searchPlayersByFlag(flagName, onProgress = null) {
+    try {
+      loggerConsole.log('Searching BattleMetrics player flags for:', flagName);
+
+      const playerMap = new Map();
+      let nextUrl = null;
+      let pageCount = 0;
+
+      do {
+        let url = nextUrl || '/player-flags';
+        let params = nextUrl ? {} : {
+          'filter[search]': flagName,
+          'include': 'player',
+          'page[size]': 100
+        };
+
+        // If we have a next URL, use it directly
+        if (nextUrl) {
+          const urlObj = new URL(nextUrl);
+          url = urlObj.pathname + urlObj.search;
+        }
+
+        loggerConsole.log('Fetching player flags page:', { url, page: pageCount + 1 });
+
+        const response = await this.axiosInstance.get(url, { params });
+
+        const playerFlags = response.data.data || [];
+        const included = response.data.included || [];
+
+        // Create player map from included data
+        const includedPlayers = new Map();
+        included.forEach(item => {
+          if (item.type === 'player') {
+            includedPlayers.set(item.id, item);
+          }
+        });
+
+        // Process player flags
+        for (const flag of playerFlags) {
+          const flagName = flag.attributes?.flag || '';
+          const playerId = flag.relationships?.player?.data?.id;
+
+          if (!playerId) continue;
+
+          // Get player data from included or existing map
+          let playerData = playerMap.get(playerId);
+
+          if (!playerData) {
+            const includedPlayer = includedPlayers.get(playerId);
+            if (includedPlayer) {
+              playerData = {
+                id: playerId,
+                name: includedPlayer.attributes?.name || 'Unknown',
+                steamId: includedPlayer.attributes?.steamID || null,
+                eosId: includedPlayer.attributes?.eosID || null,
+                flags: [],
+                metadata: {
+                  battlemetricsId: playerId,
+                  importedAt: new Date().toISOString()
+                }
+              };
+            } else {
+              // Player not in included data, create minimal entry
+              playerData = {
+                id: playerId,
+                name: 'Unknown',
+                steamId: null,
+                eosId: null,
+                flags: [],
+                metadata: {
+                  battlemetricsId: playerId,
+                  importedAt: new Date().toISOString()
+                }
+              };
+            }
+            playerMap.set(playerId, playerData);
+          }
+
+          // Add flag to player
+          playerData.flags.push({
+            id: flag.id,
+            name: flagName,
+            createdAt: flag.attributes?.createdAt || null
+          });
+        }
+
+        pageCount++;
+        nextUrl = response.data.links?.next || null;
+
+        if (onProgress) {
+          const shouldStop = await onProgress({
+            currentPage: pageCount,
+            totalFetched: playerMap.size,
+            batchSize: playerFlags.length,
+            hasMore: !!nextUrl
+          });
+
+          if (shouldStop === false) {
+            break;
+          }
+        }
+
+        // Rate limiting - 220ms delay (~4.5 req/sec)
+        if (nextUrl) {
+          await new Promise(resolve => setTimeout(resolve, 220));
+        }
+      } while (nextUrl);
+
+      const players = Array.from(playerMap.values());
+      loggerConsole.log(`Found ${players.length} players with flag matching "${flagName}"`);
+      return players;
+    } catch (error) {
+      loggerConsole.error('Error searching players by flag:', {
+        flagName,
+        error: error.message,
+        status: error.response?.status
+      });
+      throw new Error(`Failed to search players by flag: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get all flags for a specific player
+   * @param {string} playerId - BattleMetrics player ID
+   * @returns {Promise<Array>} Player flags
+   */
+  async getPlayerFlags(playerId) {
+    try {
+      loggerConsole.log('Fetching flags for player:', playerId);
+
+      const response = await this.axiosInstance.get(`/players/${playerId}`, {
+        params: {
+          include: 'playerFlag'
+        }
+      });
+
+      const player = response.data.data;
+      const included = response.data.included || [];
+
+      const flags = included
+        .filter(item => item.type === 'playerFlag')
+        .map(flag => ({
+          id: flag.id,
+          name: flag.attributes?.flag || '',
+          createdAt: flag.attributes?.createdAt || null
+        }));
+
+      loggerConsole.log(`Player ${playerId} has ${flags.length} flags`);
+      return flags;
+    } catch (error) {
+      loggerConsole.error('Error fetching player flags:', {
+        playerId,
+        error: error.message,
+        status: error.response?.status
+      });
+      throw new Error(`Failed to fetch player flags: ${error.message}`);
+    }
+  }
+
+  /**
+   * Remove a specific flag from a player
+   * @param {string} flagId - Player flag ID (not player ID)
+   * @returns {Promise<Object>} Result object
+   */
+  async removePlayerFlag(flagId) {
+    try {
+      loggerConsole.log('Removing player flag:', flagId);
+
+      const response = await this.axiosInstance.delete(`/player-flags/${flagId}`);
+
+      loggerConsole.log('Player flag removed successfully:', {
+        flagId,
+        status: response.status
+      });
+
+      return {
+        success: true,
+        flagId,
+        status: response.status
+      };
+    } catch (error) {
+      const errorMsg = error.response?.data?.errors?.[0]?.detail || error.message;
+      const status = error.response?.status;
+
+      loggerConsole.error('Error removing player flag:', {
+        flagId,
+        error: errorMsg,
+        status
+      });
+
+      return {
+        success: false,
+        flagId,
+        error: errorMsg,
+        status,
+        notFound: status === 404,
+        forbidden: status === 403,
+        rateLimited: status === 429
+      };
+    }
+  }
+
+  /**
+   * Add a flag to a player
+   * @param {string} playerId - BattleMetrics player ID
+   * @param {string} flagName - Flag name to add
+   * @returns {Promise<Object>} Result object
+   */
+  async addPlayerFlag(playerId, flagName) {
+    try {
+      loggerConsole.log('Adding flag to player:', { playerId, flagName });
+
+      const data = {
+        data: {
+          type: 'playerFlag',
+          attributes: {
+            flag: flagName
+          },
+          relationships: {
+            player: {
+              data: {
+                type: 'player',
+                id: playerId
+              }
+            }
+          }
+        }
+      };
+
+      const response = await this.axiosInstance.post('/player-flags', data);
+
+      loggerConsole.log('Player flag added successfully:', {
+        playerId,
+        flagName,
+        flagId: response.data.data?.id,
+        status: response.status
+      });
+
+      return {
+        success: true,
+        playerId,
+        flagName,
+        flagId: response.data.data?.id,
+        status: response.status
+      };
+    } catch (error) {
+      const errorMsg = error.response?.data?.errors?.[0]?.detail || error.message;
+      const status = error.response?.status;
+
+      loggerConsole.error('Error adding player flag:', {
+        playerId,
+        flagName,
+        error: errorMsg,
+        status
+      });
+
+      return {
+        success: false,
+        playerId,
+        flagName,
+        error: errorMsg,
+        status,
+        notFound: status === 404,
+        forbidden: status === 403,
+        rateLimited: status === 429
+      };
+    }
+  }
+
+  /**
+   * Bulk remove flags from multiple players
+   * @param {Array<Object>} playerFlags - Array of {playerId, flagId, flagName, playerName}
+   * @param {Function} onProgress - Progress callback
+   * @returns {Promise<Object>} Results summary
+   */
+  async bulkRemovePlayerFlags(playerFlags, onProgress = null) {
+    loggerConsole.log(`Starting bulk flag removal for ${playerFlags.length} players`);
+
+    const results = {
+      successful: [],
+      failed: [],
+      total: playerFlags.length,
+      startTime: new Date()
+    };
+
+    for (let i = 0; i < playerFlags.length; i++) {
+      const item = playerFlags[i];
+
+      try {
+        const result = await this.removePlayerFlag(item.flagId);
+
+        if (result.success) {
+          results.successful.push({
+            playerId: item.playerId,
+            flagId: item.flagId,
+            flagName: item.flagName,
+            playerName: item.playerName,
+            index: i
+          });
+        } else {
+          results.failed.push({
+            playerId: item.playerId,
+            flagId: item.flagId,
+            flagName: item.flagName,
+            playerName: item.playerName,
+            index: i,
+            error: result.error,
+            status: result.status
+          });
+        }
+
+        // Call progress callback if provided
+        if (onProgress) {
+          await onProgress({
+            currentIndex: i + 1,
+            total: playerFlags.length,
+            result,
+            percentComplete: Math.round(((i + 1) / playerFlags.length) * 100)
+          });
+        }
+
+        // Rate limiting - 220ms delay between requests (~4.5 req/sec)
+        if (i < playerFlags.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 220));
+        }
+
+      } catch (error) {
+        loggerConsole.error('Unexpected error during bulk flag removal:', {
+          playerId: item.playerId,
+          flagId: item.flagId,
+          error: error.message
+        });
+        results.failed.push({
+          playerId: item.playerId,
+          flagId: item.flagId,
+          index: i,
+          error: error.message
+        });
+      }
+    }
+
+    results.endTime = new Date();
+    results.durationMs = results.endTime - results.startTime;
+
+    loggerConsole.log('Bulk flag removal complete:', {
+      total: results.total,
+      successful: results.successful.length,
+      failed: results.failed.length,
+      durationMs: results.durationMs
+    });
+
+    return results;
+  }
+
+  /**
+   * Remove a whitelist entry (ban) from BattleMetrics
+   * NOTE: This is for ban list management, not player flags
+   * @param {string} banId - BattleMetrics ban/whitelist ID
+   * @returns {Promise<Object>} Result object with success status
+   */
+  async removeWhitelistEntry(banId) {
+    try {
+      loggerConsole.log('Removing BattleMetrics whitelist entry:', banId);
+
+      const response = await this.axiosInstance.delete(`/bans/${banId}`);
+
+      loggerConsole.log('Whitelist entry removed successfully:', {
+        banId,
+        status: response.status
+      });
+
+      return {
+        success: true,
+        banId,
+        status: response.status
+      };
+    } catch (error) {
+      const errorMsg = error.response?.data?.errors?.[0]?.detail || error.message;
+      const status = error.response?.status;
+
+      loggerConsole.error('Error removing whitelist entry:', {
+        banId,
+        error: errorMsg,
+        status
+      });
+
+      return {
+        success: false,
+        banId,
+        error: errorMsg,
+        status,
+        // Include specific error types for handling
+        notFound: status === 404,
+        forbidden: status === 403,
+        rateLimited: status === 429
+      };
+    }
+  }
+
+  /**
+   * Update a whitelist entry's reason or note
+   * @param {string} banId - BattleMetrics ban/whitelist ID
+   * @param {Object} updates - Fields to update { reason, note }
+   * @returns {Promise<Object>} Result object
+   */
+  async updateWhitelistEntry(banId, updates = {}) {
+    try {
+      loggerConsole.log('Updating BattleMetrics whitelist entry:', {
+        banId,
+        updates
+      });
+
+      const data = {
+        data: {
+          type: 'ban',
+          id: banId,
+          attributes: {}
+        }
+      };
+
+      // Only include fields that are being updated
+      if (updates.reason !== undefined) {
+        data.data.attributes.reason = updates.reason;
+      }
+      if (updates.note !== undefined) {
+        data.data.attributes.note = updates.note;
+      }
+
+      const response = await this.axiosInstance.patch(`/bans/${banId}`, data);
+
+      loggerConsole.log('Whitelist entry updated successfully:', {
+        banId,
+        status: response.status
+      });
+
+      return {
+        success: true,
+        banId,
+        data: response.data,
+        status: response.status
+      };
+    } catch (error) {
+      const errorMsg = error.response?.data?.errors?.[0]?.detail || error.message;
+      const status = error.response?.status;
+
+      loggerConsole.error('Error updating whitelist entry:', {
+        banId,
+        updates,
+        error: errorMsg,
+        status
+      });
+
+      return {
+        success: false,
+        banId,
+        error: errorMsg,
+        status,
+        notFound: status === 404,
+        forbidden: status === 403,
+        rateLimited: status === 429
+      };
+    }
+  }
+
+  /**
+   * Bulk remove whitelist entries with rate limiting
+   * @param {Array<string>} banIds - Array of ban IDs to remove
+   * @param {Function} onProgress - Progress callback (currentIndex, total, result)
+   * @returns {Promise<Object>} Results summary
+   */
+  async bulkRemoveWhitelistEntries(banIds, onProgress = null) {
+    loggerConsole.log(`Starting bulk removal of ${banIds.length} whitelist entries`);
+
+    const results = {
+      successful: [],
+      failed: [],
+      total: banIds.length,
+      startTime: new Date()
+    };
+
+    for (let i = 0; i < banIds.length; i++) {
+      const banId = banIds[i];
+
+      try {
+        const result = await this.removeWhitelistEntry(banId);
+
+        if (result.success) {
+          results.successful.push({ banId, index: i });
+        } else {
+          results.failed.push({ banId, index: i, error: result.error, status: result.status });
+        }
+
+        // Call progress callback if provided
+        if (onProgress) {
+          await onProgress({
+            currentIndex: i + 1,
+            total: banIds.length,
+            result,
+            percentComplete: Math.round(((i + 1) / banIds.length) * 100)
+          });
+        }
+
+        // Rate limiting - 220ms delay between requests (~4.5 req/sec)
+        // Only delay if not the last item
+        if (i < banIds.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 220));
+        }
+
+      } catch (error) {
+        loggerConsole.error('Unexpected error during bulk removal:', {
+          banId,
+          error: error.message
+        });
+        results.failed.push({ banId, index: i, error: error.message });
+      }
+    }
+
+    results.endTime = new Date();
+    results.durationMs = results.endTime - results.startTime;
+
+    loggerConsole.log('Bulk removal complete:', {
+      total: results.total,
+      successful: results.successful.length,
+      failed: results.failed.length,
+      durationMs: results.durationMs
+    });
+
+    return results;
+  }
+
+  /**
+   * Get detailed information about a specific whitelist entry
+   * @param {string} banId - BattleMetrics ban/whitelist ID
+   * @returns {Promise<Object>} Whitelist entry details or null
+   */
+  async getWhitelistEntry(banId) {
+    try {
+      loggerConsole.log('Fetching whitelist entry details:', banId);
+
+      const response = await this.axiosInstance.get(`/bans/${banId}`, {
+        params: {
+          include: 'user,server'
+        }
+      });
+
+      if (!response.data || !response.data.data) {
+        return null;
+      }
+
+      // Process the single entry using existing logic
+      const processed = this.processWhitelistBatch([response.data.data], response.data.included || []);
+
+      return processed[0] || null;
+    } catch (error) {
+      if (error.response?.status === 404) {
+        loggerConsole.log('Whitelist entry not found:', banId);
+        return null;
+      }
+
+      loggerConsole.error('Error fetching whitelist entry:', {
+        banId,
+        error: error.message,
+        status: error.response?.status
+      });
+
+      throw new Error(`Failed to fetch whitelist entry: ${error.message}`);
+    }
+  }
 }
 
 // Export singleton instance

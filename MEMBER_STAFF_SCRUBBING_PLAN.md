@@ -157,10 +157,10 @@ module.exports = {
 
 ## Phase 2: BattleMetrics Write Integration
 
-### Task 2.1: Extend BattleMetricsService with Write Methods
+### ✅ Task 2.1: Extend BattleMetricsService with Write Methods
 
 **File:** `src/services/BattleMetricsService.js`
-**Status:** PENDING
+**Status:** COMPLETED
 **Dependencies:** None
 
 **Current Capabilities:**
@@ -168,174 +168,201 @@ module.exports = {
 - ✅ Search players by Steam ID
 - ✅ Rate limiting (220ms delay, ~4.5 req/sec)
 - ✅ Pagination support
-- ❌ No write operations yet
 
-**New Methods to Add:**
+**✅ New Methods Added:**
 
 ```javascript
 /**
- * Add a custom flag/note to a BattleMetrics player profile
- * @param {string} playerId - BattleMetrics player ID
- * @param {string} flagName - Flag/note to add (e.g., "=B&B= Member")
- * @returns {Promise<Object>} API response
+ * Search for players with a specific flag by searching player-flags endpoint
+ * @param {string} flagName - Flag name to search for (e.g., "=B&B= Member")
+ * @param {Function} onProgress - Progress callback
+ * @returns {Promise<Array>} Players with the specified flag
  */
-async addPlayerFlag(playerId, flagName) {
-  // POST request to BattleMetrics API
-  // Endpoint: /players/{playerId}/relationships/flags
-  // Body: { data: { type: 'playerFlag', attributes: { name: flagName } } }
-}
-
-/**
- * Remove a specific flag from a BattleMetrics player profile
- * @param {string} playerId - BattleMetrics player ID
- * @param {string} flagName - Flag to remove
- * @returns {Promise<Object>} API response
- */
-async removePlayerFlag(playerId, flagName) {
-  // First: GET flags to find flag ID
-  // Then: DELETE /players/{playerId}/relationships/flags/{flagId}
-}
-
-/**
- * Update player notes on BattleMetrics
- * @param {string} playerId - BattleMetrics player ID
- * @param {string} note - Note text
- * @returns {Promise<Object>} API response
- */
-async updatePlayerNote(playerId, note) {
-  // PATCH request to update player notes
-  // Endpoint: /players/{playerId}
-  // Body: { data: { type: 'player', attributes: { notes: note } } }
-}
-
-/**
- * Search for players with a specific flag
- * @param {string} flagName - Flag name to search for
- * @returns {Promise<Array>} Array of player objects with the flag
- */
-async searchPlayersByFlag(flagName) {
-  // GET request with filter
-  // Endpoint: /players?filter[flags]={flagName}
-  // Include pagination handling
+async searchPlayersByFlag(flagName, onProgress = null) {
+  // GET /player-flags?filter[search]={flagName}&include=player
+  // Server-side search on flag name
+  // Returns players with flag details including flag IDs for deletion
+  // Uses Map to deduplicate players across pages
 }
 
 /**
  * Get all flags for a specific player
  * @param {string} playerId - BattleMetrics player ID
- * @returns {Promise<Array>} Array of flag objects
+ * @returns {Promise<Array>} Player flags
  */
 async getPlayerFlags(playerId) {
-  // GET request
-  // Endpoint: /players/{playerId}/relationships/flags
+  // GET /players/{playerId}?include=playerFlag
+  // Returns array of {id, name, createdAt}
+}
+
+/**
+ * Remove a specific flag from a player
+ * @param {string} flagId - Player flag ID (not player ID)
+ * @returns {Promise<Object>} Result object
+ */
+async removePlayerFlag(flagId) {
+  // DELETE /player-flags/{flagId}
+  // Returns {success, flagId, status, error, notFound, forbidden, rateLimited}
+}
+
+/**
+ * Add a flag to a player
+ * @param {string} playerId - BattleMetrics player ID
+ * @param {string} flagName - Flag name to add
+ * @returns {Promise<Object>} Result object
+ */
+async addPlayerFlag(playerId, flagName) {
+  // POST /player-flags
+  // Body: { data: { type: 'playerFlag', attributes: { flag: flagName },
+  //         relationships: { player: { data: { type: 'player', id: playerId } } } } }
+  // Returns {success, playerId, flagName, flagId, status, error}
+}
+
+/**
+ * Bulk remove flags from multiple players
+ * @param {Array<Object>} playerFlags - Array of {playerId, flagId, flagName, playerName}
+ * @param {Function} onProgress - Progress callback
+ * @returns {Promise<Object>} Results summary
+ */
+async bulkRemovePlayerFlags(playerFlags, onProgress = null) {
+  // Iterates through array with rate limiting (220ms delay)
+  // Progress callback: {currentIndex, total, result, percentComplete}
+  // Returns {successful[], failed[], total, startTime, endTime, durationMs}
 }
 ```
 
 **Implementation Notes:**
-- Maintain existing rate limiting (220ms delay)
-- Use existing axios instance with auth headers
-- Add error handling for 404 (player not found), 403 (permissions), 429 (rate limit)
-- Return structured responses: `{ success: boolean, data: any, error: string }`
+- ✅ Maintains existing rate limiting (220ms delay ~4.5 req/sec)
+- ✅ Uses existing axios instance with auth headers
+- ✅ Error handling for 404 (not found), 403 (permissions), 429 (rate limit)
+- ✅ Structured responses: `{ success: boolean, data: any, error: string }`
+- ✅ Server-side filtering via `/player-flags` endpoint with `filter[search]`
+- ✅ Flag IDs automatically extracted for deletion operations
 
 **API Documentation Reference:**
 - BattleMetrics API: https://www.battlemetrics.com/developers
+- Player Flags Resource: https://www.battlemetrics.com/developers/documentation#resource-playerFlag
 - Auth: Bearer token in `BATTLEMETRICS_TOKEN` env var
+
+**Important Implementation Notes:**
+- ⚠️ **Uses `/player-flags` endpoint, NOT `/players` or `/bans`**
+- Server-side filtering via `filter[search]` parameter (searches flag text)
+- Flag IDs are automatically extracted from search results for deletion
+- Each player can have multiple flags; we specifically target "=B&B= Member"
+- Whitelist/ban list management is separate from player flags (not used in this system)
 
 ---
 
-### Task 2.2: Create BattleMetricsScrubService
+### ✅ Task 2.2: Create BattleMetricsScrubService
 
 **File:** `src/services/BattleMetricsScrubService.js`
-**Status:** PENDING
+**Status:** COMPLETED
 **Dependencies:** Task 2.1
 
-**Purpose:** Specialized service for managing BattleMetrics flags during scrubbing operations.
+**Purpose:** Specialized service for managing BattleMetrics player flags during scrubbing operations.
 
-**Class Structure:**
+**✅ Implemented Class Structure:**
 
 ```javascript
 const BattleMetricsService = require('./BattleMetricsService');
-const { PlayerDiscordLink } = require('../database/models');
+const { PlayerDiscordLink, AuditLog } = require('../database/models');
 const { console: loggerConsole, createServiceLogger } = require('../utils/logger');
+const { getAllMemberRoles, getAllStaffRoles } = require('../../config/discordRoles');
 
 class BattleMetricsScrubService {
-  constructor() {
-    this.bmService = new BattleMetricsService();
+  constructor(discordClient = null) {
+    this.bmService = BattleMetricsService;  // Singleton instance
+    this.client = discordClient;
     this.logger = createServiceLogger('BattleMetricsScrubService');
-    this.FLAG_NAME = '=B&B= Member';
+    this.MEMBER_FLAG = '=B&B= Member';
   }
 
   /**
-   * Find all BM profiles with "=B&B= Member" flag
-   * @returns {Promise<Array>} Players with flag
+   * Find all BM players with "=B&B= Member" flag
+   * @returns {Promise<Array>} Players with flag (including flag IDs)
    */
   async findPlayersWithMemberFlag() {
-    // Use BattleMetricsService.searchPlayersByFlag()
-    // Return array of { bmPlayerId, steamId, name, hasFlag: true }
+    // Calls bmService.searchPlayersByFlag(this.MEMBER_FLAG)
+    // Returns array of players with {id, name, steamId, flags: [{id, name, createdAt}]}
   }
 
   /**
-   * Identify unlinked players with member flag
-   * @returns {Promise<Object>} { toRemove: [], linked: [], stats: {} }
+   * Identify players whose flags should be removed (no Discord link or no member role)
+   * @param {string} guildId - Discord guild ID
+   * @returns {Promise<Object>} { toRemove: [], toKeep: [], noSteamId: [], stats: {} }
    */
-  async identifyUnlinkedWithFlag() {
-    // 1. Get all players with "=B&B= Member" flag from BM
-    // 2. Cross-reference with PlayerDiscordLink table
-    // 3. Check if Discord user still has Member role (via Discord API)
-    // 4. Return categorized lists:
-    //    - toRemove: BM has flag but no link or no role
-    //    - linked: BM has flag and valid link with role (keep flag)
+  async identifyUnlinkedWithFlag(guildId) {
+    // 1. Get all players with "=B&B= Member" flag from BM (with flag IDs)
+    // 2. For each player:
+    //    a. Check if steamId exists
+    //    b. Cross-reference with PlayerDiscordLink table
+    //    c. Check if Discord user still has Member/Staff role
+    // 3. Categorize:
+    //    - toRemove: {player, flagToRemove: {id, name}, reason, discordUserId}
+    //    - toKeep: {player, discordUserId, username}
+    //    - noSteamId: players without Steam ID
+    // 4. Return with detailed stats (total, noSteamId, noLink, noRole, leftDiscord, valid)
   }
 
   /**
-   * Generate removal preview report
-   * @param {Array} players - Players to process
-   * @returns {Object} Report with counts and sample data
+   * Generate detailed report for flag removal preview
+   * @param {string} guildId - Discord guild ID
+   * @returns {Promise<Object>} Detailed report
    */
-  async generateFlagRemovalReport(players) {
-    // Create detailed report:
-    // - Total players with flag
-    // - Players with valid links (keep flag)
-    // - Players without links (remove flag)
-    // - Players who left Discord (remove flag)
-    // - Sample list (first 10)
+  async generateFlagRemovalReport(guildId) {
+    // Calls identifyUnlinkedWithFlag(guildId)
+    // Returns:
+    // {
+    //   timestamp,
+    //   summary: {totalWithFlag, toRemove, toKeep, noSteamId},
+    //   breakdown: {noLink, noRole, leftDiscord, valid},
+    //   toRemove: full array,
+    //   sampleToRemove: first 10,
+    //   noSteamId: players without Steam ID
+    // }
   }
 
   /**
-   * Remove "=B&B= Member" flag from multiple players
-   * @param {Array} bmPlayerIds - BM player IDs
+   * Remove member flag from multiple BattleMetrics players
+   * @param {Array} bmPlayers - BM players with flagToRemove field
    * @param {Object} options - { approvalId, executedBy }
-   * @returns {Promise<Object>} { successful: [], failed: [], stats: {} }
+   * @returns {Promise<Object>} { successful: [], failed: [], total, durationMs }
    */
-  async removeMemberFlagBulk(bmPlayerIds, options = {}) {
-    // 1. Iterate through player IDs with rate limiting
-    // 2. Call BattleMetricsService.removePlayerFlag()
-    // 3. Log each success/failure to AuditLog
-    // 4. Track progress and errors
-    // 5. Return detailed results
+  async removeMemberFlagBulk(bmPlayers, options = {}) {
+    // 1. Prepare playerFlags array from bmPlayers (filter for flagToRemove)
+    // 2. Call bmService.bulkRemovePlayerFlags() with rate limiting
+    // 3. Log each success to AuditLog with BATTLEMETRICS_FLAG_REMOVED
+    // 4. Log each failure to AuditLog with error details
+    // 5. Return {successful, failed, total, startTime, endTime, durationMs}
   }
 
   /**
-   * Add "=B&B= Member" flag to player
-   * @param {string} bmPlayerId - BM player ID
-   * @param {Object} metadata - Context info
+   * Add member flag to a BattleMetrics player
+   * @param {string} playerId - BM player ID
+   * @param {Object} metadata - Context info {actorType, actorId, actorName, playerName, steamId}
    * @returns {Promise<Object>} Result
    */
-  async addMemberFlag(bmPlayerId, metadata = {}) {
-    // Call BattleMetricsService.addPlayerFlag()
-    // Log to AuditLog
+  async addMemberFlag(playerId, metadata = {}) {
+    // 1. Check if player already has flag (getPlayerFlags)
+    // 2. If not, call bmService.addPlayerFlag(playerId, this.MEMBER_FLAG)
+    // 3. Log to AuditLog with BATTLEMETRICS_FLAG_ADDED
+    // 4. Return {success, alreadyHasFlag?, playerId, flagId?}
   }
 }
 
 module.exports = BattleMetricsScrubService;
 ```
 
-**Key Features:**
-- Rate-limited bulk operations
-- Cross-referencing with PlayerDiscordLink
-- Discord role verification
-- Comprehensive audit logging
-- Error recovery and retry logic
-- Progress tracking for large batches
+**✅ Key Features Implemented:**
+- Rate-limited bulk operations via BattleMetricsService (220ms delay)
+- Cross-referencing with PlayerDiscordLink database
+- Discord role verification (Member + Staff roles)
+- Comprehensive audit logging (BATTLEMETRICS_FLAG_REMOVED, BATTLEMETRICS_FLAG_ADDED)
+- Error recovery and detailed failure tracking
+- Progress tracking for large batches (callback support)
+- Automatic flag ID extraction for deletion
+- Categorization by removal reason (no_link, no_role, left_discord)
+- Statistics tracking (total, valid, invalid counts)
 
 ---
 
@@ -1030,9 +1057,9 @@ async function handleRestore(interaction) {
 - [x] Create migration for StaffRoleArchive (migration #029 executed successfully)
 - [x] Document AuditLog action types (comprehensive documentation added)
 
-### Phase 2: BattleMetrics 0/2 Complete
-- [ ] Extend BattleMetricsService with write methods
-- [ ] Create BattleMetricsScrubService
+### Phase 2: BattleMetrics ✅✅ 2/2 COMPLETE
+- [x] Extend BattleMetricsService with player flag methods (5 new methods using /player-flags API)
+- [x] Create BattleMetricsScrubService (5 methods for "=B&B= Member" flag management)
 
 ### Phase 3: Core Services 0/3 Complete
 - [ ] Create MemberScrubService
@@ -1121,8 +1148,8 @@ async function handleRestore(interaction) {
 ## Progress Tracking
 
 **Started:** 2025-11-15
-**Current Phase:** Phase 2 - BattleMetrics Write Integration
-**Overall Progress:** ~21% (4/19 tasks complete)
+**Current Phase:** Phase 3 - Core Scrubbing Services
+**Overall Progress:** ~32% (6/19 tasks complete)
 
 **✅ PHASE 1 COMPLETE - Database & Model Extensions:**
 - ✅ Created comprehensive implementation plan (MEMBER_STAFF_SCRUBBING_PLAN.md)
@@ -1130,7 +1157,25 @@ async function handleRestore(interaction) {
 - ✅ Created and executed migration #029 for staff_role_archives table
 - ✅ Documented all AuditLog action types including 7 new scrub-related types
 
+**✅ PHASE 2 COMPLETE - BattleMetrics Write Integration:**
+- ✅ Extended BattleMetricsService with 5 player flag methods:
+  - `searchPlayersByFlag()` - Search via `/player-flags` endpoint with server-side filtering
+  - `getPlayerFlags()` - Get all flags for a specific player
+  - `removePlayerFlag()` - Delete a specific flag by flag ID
+  - `addPlayerFlag()` - Add a flag to a player
+  - `bulkRemovePlayerFlags()` - Bulk removal with rate limiting
+- ✅ Created BattleMetricsScrubService with 5 specialized methods:
+  - `findPlayersWithMemberFlag()` - Find all players with "=B&B= Member" flag
+  - `identifyUnlinkedWithFlag()` - Categorize players by link/role status
+  - `generateFlagRemovalReport()` - Generate detailed preview report
+  - `removeMemberFlagBulk()` - Bulk flag removal with audit logging
+  - `addMemberFlag()` - Add member flag to a player
+- ✅ Implemented rate limiting (~4.5 req/sec) and error handling
+- ✅ Full audit logging for all BM operations (BATTLEMETRICS_FLAG_REMOVED/ADDED)
+- ✅ Cross-referencing with PlayerDiscordLink and Discord role verification
+- ✅ Automatic flag ID extraction from search results for deletion
+
 **Next Steps:**
-1. Begin Phase 2: Extend BattleMetricsService with write methods (Task 2.1)
-2. Create BattleMetricsScrubService (Task 2.2)
-3. Begin Phase 3: Core scrubbing services
+1. Begin Phase 3: Create MemberScrubService (Task 3.1)
+2. Create StaffScrubService (Task 3.2)
+3. Create UnifiedScrubOrchestrator (Task 3.3)
