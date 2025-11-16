@@ -19,8 +19,8 @@ module.exports = {
         const guild = interaction.guild;
         const trackedRoles = getAllTrackedRoles();
 
-        // Fetch all guild members
-        const members = await guild.members.fetch();
+        // Fetch all guild members with extended timeout for large servers
+        const members = await guild.members.fetch({ time: 60000 }); // 60 second timeout
 
         // Find staff members (non-Member roles) who lack proper Steam links
         const unlinkedStaff = [];
@@ -125,6 +125,16 @@ module.exports = {
         
       } catch (error) {
         loggerConsole.error('Unlinked staff command error:', error);
+
+        // Specific handling for guild members timeout
+        if (error.code === 'GuildMembersTimeout') {
+          await sendError(
+            interaction,
+            'The server is too large to fetch all members in time. Please try again or contact an administrator if this persists.'
+          );
+          return;
+        }
+
         await sendError(interaction, error.message || 'An error occurred while retrieving unlinked staff.');
       }
     });
