@@ -165,7 +165,7 @@ function setupDonationWebhook(client) {
  */
 async function sendDonationNotifications(client, config, donationData, processingResult) {
   const { from_name, amount, message, email } = donationData;
-  const steamIds = donationService.extractSteamIds(message);
+  const steamIds = donationService.extractSteamIds(from_name, message);
 
   // Get Discord channels from centralized config
   const publicChannelId = CHANNELS.DONATION_ANNOUNCEMENTS;
@@ -233,7 +233,7 @@ async function sendDonationNotifications(client, config, donationData, processin
  */
 function formatPublicNotification(donationData, processingResult, hasErrors) {
   const { from_name, amount, message } = donationData;
-  const steamIds = donationService.extractSteamIds(message);
+  const steamIds = donationService.extractSteamIds(from_name, message);
   const tier = processingResult.tier;
 
   // Sanitize user inputs
@@ -277,7 +277,7 @@ function formatPublicNotification(donationData, processingResult, hasErrors) {
  */
 function formatAdminNotification(donationData, processingResult, hasErrors) {
   const { from_name, amount, message, email } = donationData;
-  const steamIds = donationService.extractSteamIds(message);
+  const steamIds = donationService.extractSteamIds(from_name, message);
   const tier = processingResult.tier;
 
   // Sanitize user inputs

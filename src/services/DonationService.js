@@ -13,21 +13,31 @@ class DonationService {
   }
 
   /**
-   * Extract Steam IDs from donation message
+   * Extract Steam IDs from donation name and/or message
    * Uses the centralized Steam ID validation utility
-   * @param {string} message - Donation message text
-   * @returns {Array<string>} Array of unique Steam IDs
+   * @param {string} name - Donation name field (can contain SteamID)
+   * @param {string} message - Donation message text (can contain SteamID)
+   * @returns {Array<string>} Array of unique Steam IDs found in either field
    */
-  extractSteamIds(message) {
-    if (!message) return [];
+  extractSteamIds(name, message) {
+    const allSteamIds = [];
 
-    // Split message into words and filter for Steam ID patterns
-    // Pattern: 17 digits starting with 765
-    const words = message.match(/\b\d{17}\b/g) || [];
-    const steamIds = words.filter(word => looksLikeSteamId(word));
+    // Check name field for Steam IDs
+    if (name) {
+      const nameWords = name.match(/\b\d{17}\b/g) || [];
+      const nameSteamIds = nameWords.filter(word => looksLikeSteamId(word));
+      allSteamIds.push(...nameSteamIds);
+    }
 
-    // Return unique Steam IDs
-    return [...new Set(steamIds)];
+    // Check message field for Steam IDs
+    if (message) {
+      const messageWords = message.match(/\b\d{17}\b/g) || [];
+      const messageSteamIds = messageWords.filter(word => looksLikeSteamId(word));
+      allSteamIds.push(...messageSteamIds);
+    }
+
+    // Return unique Steam IDs (deduplicate if SteamID appears in both fields)
+    return [...new Set(allSteamIds)];
   }
 
   /**
