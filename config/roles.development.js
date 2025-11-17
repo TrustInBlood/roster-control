@@ -17,6 +17,9 @@ const COMMAND_PERMISSIONS = {
   'revoke': ['1365205433236717598'],     // Admin roles can revoke whitelist entries
   'duty': ['1365205433236717598'],      // Admin roles can use duty commands
   'dutystats': ['1365205433236717598'], // Admin roles can view duty statistics
+  'user': ['1365205433236717598'],      // Subcommand: View duty time stats for a specific user
+  'leaderboard': ['1365205433236717598'], // Subcommand: View duty time leaderboard
+  'summary': ['1365205433236717598'],   // Subcommand: View guild-wide duty statistics
   'adminlink': ['1365205433236717598'], // Admin roles can create Steam-Discord account links
   'whatsnew': ['1365205433236717598'],  // Admin roles can use whatsnew command
   'unlinkedstaff': ['1365205433236717598'], // Admin roles can view unlinked staff

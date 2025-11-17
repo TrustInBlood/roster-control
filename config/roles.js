@@ -25,6 +25,9 @@ const COMMAND_PERMISSIONS = {
   'checkenv': getAllAdminRoles(),   // All admin roles can check environment
   'duty': getAllAdminRoles(),       // All admin roles can use duty commands
   'dutystats': getAllAdminRoles(),  // All admin roles can view duty statistics
+  'user': getAllAdminRoles(),       // Subcommand: View duty time stats for a specific user
+  'leaderboard': getAllAdminRoles(), // Subcommand: View duty time leaderboard
+  'summary': getAllAdminRoles(),    // Subcommand: View guild-wide duty statistics
   'adminlink': getAllAdminRoles(),  // All admin roles can create Steam-Discord account links
   'whatsnew': getAllAdminRoles(),   // All admin roles can use whatsnew command
   'unlinkedstaff': getAllAdminRoles(), // All admin roles can view unlinked staff
