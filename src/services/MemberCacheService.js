@@ -329,9 +329,12 @@ class MemberCacheService {
       let members;
 
       if (isLarge && this.config.largeGuildMode) {
-        // Chunked fetching for large guilds
-        this.logger.info(`Using chunked fetch for large guild ${guild.name} (${memberCount} members)`);
-        members = await this._chunkedFetch(guild);
+        // For large guilds, use extended timeout and rely on Discord.js caching
+        this.logger.info(`Fetching members for large guild ${guild.name} (${memberCount} members) with extended timeout`);
+        members = await guild.members.fetch({
+          force: false,
+          time: 120000 // 2 minute timeout for very large guilds
+        });
       } else {
         // Standard fetch for small/medium guilds
         this.logger.debug(`Standard fetch for guild ${guild.name} (${memberCount} members)`);
