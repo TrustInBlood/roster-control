@@ -4,6 +4,7 @@ const { Sequelize } = require('sequelize');
 const { getHighestPriorityGroup, squadGroups } = require('../utils/environment');
 const { getAllTrackedRoles } = squadGroups;
 const notificationService = require('./NotificationService');
+const { getMemberCacheService } = require('./MemberCacheService');
 
 /**
  * RoleWhitelistSyncService - Synchronizes Discord roles to database whitelist entries
@@ -475,7 +476,8 @@ class RoleWhitelistSyncService {
         try {
           const guildId = mostRecentEntry.metadata.discordGuildId;
           const guild = await this.discordClient.guilds.fetch(guildId);
-          const member = await guild.members.fetch(discordUserId).catch(() => null);
+          const cacheService = getMemberCacheService();
+          const member = await cacheService.getMember(guild, discordUserId);
 
           if (!member) {
             // User not in guild - do not upgrade
@@ -711,16 +713,24 @@ class RoleWhitelistSyncService {
     this.logger.info('Starting bulk guild role sync', { guildId, dryRun, batchSize });
 
     try {
-      // Fetch guild and all members
+      // OPTIMIZATION: Fetch only members with tracked roles instead of all 10,000+ members
       const guild = await this.discordClient.guilds.fetch(guildId);
-      const members = await guild.members.fetch();
+      const cacheService = getMemberCacheService();
 
-      this.logger.info('Fetched guild members for sync', {
+      this.logger.info('Fetching members with tracked roles for sync', {
         guildId,
-        memberCount: members.size
+        totalGuildMembers: guild.memberCount,
+        trackedRoles: this.trackedRoles.length
       });
 
-      // Filter members who have tracked roles
+      const members = await cacheService.getMembersByRole(guild, this.trackedRoles);
+
+      this.logger.info('Fetched members with tracked roles', {
+        guildId,
+        membersFound: members.size
+      });
+
+      // Build list of members to sync (already filtered by role)
       const membersWithRoles = [];
       for (const [memberId, member] of members) {
         if (member.user.bot) continue; // Skip bots
@@ -735,10 +745,9 @@ class RoleWhitelistSyncService {
         }
       }
 
-      this.logger.info('Found members with tracked roles', {
+      this.logger.info('Prepared members for whitelist sync', {
         guildId,
-        totalMembers: members.size,
-        membersWithRoles: membersWithRoles.length
+        membersToSync: membersWithRoles.length
       });
 
       if (dryRun) {
@@ -971,14 +980,21 @@ class RoleWhitelistSyncService {
     this.logger.info('Starting departed members cleanup', { guildId, dryRun });
 
     try {
-      // Fetch guild and all members
+      // OPTIMIZATION: Use cache service for graceful member fetching with timeout handling
       const guild = await this.discordClient.guilds.fetch(guildId);
-      await guild.members.fetch({ time: 60000 }); // 60 second timeout for large guilds
-      const guildMembers = guild.members.cache;
+      const cacheService = getMemberCacheService();
+
+      this.logger.debug('Fetching guild members for departed member check', {
+        guildId,
+        totalGuildMembers: guild.memberCount
+      });
+
+      // Use cache service which handles large guilds with chunked fetching
+      const guildMembersCollection = await cacheService.getAllMembers(guild);
 
       this.logger.debug('Fetched guild members', {
         guildId,
-        memberCount: guildMembers.size
+        memberCount: guildMembersCollection.size
       });
 
       // Find all active role-based whitelist entries
@@ -1019,7 +1035,7 @@ class RoleWhitelistSyncService {
       // Check which users have left
       const departedUsers = [];
       for (const [discordUserId, entries] of entriesByUser) {
-        const member = guildMembers.get(discordUserId);
+        const member = guildMembersCollection.get(discordUserId);
         if (!member) {
           // User not in guild - they left
           departedUsers.push({

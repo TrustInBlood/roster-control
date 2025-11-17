@@ -1,9 +1,10 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { permissionMiddleware } = require('../handlers/permissionHandler');
 const { createResponseEmbed, sendError } = require('../utils/messageHandler');
-const { Whitelist, PlayerDiscordLink } = require('../database/models');
+const { PlayerDiscordLink } = require('../database/models');
 const { getHighestPriorityGroup, squadGroups } = require('../utils/environment');
-const { getAllTrackedRoles } = squadGroups;
+const { SQUAD_GROUPS } = require(squadGroups);
+const { getMemberCacheService } = require('../services/MemberCacheService');
 const { console: loggerConsole } = require('../utils/logger');
 
 module.exports = {
@@ -17,12 +18,23 @@ module.exports = {
         await interaction.deferReply();
 
         const guild = interaction.guild;
-        const trackedRoles = getAllTrackedRoles();
+        const cacheService = getMemberCacheService();
 
-        // Fetch all guild members with extended timeout for large servers
-        const members = await guild.members.fetch({ time: 60000 }); // 60 second timeout
+        // Get all staff role IDs (excluding Member roles for efficiency)
+        const staffRoleIds = [];
+        for (const [groupName, groupData] of Object.entries(SQUAD_GROUPS)) {
+          // Skip Member group - we only care about staff
+          if (groupName === 'Member') continue;
+          staffRoleIds.push(...groupData.discordRoles);
+        }
 
-        // Find staff members (non-Member roles) who lack proper Steam links
+        // OPTIMIZATION: Fetch only members with staff roles instead of all 10,000+ members
+        // This reduces fetch from ~10k+ to ~100-500 staff members
+        loggerConsole.log(`Fetching staff members with ${staffRoleIds.length} staff role(s) instead of all ${guild.memberCount} members`);
+        const members = await cacheService.getMembersByRole(guild, staffRoleIds);
+        loggerConsole.log(`Fetched ${members.size} staff members`);
+
+        // Find staff members who lack proper Steam links
         const unlinkedStaff = [];
 
         for (const [memberId, member] of members) {
@@ -30,7 +42,7 @@ module.exports = {
 
           const userGroup = getHighestPriorityGroup(member.roles.cache);
 
-          // Only check staff members (not regular Members)
+          // Double-check it's a staff role (should always be true now, but safety check)
           if (!userGroup || userGroup === 'Member') continue;
 
           // Check if they have a high-confidence Steam link
@@ -126,11 +138,11 @@ module.exports = {
       } catch (error) {
         loggerConsole.error('Unlinked staff command error:', error);
 
-        // Specific handling for guild members timeout
+        // Specific handling for guild members timeout (should be rare now with optimized fetching)
         if (error.code === 'GuildMembersTimeout') {
           await sendError(
             interaction,
-            'The server is too large to fetch all members in time. Please try again or contact an administrator if this persists.'
+            'Failed to fetch staff members in time. This is unusual with the optimized fetching. Please try again or contact an administrator.'
           );
           return;
         }

@@ -2,6 +2,7 @@ const { ON_DUTY_ROLE_ID } = require('../../config/discord');
 const { DutyStatusChange } = require('../database/models');
 const DutyStatusFactory = require('./DutyStatusFactory');
 const { console: loggerConsole } = require('../utils/logger');
+const { getMemberCacheService } = require('./MemberCacheService');
 
 class DutyStatusSyncService {
   constructor() {
@@ -43,7 +44,9 @@ class DutyStatusSyncService {
       // Try to fetch guild members if cache is incomplete and no role holders found
       if (discordRoleHolders.size === 0 && guild.members.cache.size < 100) {
         try {
-          await guild.members.fetch();
+          // OPTIMIZATION: Use cache service for member fetching
+          const cacheService = getMemberCacheService();
+          await cacheService.getAllMembers(guild);
           const updatedRoleHolders = onDutyRole.members;
           loggerConsole.log(`After member fetch: Found ${updatedRoleHolders.size} members with on-duty role`);
 
@@ -236,11 +239,14 @@ class DutyStatusSyncService {
   }
 
   async _checkForMissingRoles(guild, latestStatusByUser, discordRoleHolders, syncResults) {
+    const cacheService = getMemberCacheService();
+
     for (const [userId, latestStatus] of latestStatusByUser) {
       if (latestStatus.status && !discordRoleHolders.has(userId)) {
         // User is marked on-duty in database but doesn't have the role
         try {
-          const member = await guild.members.fetch(userId);
+          // OPTIMIZATION: Use cache service for individual member fetch
+          const member = await cacheService.getMember(guild, userId);
           const timeSinceChange = Date.now() - latestStatus.createdAt.getTime();
           const hoursAgo = timeSinceChange / (1000 * 60 * 60);
 

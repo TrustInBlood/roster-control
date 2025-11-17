@@ -81,9 +81,14 @@ client.on('ready', async () => {
   notificationService.initialize(client);
   loggerConsole.log('NotificationService initialized');
 
+  // Initialize MemberCacheService for optimized member fetching in large guilds
+  const { initializeMemberCache } = require('./services/MemberCacheService');
+  await initializeMemberCache(client);
+  loggerConsole.log('MemberCacheService initialized and cache warming started');
+
   // Log legacy command handler initialization
   loggerConsole.log('Legacy command handler initialized (messageCreate event)');
-    
+
   // Initialize whitelist functionality first (includes role-based cache)
   const whitelistServices = await initializeWhitelist();
     

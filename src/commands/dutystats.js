@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { DutyStatusChange } = require('../database/models');
 const { sendError } = require('../utils/messageHandler');
+const { getMemberCacheService } = require('../services/MemberCacheService');
 
 // Helper function to format milliseconds to human-readable duration
 function formatDuration(ms) {
@@ -278,24 +279,19 @@ async function handleLeaderboard(interaction, startDate, endDate, periodLabel, d
     return await sendError(interaction, 'No duty time recorded in the selected period.');
   }
 
-  // Fetch guild members to get display names
-  const leaderboardWithDisplayNames = await Promise.all(
-    leaderboard.map(async (entry) => {
-      try {
-        const member = await interaction.guild.members.fetch(entry.discordUserId);
-        return {
-          ...entry,
-          displayName: member.displayName
-        };
-      } catch (error) {
-        // User may have left the server, use username fallback
-        return {
-          ...entry,
-          displayName: entry.discordUsername
-        };
-      }
-    })
-  );
+  // OPTIMIZATION: Batch fetch all members at once instead of individual fetches
+  const cacheService = getMemberCacheService();
+  const userIds = leaderboard.map(entry => entry.discordUserId);
+  const members = await cacheService.getMembersBatch(interaction.guild, userIds);
+
+  // Map leaderboard entries with display names
+  const leaderboardWithDisplayNames = leaderboard.map((entry) => {
+    const member = members.get(entry.discordUserId);
+    return {
+      ...entry,
+      displayName: member ? member.displayName : entry.discordUsername // Fallback if user left server
+    };
+  });
 
   // Build embed
   const embed = new EmbedBuilder()

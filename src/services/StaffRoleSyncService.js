@@ -1,6 +1,7 @@
 const { createServiceLogger } = require('../utils/logger');
 const { discordRoles } = require('../utils/environment');
 const { getAllStaffRoles } = discordRoles;
+const { getMemberCacheService } = require('./MemberCacheService');
 
 class StaffRoleSyncService {
   constructor(client, logger = null, roleWhitelistSync = null) {
@@ -155,9 +156,18 @@ class StaffRoleSyncService {
         throw new Error(`Guild ${guildId} not found`);
       }
 
-      // Fetch all members
-      await guild.members.fetch();
-      const allMembers = guild.members.cache;
+      // OPTIMIZATION: Fetch only staff-related members instead of all 10,000+ members
+      // Get all role IDs we need to check (individual staff roles + meta STAFF role)
+      const rolesToFetch = [...this.individualStaffRoles, this.staffRoleId];
+      const cacheService = getMemberCacheService();
+
+      this.logger.info('Fetching staff members for bulk sync', {
+        totalGuildMembers: guild.memberCount,
+        staffRolesToCheck: rolesToFetch.length,
+        guildName: guild.name
+      });
+
+      const allMembers = await cacheService.getMembersByRole(guild, rolesToFetch);
 
       let processed = 0;
       let added = 0;
@@ -165,8 +175,8 @@ class StaffRoleSyncService {
       let errors = 0;
       let skipped = 0;
 
-      this.logger.info('Processing members for staff role sync', {
-        totalMembers: allMembers.size,
+      this.logger.info('Processing staff members for role sync', {
+        staffMembersFound: allMembers.size,
         guildName: guild.name
       });
 

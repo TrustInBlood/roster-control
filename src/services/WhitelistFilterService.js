@@ -2,6 +2,7 @@ const { PlayerDiscordLink } = require('../database/models');
 const { Op } = require('sequelize');
 const { getHighestPriorityGroup } = require('../utils/environment');
 const { logger } = require('../utils/logger');
+const { getMemberCacheService } = require('./MemberCacheService');
 
 class WhitelistFilterService {
   constructor() {
@@ -109,6 +110,16 @@ class WhitelistFilterService {
         return entries;
       }
 
+      // OPTIMIZATION: Batch fetch all discord members at once instead of one-by-one in loop
+      const cacheService = getMemberCacheService();
+      const discordUserIds = links.map(link => link.discord_user_id);
+      const members = await cacheService.getMembersBatch(guild, discordUserIds);
+
+      this.logger.debug('Batch fetched members for role-based filtering', {
+        linksCount: links.length,
+        membersFound: members.size
+      });
+
       for (const entry of entries) {
         try {
           const link = linkBySteamId.get(entry.steamid64);
@@ -118,22 +129,15 @@ class WhitelistFilterService {
             continue;
           }
 
-          let member;
-          try {
-            member = await guild.members.fetch(link.discord_user_id);
-          } catch (error) {
-            if (error.code === 10007) {
-              this.logger.debug('Discord user not found in guild (may have left)', {
-                steamid64: entry.steamid64,
-                discordUserId: link.discord_user_id
-              });
-              filteredEntries.push(entry);
-              continue;
-            }
-            throw error;
-          }
+          // Get member from pre-fetched batch
+          const member = members.get(link.discord_user_id);
 
           if (!member) {
+            // User not in guild or left
+            this.logger.debug('Discord user not found in guild (may have left)', {
+              steamid64: entry.steamid64,
+              discordUserId: link.discord_user_id
+            });
             filteredEntries.push(entry);
             continue;
           }
@@ -208,8 +212,10 @@ class WhitelistFilterService {
         return entries;
       }
 
+      // OPTIMIZATION: Use cache service for batch member fetching
+      const cacheService = getMemberCacheService();
       const discordUserIds = links.map(link => link.discord_user_id);
-      const members = await guild.members.fetch({ user: discordUserIds });
+      const members = await cacheService.getMembersBatch(guild, discordUserIds);
 
       const memberByDiscordId = new Map();
       members.forEach(member => memberByDiscordId.set(member.user.id, member));
