@@ -73,57 +73,47 @@ class MemberCacheService {
    */
   async getMembersByRole(guild, roleIds) {
     const roleArray = Array.isArray(roleIds) ? roleIds : [roleIds];
-
-    this.logger.debug(`Fetching members with roles [${roleArray.join(', ')}] in guild ${guild.name}`);
-
-    // Try to fetch directly by role (most efficient for large guilds)
     const { Collection } = require('discord.js');
+
+    this.logger.debug(`Filtering members with roles [${roleArray.join(', ')}] in guild ${guild.name}`);
+
+    // OPTIMIZATION: Use cached members from guild (already fetched on startup)
+    // Discord.js caches members automatically with GuildMembers intent
     const membersByRole = new Collection();
 
     try {
-      // Fetch members for each role in parallel
-      const fetchPromises = roleArray.map(async (roleId) => {
-        try {
-          // Use guild.members.fetch with role filter (Discord API does server-side filtering)
-          const members = await guild.members.fetch({
-            force: false, // Use cache when available
-            time: this.config.fetchTimeout
-          });
+      // First, ensure we have members cached
+      let allMembers;
 
-          // Filter by role
-          return members.filter(member => member.roles.cache.has(roleId));
-        } catch (error) {
-          this.logger.warn(`Failed to fetch members for role ${roleId}:`, error.message);
-          return new Collection();
+      if (this.isCacheValid(guild.id)) {
+        // Use our cache
+        allMembers = this.cache.get(guild.id).members;
+        this.logger.debug(`Using cached members (${allMembers.size} members)`);
+      } else {
+        // Cache expired or not available, use Discord.js cache directly
+        allMembers = guild.members.cache;
+        this.logger.debug(`Using Discord.js cache (${allMembers.size} members)`);
+
+        // If Discord cache is small, we might need to fetch
+        if (allMembers.size < 100) {
+          this.logger.warn('Member cache is small, fetching all members...');
+          allMembers = await this.getAllMembers(guild);
         }
-      });
+      }
 
-      const results = await Promise.all(fetchPromises);
+      // Filter members by role (client-side filtering on cached data)
+      for (const [memberId, member] of allMembers) {
+        // Check if member has any of the specified roles
+        if (roleArray.some(roleId => member.roles.cache.has(roleId))) {
+          membersByRole.set(memberId, member);
+        }
+      }
 
-      // Merge all role members (deduplicate by member ID)
-      results.forEach(roleMembers => {
-        roleMembers.forEach((member, id) => {
-          if (!membersByRole.has(id)) {
-            membersByRole.set(id, member);
-          }
-        });
-      });
-
-      this.logger.info(`Fetched ${membersByRole.size} members with specified roles in ${guild.name}`);
+      this.logger.info(`Found ${membersByRole.size} members with specified roles in ${guild.name}`);
       return membersByRole;
 
     } catch (error) {
-      this.logger.error(`Error fetching members by role in guild ${guild.name}:`, error);
-
-      // Fallback: use cache and filter locally
-      if (this.isCacheValid(guild.id)) {
-        this.logger.warn('Falling back to cached members for role filtering');
-        const cachedMembers = this.cache.get(guild.id).members;
-        return cachedMembers.filter(member =>
-          roleArray.some(roleId => member.roles.cache.has(roleId))
-        );
-      }
-
+      this.logger.error(`Error filtering members by role in guild ${guild.name}:`, error);
       throw error;
     }
   }
