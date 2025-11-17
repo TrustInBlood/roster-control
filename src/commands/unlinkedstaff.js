@@ -3,7 +3,7 @@ const { permissionMiddleware } = require('../handlers/permissionHandler');
 const { createResponseEmbed, sendError } = require('../utils/messageHandler');
 const { PlayerDiscordLink } = require('../database/models');
 const { getHighestPriorityGroup, squadGroups } = require('../utils/environment');
-const { SQUAD_GROUPS } = require(squadGroups);
+const { SQUAD_GROUPS } = squadGroups;
 const { getMemberCacheService } = require('../services/MemberCacheService');
 const { console: loggerConsole } = require('../utils/logger');
 
