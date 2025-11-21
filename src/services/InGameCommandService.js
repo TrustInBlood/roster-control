@@ -3,7 +3,7 @@ const { createServiceLogger } = require('../utils/logger');
 
 /**
  * Service for handling in-game chat commands via SquadJS
- * Listens to CHAT_MESSAGE events and responds to commands like !mywhitelist
+ * Listens to CHAT_MESSAGE events and responds to commands like !mywhitelist, !whitelist, !wl
  */
 class InGameCommandService {
   constructor(connectionManager, config) {
@@ -46,7 +46,7 @@ class InGameCommandService {
       const player = data.player;
 
       // Route to appropriate command handler
-      if (message === '!mywhitelist') {
+      if (message === '!mywhitelist' || message === '!whitelist' || message === '!wl') {
         // Check rate limit
         if (this.isOnCooldown(player.steamID)) {
           const remainingSeconds = this.getRemainingCooldown(player.steamID);
@@ -63,10 +63,11 @@ class InGameCommandService {
             timeMessage = `${remainingSeconds} second${remainingSeconds !== 1 ? 's' : ''}`;
           }
 
-          this.logger.info('Player on cooldown for !mywhitelist', {
+          this.logger.info('Player on cooldown for whitelist command', {
             serverId: server.id,
             playerName: player.name,
             steamID: player.steamID,
+            command: message,
             remainingSeconds
           });
 
@@ -74,7 +75,7 @@ class InGameCommandService {
           this.connectionManager.sendRCONWarn(
             server.id,
             player.steamID,
-            `Please wait ${timeMessage} before using !mywhitelist again.`
+            `Please wait ${timeMessage} before using this command again.`
           );
           return;
         }
@@ -101,13 +102,13 @@ class InGameCommandService {
   }
 
   /**
-   * Handle !mywhitelist command - Show player's whitelist status
+   * Handle whitelist status command (!mywhitelist, !whitelist, !wl) - Show player's whitelist status
    * @param {Object} player - Player object from SquadJS
    * @param {Object} server - Server configuration
    */
   async handleMyWhitelistCommand(player, server) {
     try {
-      this.logger.info('Processing !mywhitelist command', {
+      this.logger.info('Processing whitelist status command', {
         serverId: server.id,
         serverName: server.name,
         playerId: player.id,
@@ -198,7 +199,7 @@ class InGameCommandService {
       }
 
     } catch (error) {
-      this.logger.error('Error processing !mywhitelist command:', {
+      this.logger.error('Error processing whitelist status command:', {
         serverId: server.id,
         serverName: server.name,
         playerId: player.id,
