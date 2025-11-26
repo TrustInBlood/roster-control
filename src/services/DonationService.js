@@ -136,9 +136,9 @@ class DonationService {
       };
     }
 
-    // Extract Steam IDs from message
-    const steamIds = this.extractSteamIds(message);
-    serviceLogger.info(`Extracted ${steamIds.length} Steam IDs from donation message`);
+    // Extract Steam IDs from name and message
+    const steamIds = this.extractSteamIds(from_name, message);
+    serviceLogger.info(`Extracted ${steamIds.length} Steam IDs from donation name and message`);
 
     // Validate Steam ID count
     const steamIdValidation = this.validateSteamIdCount(donationAmount, steamIds.length);
@@ -229,7 +229,7 @@ class DonationService {
     const successCount = results.filter(r => r.success).length;
     const failureCount = results.filter(r => !r.success).length;
 
-    serviceLogger.info(`Donation processing complete`, {
+    serviceLogger.info('Donation processing complete', {
       total: steamIds.length,
       success: successCount,
       failed: failureCount
@@ -256,7 +256,7 @@ class DonationService {
    */
   formatNotificationData(donationData, processingResult) {
     const { from_name, amount, message, email } = donationData;
-    const steamIds = this.extractSteamIds(message);
+    const steamIds = this.extractSteamIds(from_name, message);
 
     return {
       donorName: from_name,
