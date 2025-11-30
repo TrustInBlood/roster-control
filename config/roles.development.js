@@ -25,6 +25,7 @@ const COMMAND_PERMISSIONS = {
   'unlinkedstaff': ['1365205433236717598'], // Admin roles can view unlinked staff
   'auditwhitelist': ['1365205433236717598'], // Admin roles can audit whitelist security
   'checkenv': ['1365205433236717598'],    // Admin roles can check environment
+  'addmember': ['1444815201516912720'],  // Applications role
 
   // Public commands
   'ping': [],  // Everyone can use

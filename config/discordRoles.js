@@ -16,6 +16,7 @@ const DISCORD_ROLES = {
   SQUAD_ADMIN: '814554233377652736',       // "Squad Admin"
   MODERATOR: '1285786746948423730',       // "Moderator"
   STAFF: '1397788169264562267',           // "Staff"
+  APPLICATIONS: '1332116503260168233',     // "Applications" - Handles member applications
 
   // Duty System Roles
   ON_DUTY: '1402396896257118258',
@@ -37,7 +38,7 @@ const DISCORD_ROLES = {
   SERVICE_MEMBER: '1249133598255349840',
   
   // Member Roles (add your member role IDs here)
-  MEMBER: '680589344217497617' // Replace with actual member role ID
+  MEMBER: '680589344217497617' 
 };
 
 // Helper function to get all admin role IDs

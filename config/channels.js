@@ -9,6 +9,8 @@ const CHANNELS = {
   MONITORED_VOICE: '1305677735707934822',  // Replace with the voice channel ID to monitor
   // Channel for bot activity logs (auto-linking, commands, etc.)
   BOT_LOGS: '1412709300941492246',  // Replace with your bot logs channel ID
+  // Channel for member addition logs
+  MEMBER_ADDITION_LOGS: '1412709300941492246',  // Member additions via /addmember command
   // Channel for donation announcements (public, no email)
   DONATION_ANNOUNCEMENTS: '1350251098547683459',
   // Channel for donation admin logs (includes email)
@@ -37,6 +39,7 @@ const NOTIFICATION_ROUTES = {
   tutor_management: 'BOT_LOGS',
   account_link: 'BOT_LOGS',
   whitelist: 'BOT_LOGS',
+  member_addition: 'MEMBER_ADDITION_LOGS',
   command_usage: 'BOT_LOGS',
   error: 'BOT_LOGS',
   warning: 'BOT_LOGS',

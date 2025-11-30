@@ -16,6 +16,7 @@ const DISCORD_ROLES_DEV = {
   SQUAD_ADMIN: null,                         // CREATE: "Test Squad Admin"
   MODERATOR: null,                           // CREATE: "Test Moderator"
   STAFF: '1420297163166191627',                               // CREATE: "Test Staff"
+  APPLICATIONS: '1444815201516912720',                        // CREATE: "Test Applications" - Handles member applications
 
   // Duty System Roles
   ON_DUTY: '1407218174117679125',            // "On-Duty Dev" - existing

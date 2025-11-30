@@ -23,6 +23,7 @@ const COMMAND_PERMISSIONS = {
   'info': getAllStaffRoles(),       // All staff roles can view whitelist info
   'revoke': getAllAdminRoles(),     // Admin-only: Revoke whitelist entries
   'checkenv': getAllAdminRoles(),   // All admin roles can check environment
+  'addmember': [DISCORD_ROLES.APPLICATIONS], // Applications role only: Add new members with account linking
   'duty': getAllAdminRoles(),       // All admin roles can use duty commands
   'dutystats': getAllAdminRoles(),  // All admin roles can view duty statistics
   'user': getAllAdminRoles(),       // Subcommand: View duty time stats for a specific user
