@@ -29,7 +29,6 @@ module.exports = {
         .setName('steamid')
         .setDescription('Steam ID64 of the user')
         .setRequired(true))
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
     .setContexts([InteractionContextType.Guild]),
 
   async execute(interaction) {
