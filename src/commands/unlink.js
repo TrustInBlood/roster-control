@@ -144,17 +144,33 @@ module.exports = {
             // User confirmed - proceed with unlink
             await buttonInteraction.deferUpdate();
 
-            // Record unlink in history
-            await UnlinkHistory.recordUnlink(
-              discordUserId,
-              existingLink.steamid64,
-              existingLink.eosID,
-              existingLink.username,
-              'User request via /unlink command'
-            );
+            // Find ALL links for this user (not just primary)
+            const allLinks = await PlayerDiscordLink.findAllByDiscordId(discordUserId);
 
-            // Delete the link
-            await existingLink.destroy();
+            // Record ALL links in UnlinkHistory before deletion (for alt detection/tracking)
+            for (const link of allLinks) {
+              const isPrimary = link.steamid64 === existingLink.steamid64;
+              await UnlinkHistory.recordUnlink(
+                discordUserId,
+                link.steamid64,
+                link.eosID,
+                link.username,
+                isPrimary
+                  ? 'User request via /unlink command (primary link)'
+                  : `User request via /unlink command (secondary link, ${(link.confidence_score * 100).toFixed(0)}% confidence)`
+              );
+            }
+
+            // Delete ALL links for this user to prevent orphaned secondary links
+            for (const link of allLinks) {
+              await link.destroy();
+            }
+
+            interaction.client.logger?.info('Deleted all links for user during unlink', {
+              discordUserId,
+              linkCount: allLinks.length,
+              steamIds: allLinks.map(l => l.steamid64)
+            });
 
             // Calculate when cooldown ends
             const cooldownEndDate = new Date();
