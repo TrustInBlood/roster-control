@@ -373,6 +373,342 @@ class BattleMetricsService {
       return false;
     }
   }
+
+  /**
+   * Get all flags for a specific player
+   * @param {string} playerId - BattleMetrics player ID
+   * @returns {Promise<Array>} Player flags
+   */
+  async getPlayerFlags(playerId) {
+    try {
+      loggerConsole.log('Fetching flags for player:', playerId);
+
+      const response = await this.axiosInstance.get(`/players/${playerId}`, {
+        params: {
+          include: 'flagPlayer'
+        }
+      });
+
+      const included = response.data.included || [];
+
+      // Get active flag assignments (flagPlayer with no removedAt)
+      const activeFlagAssignments = included
+        .filter(item => item.type === 'flagPlayer')
+        .filter(item => !item.attributes?.removedAt);
+
+      // Now we need to get the flag names - they might be in included as playerFlag types
+      const flagDefinitions = included
+        .filter(item => item.type === 'playerFlag')
+        .reduce((map, flag) => {
+          map[flag.id] = flag.attributes?.name || '';
+          return map;
+        }, {});
+
+      const flags = activeFlagAssignments.map(assignment => {
+        const flagId = assignment.relationships?.playerFlag?.data?.id;
+        return {
+          id: assignment.id,
+          name: flagDefinitions[flagId] || 'Unknown',
+          createdAt: assignment.attributes?.addedAt || null
+        };
+      });
+
+      loggerConsole.log(`Player ${playerId} has ${flags.length} active flags`);
+      return flags;
+    } catch (error) {
+      loggerConsole.error('Error fetching player flags:', {
+        playerId,
+        error: error.message,
+        status: error.response?.status
+      });
+      throw new Error(`Failed to fetch player flags: ${error.message}`);
+    }
+  }
+
+  /**
+   * Add a flag to a player
+   * @param {string} playerId - BattleMetrics player ID
+   * @param {string} flagName - Flag name to add
+   * @returns {Promise<Object>} Result object
+   */
+  async addPlayerFlag(playerId, flagName) {
+    try {
+      loggerConsole.log('Adding flag to player:', { playerId, flagName });
+
+      // Step 1: Look up the flag ID by name
+      loggerConsole.log('Looking up flag ID for:', flagName);
+      const flagsResponse = await this.axiosInstance.get('/player-flags', {
+        params: {
+          'filter[personal]': false,
+          'page[size]': 100
+        }
+      });
+
+      const flags = flagsResponse.data.data || [];
+      const targetFlag = flags.find(f => f.attributes?.name === flagName);
+
+      if (!targetFlag) {
+        const errorMsg = `Flag "${flagName}" not found in organization flags`;
+        loggerConsole.error(errorMsg);
+        return {
+          success: false,
+          playerId,
+          flagName,
+          error: errorMsg,
+          notFound: true
+        };
+      }
+
+      const flagId = targetFlag.id;
+      loggerConsole.log('Found flag ID:', flagId);
+
+      // Step 2: Create player flag assignment using the correct endpoint
+      const data = {
+        data: [
+          {
+            type: 'playerFlag',
+            id: flagId
+          }
+        ]
+      };
+
+      const response = await this.axiosInstance.post(`/players/${playerId}/relationships/flags`, data);
+
+      loggerConsole.log('Player flag added successfully:', {
+        playerId,
+        flagName,
+        flagId: response.data.data?.id,
+        status: response.status
+      });
+
+      return {
+        success: true,
+        playerId,
+        flagName,
+        flagId: response.data.data?.id,
+        status: response.status
+      };
+    } catch (error) {
+      const errorMsg = error.response?.data?.errors?.[0]?.detail || error.message;
+      const status = error.response?.status;
+
+      // Handle 409 Conflict (flag already added) as a success case
+      if (status === 409) {
+        loggerConsole.info(`Flag already exists for player ${playerId}:`, flagName);
+        return {
+          success: true,
+          alreadyHasFlag: true,
+          playerId,
+          flagName
+        };
+      }
+
+      loggerConsole.error('Error adding player flag:', {
+        playerId,
+        flagName,
+        error: errorMsg,
+        status,
+        fullErrorResponse: JSON.stringify(error.response?.data, null, 2)
+      });
+
+      return {
+        success: false,
+        playerId,
+        flagName,
+        error: errorMsg,
+        status,
+        notFound: status === 404,
+        forbidden: status === 403,
+        rateLimited: status === 429
+      };
+    }
+  }
+
+  /**
+   * Remove a specific flag from a player
+   * @param {string} flagId - Player flag ID (not player ID)
+   * @returns {Promise<Object>} Result object
+   */
+  async removePlayerFlag(flagId) {
+    try {
+      loggerConsole.log('Removing player flag:', flagId);
+
+      const response = await this.axiosInstance.delete(`/player-flags/${flagId}`);
+
+      loggerConsole.log('Player flag removed successfully:', {
+        flagId,
+        status: response.status
+      });
+
+      return {
+        success: true,
+        flagId,
+        status: response.status
+      };
+    } catch (error) {
+      const errorMsg = error.response?.data?.errors?.[0]?.detail || error.message;
+      const status = error.response?.status;
+
+      loggerConsole.error('Error removing player flag:', {
+        flagId,
+        error: errorMsg,
+        status
+      });
+
+      return {
+        success: false,
+        flagId,
+        error: errorMsg,
+        status,
+        notFound: status === 404,
+        forbidden: status === 403,
+        rateLimited: status === 429
+      };
+    }
+  }
+
+  /**
+   * Search for players with a specific flag
+   * @param {string} flagName - Flag name to search for (e.g., "=B&B= Member")
+   * @param {Function} onProgress - Progress callback
+   * @returns {Promise<Array>} Players with the specified flag
+   */
+  async searchPlayersByFlag(flagName, onProgress = null) {
+    try {
+      loggerConsole.log('Searching BattleMetrics players with flag:', flagName);
+
+      // Step 1: Find the flag ID by name
+      loggerConsole.log('Step 1: Finding flag ID for:', flagName);
+      let flagId = null;
+
+      const flagsResponse = await this.axiosInstance.get('/player-flags', {
+        params: {
+          'filter[personal]': false,
+          'page[size]': 100
+        }
+      });
+
+      const flags = flagsResponse.data.data || [];
+      const targetFlag = flags.find(f => f.attributes?.name === flagName);
+
+      if (!targetFlag) {
+        loggerConsole.warn(`Flag "${flagName}" not found in organization flags`);
+        return [];
+      }
+
+      flagId = targetFlag.id;
+      loggerConsole.log(`Found flag ID: ${flagId} for "${flagName}"`);
+
+      // Step 2: Search for players with flag using filter
+      loggerConsole.log(`Step 2: Searching for players with flag ${flagId} using filter`);
+
+      const playerMap = new Map();
+      let nextUrl = null;
+      let pageCount = 0;
+      let totalPlayers = 0;
+
+      do {
+        const url = nextUrl || '/players';
+        const params = nextUrl ? {} : {
+          'filter[playerFlags]': flagId,
+          'include': 'identifier,playerFlag',
+          'page[size]': 100
+        };
+
+        const urlToFetch = nextUrl ? nextUrl.replace('https://api.battlemetrics.com', '') : url;
+
+        const response = await this.axiosInstance.get(urlToFetch, { params: nextUrl ? {} : params });
+        const players = response.data.data || [];
+        const included = response.data.included || [];
+        totalPlayers += players.length;
+
+        // Build identifier lookup map
+        const identifierMap = new Map();
+
+        for (const item of included) {
+          if (item.type === 'identifier') {
+            const playerId = item.relationships?.player?.data?.id;
+            const identifierType = item.attributes?.type;
+            const identifierValue = item.attributes?.identifier;
+
+            if (playerId && identifierType && identifierValue) {
+              if (!identifierMap.has(playerId)) {
+                identifierMap.set(playerId, { steamId: null, eosId: null });
+              }
+
+              const playerIdentifiers = identifierMap.get(playerId);
+              if (identifierType === 'steamID') {
+                playerIdentifiers.steamId = identifierValue;
+              } else if (identifierType === 'eosID') {
+                playerIdentifiers.eosId = identifierValue;
+              }
+            }
+          }
+        }
+
+        // Process players
+        for (const playerData of players) {
+          const playerId = playerData.id;
+          const identifiers = identifierMap.get(playerId) || { steamId: null, eosId: null };
+
+          const playerFlags = included
+            .filter(item => item.type === 'playerFlag')
+            .map(flag => ({
+              id: flag.id,
+              name: flag.attributes?.name || '',
+              createdAt: flag.attributes?.createdAt || null
+            }));
+
+          playerMap.set(playerId, {
+            id: playerId,
+            name: playerData.attributes?.name || 'Unknown',
+            steamId: identifiers.steamId,
+            eosId: identifiers.eosId,
+            flags: playerFlags.length > 0 ? playerFlags : [{ id: flagId, name: flagName, createdAt: null }],
+            metadata: {
+              battlemetricsId: playerId,
+              importedAt: new Date().toISOString()
+            }
+          });
+        }
+
+        pageCount++;
+        nextUrl = response.data.links?.next || null;
+
+        if (onProgress) {
+          const shouldStop = await onProgress({
+            currentPage: pageCount,
+            totalFetched: playerMap.size,
+            batchSize: players.length,
+            hasMore: !!nextUrl,
+            totalPlayers,
+            playersWithFlag: playerMap.size
+          });
+
+          if (shouldStop === false) {
+            break;
+          }
+        }
+
+        // Rate limiting
+        if (nextUrl) {
+          await new Promise(resolve => setTimeout(resolve, 220));
+        }
+      } while (nextUrl);
+
+      const players = Array.from(playerMap.values());
+      const playersWithSteamId = players.filter(p => p.steamId).length;
+      loggerConsole.log(`Found ${players.length} players with "${flagName}" flag (${playersWithSteamId} with Steam ID)`);
+      return players;
+    } catch (error) {
+      loggerConsole.error('Error searching players by flag:', {
+        flagName,
+        error: error.message,
+        status: error.response?.status
+      });
+      throw new Error(`Failed to search players by flag: ${error.message}`);
+    }
+  }
 }
 
 // Export singleton instance

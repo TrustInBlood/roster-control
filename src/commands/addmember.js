@@ -5,6 +5,7 @@ const { PlayerDiscordLink, AuditLog } = require('../database/models');
 const { isValidSteamId } = require('../utils/steamId');
 const { triggerUserRoleSync } = require('../utils/triggerUserRoleSync');
 const BattleMetricsService = require('../services/BattleMetricsService');
+const BattleMetricsScrubService = require('../services/BattleMetricsScrubService');
 const { loadConfig } = require('../utils/environment');
 const { createServiceLogger } = require('../utils/logger');
 
@@ -224,6 +225,7 @@ module.exports = {
               linkUpdated: false,
               roleAdded: false,
               nicknameSet: false,
+              flagAdded: null,
               errors: []
             };
 
@@ -292,7 +294,36 @@ module.exports = {
               results.errors.push(`Failed to set nickname: ${nicknameError.message}`);
             }
 
-            // 4. Create audit log
+            // 4. Add BattleMetrics member flag
+            const bmPlayerId = bmResult.playerData.id;
+            try {
+              const bmScrubService = new BattleMetricsScrubService(interaction.client);
+
+              const flagResult = await bmScrubService.addMemberFlag(bmPlayerId, {
+                actorType: 'user',
+                actorId: interaction.user.id,
+                actorName: interaction.user.username,
+                playerName: playerName,
+                steamId: steamId,
+                discordUserId: targetUser.id
+              });
+
+              if (flagResult.success) {
+                results.flagAdded = flagResult.alreadyHasFlag ? 'already_has' : 'added';
+                serviceLogger.info(`BattleMetrics flag ${results.flagAdded} for player ${bmPlayerId}`);
+              } else {
+                results.flagAdded = 'failed';
+                const errorMsg = `${flagResult.error || 'Unknown error'} (Status: ${flagResult.status})`;
+                serviceLogger.warn(`Failed to add BattleMetrics flag: ${errorMsg}`);
+                results.errors.push(`BattleMetrics flag: ${errorMsg}`);
+              }
+            } catch (flagError) {
+              results.flagAdded = 'failed';
+              serviceLogger.error(`Error adding BattleMetrics flag: ${flagError.message}`);
+              results.errors.push(`BattleMetrics flag error: ${flagError.message}`);
+            }
+
+            // 5. Create audit log
             await AuditLog.create({
               actionType: 'MEMBER_ADDED',
               actorType: 'user',
@@ -313,6 +344,7 @@ module.exports = {
                 linkUpdated: results.linkUpdated,
                 roleAdded: results.roleAdded,
                 nicknameSet: results.nicknameSet,
+                flagAdded: results.flagAdded,
                 errors: results.errors
               },
               success: results.errors.length === 0,
@@ -343,7 +375,15 @@ module.exports = {
 
             successFields.push(
               { name: 'Member Role', value: results.roleAdded ? '✅ Added' : (hasMemberRole ? '✅ Already has' : '❌ Failed'), inline: true },
-              { name: 'Nickname', value: results.nicknameSet ? `✅ Set to \`${proposedNickname}\`` : '❌ Failed', inline: true }
+              { name: 'Nickname', value: results.nicknameSet ? `✅ Set to \`${proposedNickname}\`` : '❌ Failed', inline: true },
+              {
+                name: 'BattleMetrics Flag',
+                value: results.flagAdded === 'added' ? '✅ Added' :
+                  results.flagAdded === 'already_has' ? '✅ Already has' :
+                    results.flagAdded === 'failed' ? '❌ Failed' :
+                      '⚠️ Unknown',
+                inline: true
+              }
             );
 
             if (results.errors.length > 0) {
@@ -379,7 +419,14 @@ module.exports = {
                     { name: 'Added By', value: `<@${interaction.user.id}> (${interaction.user.tag})`, inline: false },
                     { name: 'Link Status', value: results.linkCreated ? 'New link created' : (results.linkUpdated ? 'Existing link updated' : 'Link already existed'), inline: true },
                     { name: 'Role Added', value: results.roleAdded ? '✅ Yes' : (hasMemberRole ? 'Already had role' : '❌ Failed'), inline: true },
-                    { name: 'Nickname Set', value: results.nicknameSet ? '✅ Yes' : '❌ Failed', inline: true }
+                    { name: 'Nickname Set', value: results.nicknameSet ? '✅ Yes' : '❌ Failed', inline: true },
+                    {
+                      name: 'BM Flag',
+                      value: results.flagAdded === 'added' ? '✅ Added' :
+                        results.flagAdded === 'already_has' ? '✅ Already has' :
+                          '❌ Failed',
+                      inline: true
+                    }
                   ],
                   color: 0x4caf50,
                   timestamp: true
