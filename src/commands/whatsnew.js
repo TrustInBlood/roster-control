@@ -29,6 +29,7 @@ module.exports = {
                  '• **BattleMetrics Member Flag** - Automatically adds "=B&B= Member" flag to player profiles\n' +
                  '• **Steam Account Linking** - Creates confidence 1.0 link with BattleMetrics validation\n' +
                  '• **Automatic Role Sync** - Triggers whitelist and role synchronization on member addition\n' +
+                 '• **Welcome Message** - Automatically sends welcome message to members chat with tag instructions\n' +
                  '• **Comprehensive Logging** - Full audit trail with BattleMetrics profile metadata\n' +
                  '• **BattleMetrics Verification** - Validates player exists in BattleMetrics before adding\n' +
                  '• **Nickname Management** - Interactive nickname editing with modal dialog during addition\n' +
@@ -62,7 +63,8 @@ module.exports = {
                    '7. Sets Discord server nickname\n' +
                    '8. Adds "=B&B= Member" flag in BattleMetrics\n' +
                    '9. Triggers whitelist synchronization\n' +
-                   '10. Logs to audit trail and member addition channel',
+                   '10. Logs to audit trail and member addition channel\n' +
+                   '11. Sends welcome message to members chat',
               inline: false
             },
             {

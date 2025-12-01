@@ -11,6 +11,10 @@ const CHANNELS = {
   BOT_LOGS: '1412709300941492246',  // Replace with your bot logs channel ID
   // Channel for member addition logs
   MEMBER_ADDITION_LOGS: '1412709300941492246',  // Member additions via /addmember command
+  // Channel for member welcome messages
+  MEMBER_CHAT: '787108437611249694',  // Public member chat where welcome messages are sent
+  // Channel for member rules reference
+  MEMBER_RULES: '1226929135582969967',  // Member rules channel
   // Channel for donation announcements (public, no email)
   DONATION_ANNOUNCEMENTS: '1350251098547683459',
   // Channel for donation admin logs (includes email)

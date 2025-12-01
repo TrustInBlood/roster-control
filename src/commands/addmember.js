@@ -440,6 +440,26 @@ module.exports = {
               serviceLogger.error(`Failed to send log to channel: ${logError.message}`);
             }
 
+            // 8. Send welcome message to members chat
+            try {
+              const memberChatId = CHANNELS.MEMBER_CHAT;
+              const memberRulesId = CHANNELS.MEMBER_RULES;
+              const memberChat = await interaction.client.channels.fetch(memberChatId);
+
+              if (memberChat) {
+                const welcomeMessage = `**Let's welcome our new member!!!** <@${targetUser.id}>\n\n` +
+                  `Make sure to change your tag to -B&B- in game (DO NOT PUT "=B&B=" as those are admin tags)\n` +
+                  `And read all the rules in <#${memberRulesId}>`;
+
+                await memberChat.send(welcomeMessage);
+                serviceLogger.info(`Sent welcome message to members chat ${memberChatId}`);
+              } else {
+                serviceLogger.warn(`Members chat ${memberChatId} not found`);
+              }
+            } catch (welcomeError) {
+              serviceLogger.error(`Failed to send welcome message: ${welcomeError.message}`);
+            }
+
           } catch (error) {
             serviceLogger.error(`Error processing member addition: ${error.message}`, { stack: error.stack });
 
