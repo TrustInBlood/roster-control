@@ -1,53 +1,51 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
-const { VerificationCode, PlayerDiscordLink } = require('../database/models');
-const { config: whitelistConfig } = require('../../config/whitelist');
-const { container } = require('../core/ServiceContainer');
+const { PlayerDiscordLink, UnlinkHistory } = require('../database/models');
+const { isValidSteamId } = require('../utils/steamId');
+const { triggerUserRoleSync } = require('../utils/triggerUserRoleSync');
+const { Op } = require('sequelize');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('linkid')
-    .setDescription('Generate a verification code to link your Discord account with your game account'),
-  
+    .setDescription('Link your Discord account to your Steam account')
+    .addStringOption(option =>
+      option.setName('steamid')
+        .setDescription('Your 17-digit Steam ID64 (e.g., 76561198XXXXXXXXX)')
+        .setRequired(true)),
+
   async execute(interaction) {
     try {
-      // Defer reply immediately to prevent timeout (Discord gives 3 seconds)
+      // Defer reply immediately to prevent timeout
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
       const discordUserId = interaction.user.id;
+      const steamId = interaction.options.getString('steamid').trim();
 
-      // Check if user already has an active verification code
-      const activeCode = await VerificationCode.findOne({
-        where: {
-          discord_user_id: discordUserId,
-          expiration: { [require('sequelize').Op.gt]: new Date() }
-        }
-      });
-
-      if (activeCode) {
-        const timeUntilExpiry = Math.ceil((activeCode.expiration - new Date()) / 1000 / 60);
-        const alreadyActiveEmbed = {
-          color: 0xffa500,
-          title: 'Verification Code Already Active',
-          description: `You already have an active verification code: **${activeCode.code}**`,
+      // Validate Steam ID format
+      if (!isValidSteamId(steamId)) {
+        const invalidEmbed = {
+          color: 0xff4444,
+          title: '❌ Invalid Steam ID',
+          description: 'The Steam ID you provided is not valid.',
           fields: [
             {
-              name: 'Current Code',
-              value: activeCode.code,
-              inline: true
-            },
-            {
-              name: 'Expires In',
-              value: `${timeUntilExpiry} minute${timeUntilExpiry !== 1 ? 's' : ''} (<t:${Math.floor(activeCode.expiration.getTime() / 1000)}:R>)`,
-              inline: true
-            },
-            {
-              name: 'How to use',
-              value: `Type \`${activeCode.code}\` in Squad game chat to link your account.`,
+              name: 'What you entered',
+              value: `\`${steamId}\``,
               inline: false
             },
             {
-              name: 'Need a new code?',
-              value: 'Wait for this code to expire, or use it first.',
+              name: 'Expected format',
+              value: 'Steam ID64 must be exactly 17 digits starting with 7656119',
+              inline: false
+            },
+            {
+              name: 'Example',
+              value: '`76561198123456789`',
+              inline: false
+            },
+            {
+              name: 'How to find your Steam ID',
+              value: 'Visit [steamid.io](https://steamid.io) and enter your Steam profile URL or locate it on your Steam profile page.',
               inline: false
             }
           ],
@@ -57,9 +55,69 @@ module.exports = {
           }
         };
 
-        await interaction.editReply({
-          embeds: [alreadyActiveEmbed]
-        });
+        await interaction.editReply({ embeds: [invalidEmbed] });
+        return;
+      }
+
+      // Check for 30-day cooldown from recent unlink
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const recentUnlink = await UnlinkHistory.findOne({
+        where: {
+          discord_user_id: discordUserId,
+          unlinked_at: {
+            [Op.gt]: thirtyDaysAgo
+          }
+        },
+        order: [['unlinked_at', 'DESC']]
+      });
+
+      if (recentUnlink) {
+        const unlinkDate = new Date(recentUnlink.unlinked_at);
+        const cooldownEndDate = new Date(unlinkDate);
+        cooldownEndDate.setDate(cooldownEndDate.getDate() + 30);
+
+        const daysRemaining = Math.ceil((cooldownEndDate - new Date()) / (1000 * 60 * 60 * 24));
+
+        const cooldownEmbed = {
+          color: 0xff4444,
+          title: '⏳ Cooldown Active',
+          description: 'You recently unlinked your Steam ID and must wait before linking again.',
+          fields: [
+            {
+              name: 'Previous Steam ID',
+              value: recentUnlink.steamid64,
+              inline: true
+            },
+            {
+              name: 'Unlinked On',
+              value: `<t:${Math.floor(unlinkDate.getTime() / 1000)}:F>`,
+              inline: true
+            },
+            {
+              name: 'Days Remaining',
+              value: `${daysRemaining} day${daysRemaining !== 1 ? 's' : ''}`,
+              inline: true
+            },
+            {
+              name: 'Cooldown Ends',
+              value: `<t:${Math.floor(cooldownEndDate.getTime() / 1000)}:R>`,
+              inline: false
+            },
+            {
+              name: 'Why the cooldown?',
+              value: 'This prevents abuse of the linking system. Contact staff if you need urgent help.',
+              inline: false
+            }
+          ],
+          timestamp: new Date().toISOString(),
+          footer: {
+            text: 'Roster Control System'
+          }
+        };
+
+        await interaction.editReply({ embeds: [cooldownEmbed] });
         return;
       }
 
@@ -72,30 +130,78 @@ module.exports = {
         order: [['confidence_score', 'DESC'], ['created_at', 'DESC']]
       });
 
-      if (existingLink && existingLink.steamid64 && existingLink.confidence_score >= 1.0) {
-        const alreadyLinkedEmbed = {
-          color: 0xffa500,
-          title: 'Account Already Linked',
-          description: 'Your Discord account is already linked to a Steam account with high confidence.',
+      // Case 1: User is linking the SAME Steam ID (upgrade to 1.0 confidence)
+      if (existingLink && existingLink.steamid64 === steamId) {
+        if (existingLink.confidence_score >= 1.0) {
+          const alreadyLinkedEmbed = {
+            color: 0x00ff00,
+            title: '✅ Already Linked at Maximum Confidence',
+            description: 'Your Discord account is already linked to this Steam ID with maximum confidence.',
+            fields: [
+              {
+                name: 'Steam ID',
+                value: steamId,
+                inline: true
+              },
+              {
+                name: 'Link Confidence',
+                value: `${(existingLink.confidence_score * 100).toFixed(0)}%`,
+                inline: true
+              },
+              {
+                name: 'Linked Since',
+                value: `<t:${Math.floor(existingLink.created_at.getTime() / 1000)}:R>`,
+                inline: true
+              }
+            ],
+            timestamp: new Date().toISOString(),
+            footer: {
+              text: 'Roster Control System'
+            }
+          };
+
+          await interaction.editReply({ embeds: [alreadyLinkedEmbed] });
+          return;
+        }
+
+        // Upgrade confidence to 1.0
+        await existingLink.update({
+          confidence_score: 1.0,
+          link_source: 'manual',
+          metadata: {
+            ...existingLink.metadata,
+            confidence_upgrade: {
+              upgraded_by: discordUserId,
+              upgraded_at: new Date().toISOString(),
+              previous_confidence: existingLink.confidence_score,
+              upgrade_method: 'linkid_direct'
+            }
+          }
+        });
+
+        const upgradeEmbed = {
+          color: 0x00ff00,
+          title: '✅ Link Confidence Upgraded',
+          description: 'Your account link confidence has been upgraded to maximum!',
           fields: [
             {
-              name: 'Linked Steam ID',
-              value: existingLink.steamid64,
+              name: 'Steam ID',
+              value: steamId,
               inline: true
             },
             {
-              name: 'Link Confidence',
+              name: 'Previous Confidence',
               value: `${(existingLink.confidence_score * 100).toFixed(0)}%`,
               inline: true
             },
             {
-              name: 'Linked Since',
-              value: `<t:${Math.floor(existingLink.created_at.getTime() / 1000)}:R>`,
+              name: 'New Confidence',
+              value: '100%',
               inline: true
             },
             {
-              name: 'Need to change your link?',
-              value: 'Use `/unlink` to remove your current link first, then use `/linkid` to create a new one.',
+              name: 'What changed?',
+              value: 'You now have full whitelist access and can use all features that require account linking.',
               inline: false
             }
           ],
@@ -105,42 +211,108 @@ module.exports = {
           }
         };
 
-        await interaction.editReply({
-          embeds: [alreadyLinkedEmbed]
+        await interaction.editReply({ embeds: [upgradeEmbed] });
+
+        // Trigger role sync
+        await triggerUserRoleSync(interaction.client, discordUserId, {
+          source: 'linkid_upgrade',
+          skipNotification: true
         });
+
+        interaction.client.logger?.info('User upgraded link confidence via /linkid', {
+          discordUserId,
+          steamId,
+          previousConfidence: existingLink.confidence_score
+        });
+
         return;
       }
 
-      // If user has a low-confidence link, note it but don't reply yet
-      // Only show improvement context for confidence >= 0.5, otherwise treat as new link
-      const hasLowConfidenceLink = existingLink && existingLink.steamid64 && existingLink.confidence_score >= 0.5 && existingLink.confidence_score < 1.0;
+      // Case 2: User is linking a DIFFERENT Steam ID AND has 1.0 confidence (block)
+      if (existingLink && existingLink.steamid64 !== steamId && existingLink.confidence_score >= 1.0) {
+        const blockEmbed = {
+          color: 0xffa500,
+          title: '🔒 Cannot Change Steam ID',
+          description: 'You already have a verified Steam ID linked. You must unlink it first.',
+          fields: [
+            {
+              name: 'Current Steam ID',
+              value: existingLink.steamid64,
+              inline: true
+            },
+            {
+              name: 'Current Confidence',
+              value: `${(existingLink.confidence_score * 100).toFixed(0)}%`,
+              inline: true
+            },
+            {
+              name: 'Linked Since',
+              value: `<t:${Math.floor(existingLink.created_at.getTime() / 1000)}:R>`,
+              inline: true
+            },
+            {
+              name: 'Want to change your Steam ID?',
+              value: '⚠️ **Important**: Use `/unlink` to remove your current link.\n\n**Warning**: You will have a **30-day cooldown** after unlinking before you can link a new Steam ID.',
+              inline: false
+            }
+          ],
+          timestamp: new Date().toISOString(),
+          footer: {
+            text: 'Roster Control System'
+          }
+        };
 
-      const verificationCode = await VerificationCode.createCode(
+        await interaction.editReply({ embeds: [blockEmbed] });
+        return;
+      }
+
+      // Case 3: User is linking a DIFFERENT Steam ID AND has < 1.0 confidence (allow overwrite)
+      // OR user has no existing link (new link)
+      const { link, created } = await PlayerDiscordLink.createOrUpdateLink(
         discordUserId,
-        whitelistConfig.verification.codeLength,
-        whitelistConfig.verification.expirationMinutes
+        steamId,
+        null, // eosId
+        interaction.user.username,
+        {
+          linkSource: 'manual',
+          confidenceScore: 1.0,
+          isPrimary: true,
+          metadata: {
+            direct_link: true,
+            created_by_command: 'linkid',
+            created_at: new Date().toISOString(),
+            replaced_link: existingLink ? {
+              previous_steamid: existingLink.steamid64,
+              previous_confidence: existingLink.confidence_score,
+              replaced_at: new Date().toISOString()
+            } : null
+          }
+        }
       );
 
-      const embed = {
+      const successEmbed = {
         color: 0x00ff00,
-        title: hasLowConfidenceLink ? 'Account Link Improvement Code Generated' : 'Account Linking Code Generated',
-        description: `Your verification code is: **${verificationCode.code}**`,
+        title: created ? '✅ Steam ID Linked Successfully' : '✅ Steam ID Updated Successfully',
+        description: `Your Discord account is now linked to Steam ID \`${steamId}\` with maximum confidence.`,
         fields: [
           {
-            name: 'Instructions',
-            value: `Type this code in Squad game chat to ${hasLowConfidenceLink ? 'improve your link confidence' : 'link your accounts'}:\n\`${verificationCode.code}\``,
-            inline: false
+            name: 'Steam ID',
+            value: steamId,
+            inline: true
           },
           {
-            name: 'Expiration',
-            value: `This code expires in ${whitelistConfig.verification.expirationMinutes} minutes (<t:${Math.floor(verificationCode.expiration.getTime() / 1000)}:R>)`,
-            inline: false
+            name: 'Link Confidence',
+            value: '100%',
+            inline: true
           },
           {
-            name: 'What happens next?',
-            value: hasLowConfidenceLink
-              ? 'Once you type the code in-game, your link confidence will be improved and you\'ll have better access!'
-              : 'Once you type the code in-game, you\'ll receive a confirmation message in Squad and your account will be linked!',
+            name: 'Link Type',
+            value: created ? 'New Link' : 'Updated Link',
+            inline: true
+          },
+          {
+            name: 'What now?',
+            value: 'Your Steam ID is now linked to your Discord account! Your roles will be synchronized automatically.',
             inline: false
           }
         ],
@@ -150,99 +322,38 @@ module.exports = {
         }
       };
 
-      // Add additional context for low confidence links
-      if (hasLowConfidenceLink) {
-        embed.fields.unshift(
-          {
-            name: 'Current Steam ID',
-            value: existingLink.steamid64,
-            inline: true
-          },
-          {
-            name: 'Current Confidence',
-            value: `${(existingLink.confidence_score * 100).toFixed(0)}%`,
-            inline: true
-          },
-          {
-            name: 'Why improve confidence?',
-            value: 'Higher confidence links provide better whitelist access and are required for staff roles.',
-            inline: false
-          }
-        );
+      if (existingLink && existingLink.steamid64 !== steamId) {
+        successEmbed.fields.push({
+          name: 'Previous Steam ID',
+          value: `\`${existingLink.steamid64}\` (replaced)`,
+          inline: false
+        });
       }
 
-      await interaction.editReply({
-        embeds: [embed]
+      await interaction.editReply({ embeds: [successEmbed] });
+
+      // Trigger role sync
+      await triggerUserRoleSync(interaction.client, discordUserId, {
+        source: 'linkid_direct',
+        skipNotification: false
       });
 
-      // Store the interaction for later update
-      const verificationService = container.get('verificationService');
-      verificationService.addPendingVerification(verificationCode.code, {
-        interaction,
+      interaction.client.logger?.info('User linked Steam ID via /linkid', {
         discordUserId,
-        code: verificationCode.code,
-        expiration: verificationCode.expiration,
-        timestamp: Date.now(),
-        isImproving: hasLowConfidenceLink
-      });
-
-      // Set timeout to update the message if code expires unused
-      const timeoutCode = verificationCode.code; // Capture the code for the timeout
-      setTimeout(async () => {
-        const pending = verificationService.getPendingVerification(timeoutCode);
-        if (pending) {
-          try {
-            const expiredEmbed = {
-              color: 0xff4444,
-              title: 'Verification Code Expired',
-              description: `Your verification code **${pending.code}** has expired.`,
-              fields: [
-                {
-                  name: 'What to do next?',
-                  value: pending.isImproving
-                    ? 'Run `/linkid` again to generate a new code and continue improving your link confidence.'
-                    : 'Run `/linkid` again to generate a new code.',
-                  inline: false
-                }
-              ],
-              timestamp: new Date().toISOString(),
-              footer: {
-                text: 'Roster Control System'
-              }
-            };
-
-            await pending.interaction.editReply({ embeds: [expiredEmbed] });
-            verificationService.removePendingVerification(timeoutCode);
-
-            interaction.client.logger?.info('Updated expired verification message', {
-              code: pending.code,
-              discordUserId: pending.discordUserId
-            });
-          } catch (error) {
-            interaction.client.logger?.warn('Failed to update expired verification message', {
-              error: error.message,
-              code: timeoutCode
-            });
-          }
-        }
-      }, whitelistConfig.verification.expirationMinutes * 60 * 1000);
-
-      interaction.client.logger?.info('Verification code generated', {
-        discordUserId,
-        code: verificationCode.code,
-        expiration: verificationCode.expiration
+        steamId,
+        created,
+        replacedPrevious: existingLink && existingLink.steamid64 !== steamId
       });
 
     } catch (error) {
-      interaction.client.logger?.error('Failed to generate verification code', {
+      interaction.client.logger?.error('Failed to link Steam ID', {
         discordUserId: interaction.user.id,
         error: error.message
       });
 
-      // Use editReply if already deferred, otherwise reply
       const replyMethod = interaction.deferred || interaction.replied ? 'editReply' : 'reply';
       await interaction[replyMethod]({
-        content: 'Failed to generate verification code. Please try again later.',
+        content: 'Failed to link Steam ID. Please try again later or contact staff for help.',
         flags: replyMethod === 'reply' ? MessageFlags.Ephemeral : undefined
       });
     }
