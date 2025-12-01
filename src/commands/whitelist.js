@@ -356,9 +356,9 @@ async function handleGrantSteamId(interaction) {
     // If Steam ID is already linked to a different Discord account, show conflict warning
     if (existingLink) {
       // Generate unique IDs for this specific interaction to prevent cross-contamination
-      const interactionId = interaction.id;
-      const proceedConflictId = `proceed_despite_conflict_${interactionId}`;
-      const cancelConflictId = `cancel_conflict_${interactionId}`;
+      const uniqueId = `${interaction.id}_${interaction.user.id}_${Date.now()}`;
+      const proceedConflictId = `proceed_despite_conflict_${uniqueId}`;
+      const cancelConflictId = `cancel_conflict_${uniqueId}`;
 
       const conflictEmbed = createResponseEmbed({
         title: '🚨 Steam ID Conflict Detected',
@@ -467,9 +467,9 @@ async function handleGrantSteamId(interaction) {
 
 async function showSteamIdGrantWarning(interaction, steamid, username, originalUser) {
   // Generate unique IDs for this specific interaction to prevent cross-contamination
-  const interactionId = interaction.id;
-  const proceedId = `proceed_steamid_grant_${interactionId}`;
-  const cancelId = `cancel_steamid_grant_${interactionId}`;
+  const uniqueId = `${interaction.id}_${interaction.user.id}_${Date.now()}`;
+  const proceedId = `proceed_steamid_grant_${uniqueId}`;
+  const cancelId = `cancel_steamid_grant_${uniqueId}`;
 
   // Step 1: Show warning about Steam ID only grant
   const warningEmbed = createResponseEmbed({
@@ -606,8 +606,8 @@ async function showReasonSelectionButtons(interaction, grantData) {
   const { discordUser, userInfo, originalUser, isSteamIdOnly } = grantData;
 
   // Generate unique ID for this specific interaction to prevent cross-contamination
-  const interactionId = interaction.id;
-  const reasonSelectId = `reason_select_${interactionId}`;
+  const uniqueId = `${interaction.id}_${interaction.user.id}_${Date.now()}`;
+  const reasonSelectId = `reason_select_${uniqueId}`;
 
   const reasonEmbed = createResponseEmbed({
     title: '🎯 Select Whitelist Type',
@@ -785,9 +785,9 @@ async function showDonatorDurationSelection(interaction, grantData) {
   const { discordUser, userInfo } = grantData;
 
   // Generate unique IDs for this specific interaction to prevent cross-contamination
-  const interactionId = interaction.id;
-  const donatorDurationId = `donator_duration_${interactionId}`;
-  const customModalId = `donator_custom_modal_${interactionId}`;
+  const uniqueId = `${interaction.id}_${interaction.user.id}_${Date.now()}`;
+  const donatorDurationId = `donator_duration_${uniqueId}`;
+  const customModalId = `donator_custom_modal_${uniqueId}`;
 
   const durationEmbed = createResponseEmbed({
     title: '💎 Donator Duration Selection',
@@ -911,8 +911,8 @@ async function showDonatorDurationSelection(interaction, grantData) {
 
         if (!validation.valid) {
           // Generate unique button IDs for retry/cancel
-          const retryButtonId = `retry_custom_date_${interactionId}`;
-          const cancelButtonId = `cancel_custom_date_${interactionId}`;
+          const retryButtonId = `retry_custom_date_${uniqueId}`;
+          const cancelButtonId = `cancel_custom_date_${uniqueId}`;
 
           // Show error message with retry button
           const errorEmbed = createResponseEmbed({
@@ -1086,9 +1086,9 @@ async function showReportingDurationSelection(interaction, grantData) {
   const { discordUser, userInfo } = grantData;
 
   // Generate unique IDs for this specific interaction to prevent cross-contamination
-  const interactionId = interaction.id;
-  const reportingDurationId = `reporting_duration_${interactionId}`;
-  const customModalId = `reporting_custom_modal_${interactionId}`;
+  const uniqueId = `${interaction.id}_${interaction.user.id}_${Date.now()}`;
+  const reportingDurationId = `reporting_duration_${uniqueId}`;
+  const customModalId = `reporting_custom_modal_${uniqueId}`;
 
   const durationEmbed = createResponseEmbed({
     title: '📋 Reporting Duration Selection',
@@ -1247,8 +1247,8 @@ async function showCustomWhitelistSelection(interaction, grantData) {
   const { discordUser, userInfo } = grantData;
 
   // Generate unique ID for this specific interaction
-  const interactionId = interaction.id;
-  const customModalId = `custom_whitelist_modal_${interactionId}`;
+  const uniqueId = `${interaction.id}_${interaction.user.id}_${Date.now()}`;
+  const customModalId = `custom_whitelist_modal_${uniqueId}`;
 
   // Show modal for custom reason and duration input
   const customModal = new ModalBuilder()
@@ -1287,8 +1287,8 @@ async function showCustomWhitelistSelection(interaction, grantData) {
         color: 0x9b59b6
       });
 
-      const showModalButtonId = `show_custom_modal_${interactionId}`;
-      const cancelButtonId = `cancel_custom_modal_${interactionId}`;
+      const showModalButtonId = `show_custom_modal_${uniqueId}`;
+      const cancelButtonId = `cancel_custom_modal_${uniqueId}`;
 
       const buttonRow = new ActionRowBuilder()
         .addComponents(
@@ -1390,9 +1390,9 @@ async function showCustomWhitelistSelection(interaction, grantData) {
 
 async function handleConfirmation(interaction, grantData) {
   // Generate unique IDs for this specific interaction to prevent cross-contamination
-  const interactionId = interaction.id;
-  const confirmGrantId = `confirm_grant_${interactionId}`;
-  const cancelGrantId = `cancel_grant_${interactionId}`;
+  const uniqueId = `${interaction.id}_${interaction.user.id}_${Date.now()}`;
+  const confirmGrantId = `confirm_grant_${uniqueId}`;
+  const cancelGrantId = `cancel_grant_${uniqueId}`;
 
   // IMPORTANT: Capture all variables at function entry to prevent contamination from concurrent commands
   const capturedGrantData = {

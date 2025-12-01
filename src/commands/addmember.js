@@ -96,11 +96,11 @@ module.exports = {
           }
         });
 
-        // Generate unique button IDs
-        const interactionId = interaction.id;
-        const confirmId = `confirm_addmember_${interactionId}`;
-        const cancelId = `cancel_addmember_${interactionId}`;
-        const editNicknameId = `edit_nickname_${interactionId}`;
+        // Generate absolutely unique button IDs with user ID and timestamp
+        const uniqueId = `${interaction.id}_${interaction.user.id}_${Date.now()}`;
+        const confirmId = `confirm_addmember_${uniqueId}`;
+        const cancelId = `cancel_addmember_${uniqueId}`;
+        const editNicknameId = `edit_nickname_${uniqueId}`;
 
         // Function to create confirmation embed with current nickname
         const createConfirmationEmbed = (nickname) => {
@@ -173,7 +173,7 @@ module.exports = {
           if (buttonInteraction.customId === editNicknameId) {
             // Show modal to edit nickname
             const modal = new ModalBuilder()
-              .setCustomId(`modal_edit_nickname_${interactionId}`)
+              .setCustomId(`modal_edit_nickname_${uniqueId}`)
               .setTitle('Edit Member Nickname');
 
             const nicknameInput = new TextInputBuilder()
@@ -193,7 +193,7 @@ module.exports = {
             // Wait for modal submission
             try {
               const modalSubmit = await buttonInteraction.awaitModalSubmit({
-                filter: (i) => i.customId === `modal_edit_nickname_${interactionId}` && i.user.id === interaction.user.id,
+                filter: (i) => i.customId === `modal_edit_nickname_${uniqueId}` && i.user.id === interaction.user.id,
                 time: 120000 // 2 minute timeout for modal
               });
 

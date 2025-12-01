@@ -62,10 +62,10 @@ module.exports = {
           color: 0xff6b35
         });
 
-        // Generate unique IDs for this specific interaction to prevent cross-contamination
-        const interactionId = interaction.id;
-        const confirmId = `confirm_upgrade_${interactionId}`;
-        const cancelId = `cancel_upgrade_${interactionId}`;
+        // Generate absolutely unique IDs with user ID and timestamp to prevent cross-contamination
+        const uniqueId = `${interaction.id}_${interaction.user.id}_${Date.now()}`;
+        const confirmId = `confirm_upgrade_${uniqueId}`;
+        const cancelId = `cancel_upgrade_${uniqueId}`;
 
         const confirmRow = new ActionRowBuilder()
           .addComponents(

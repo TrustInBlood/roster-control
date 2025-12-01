@@ -69,10 +69,10 @@ module.exports = {
           color: 0xff0000
         });
 
-        // Generate unique IDs for this specific interaction to prevent cross-contamination
-        const interactionId = interaction.id;
-        const confirmId = `confirm_adminunlink_${interactionId}`;
-        const cancelId = `cancel_adminunlink_${interactionId}`;
+        // Generate absolutely unique IDs with user ID and timestamp to prevent cross-contamination
+        const uniqueId = `${interaction.id}_${interaction.user.id}_${Date.now()}`;
+        const confirmId = `confirm_adminunlink_${uniqueId}`;
+        const cancelId = `cancel_adminunlink_${uniqueId}`;
 
         const confirmRow = new ActionRowBuilder()
           .addComponents(
