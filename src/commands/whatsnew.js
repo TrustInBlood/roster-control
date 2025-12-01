@@ -24,145 +24,50 @@ module.exports = {
         // Add recent updates (most recent first)
         updatesEmbed.addFields(
           {
-            name: 'Super Admin Confidence Upgrades (Latest)',
-            value: '• **New `/upgradeconfidence`** - Super admin can upgrade confidence to 1.0\n' +
-                 '• **Fixes Admin Whitelist Access** - Upgrade known admin accounts stuck at 0.7 confidence\n' +
-                 '• **Highest Security** - Restricted to SUPER_ADMIN role with confirmation dialogs\n' +
-                 '• **Full Audit Trail** - Logs upgrades with reason and previous confidence level\n' +
-                 '• **Separated Commands** - `/adminlink` for linking, `/upgradeconfidence` for upgrades\n' +
-                 '• **Immediate Staff Access** - Upgraded users get full staff whitelist privileges',
-            inline: false
-          },
-          {
-            name: 'Improved Whitelist UX & Security',
-            value: '• **Required Discord User** - `/whitelist grant` now requires Discord user for better linking\n' +
-                 '• **Steam ID Only Mode** - New `/whitelist grant-steamid` for admin-only edge cases\n' +
-                 '• **Button-Based UI** - Replaced dropdown with intuitive button interface\n' +
-                 '• **Enhanced Security** - Steam-only grants restricted to admin roles with warnings\n' +
-                 '• **Better Audit Trail** - Logs distinguish between normal and steam-only grants\n' +
-                 '• **Consistent Experience** - All selections now use button interface',
-            inline: false
-          },
-          {
-            name: 'Whitelist Attribution Bug Fix',
-            value: '• **Fixed Bulk Donation Attribution** - Steam-only grants no longer incorrectly link to existing Discord users\n' +
-                 '• **Prevented Cross-Contamination** - Standalone Steam ID whitelists remain unattributed\n' +
-                 '• **Enhanced Security** - Explicit validation prevents automatic linking during whitelist operations\n' +
-                 '• **Preserved Functionality** - Steam ID + Discord user grants still work as expected\n' +
-                 '• **Defensive Programming** - Added safeguards against similar attribution issues',
-            inline: false
-          },
-          {
-            name: 'Environment & Configuration Improvements',
-            value: '• **Unified Whitelist Endpoint** - New `/combined` endpoint with all groups and users\n' +
-                 '• **Centralized Environment Detection** - Single source of truth for dev/prod configs\n' +
-                 '• **Enhanced Role Detection** - Fixed environment-specific role mapping issues\n' +
-                 '• **Improved `/whitelist info`** - Better role-based vs database entry display\n' +
-                 '• **Real-time Role Updates** - Role changes immediately update whitelist cache\n' +
-                 '• **Better Error Handling** - Resolved database field constraints and logging\n' +
-                 '• **Cleaner User Experience** - Removed debug noise, improved command responses',
-            inline: false
-          },
-          {
-            name: 'Tutor System & Specialties',
-            value: '• **`/ondutytutor` & `/offdutytutor`** - Separate duty tracking for tutors\n' +
-                 '• **`/addspecialty` & `/removespecialty`** - Tutor Lead can manage specialty roles\n' +
-                 '• **`/removetutor`** - Complete tutor status removal (all roles)\n' +
-                 '• **Specialty Types** - Helicopter, Armor, Infantry, Squad Expert\n' +
-                 '• **Protection system** - Prevents removing other tutor leads\n' +
-                 '• **Separate duty logging** - Tutors tracked independently from admins\n' +
-                 '• **Light blue notifications** - Visual distinction for tutor duty status',
-            inline: false
-          },
-          {
-            name: 'Account Linking System',
-            value: '• **`/adminlink`** - Admins can manually link Steam IDs to Discord users\n' +
-                 '• **Confidence-based security** - Only self-verified links can access staff whitelist\n' +
-                 '• **Ticket auto-linking** - Automatically detects Steam IDs in ticket channels\n' +
-                 '• **Multiple linking methods** - Self-verification, admin linking, whitelist linking',
-            inline: false
-          },
-          {
-            name: 'Enhanced Whitelist System',
-            value: '• **`/whitelist grant`** - Interactive whitelist granting with duration selection\n' +
-                 '• **`/whitelist info`** - Check whitelist status and stacking\n' +
-                 '• **`/whitelist extend`** - Extend existing whitelists\n' +
-                 '• **`/whitelist revoke`** - Remove whitelist access\n' +
-                 '• **Stacking system** - Multiple whitelist entries combine durations',
-            inline: false
-          },
-          {
-            name: 'Legacy Command Detection',
-            value: '• **Smart deprecation warnings** - Detects old `!addsm` and `!addfr` commands\n' +
-                 '• **Migration guidance** - Shows users how to use new slash commands\n' +
-                 '• **Steam ID detection** - Only warns when Steam IDs are detected',
-            inline: false
-          },
-          {
-            name: 'On-Duty System',
-            value: '• **`/onduty` & `/offduty`** - Manage admin duty status\n' +
-                 '• **Role-based tracking** - Discord roles determine duty status\n' +
-                 '• **External change detection** - Tracks role changes made outside bot\n' +
-                 '• **Voice channel monitoring** - Notifications when users join admin channels',
-            inline: false
-          },
-          {
-            name: 'Account Verification',
-            value: '• **`/linkid`** - Self-verify Steam ID with in-game code\n' +
-                 '• **Secure verification** - Time-limited codes with in-game confirmation\n' +
-                 '• **High confidence links** - Required for staff whitelist access',
-            inline: false
-          },
-          {
-            name: 'Security & Confidence Scores',
-            value: '• **1.0** - Self-verified OR Super Admin upgraded (staff whitelist eligible)\n' +
-                 '• **0.7** - Admin-created links\n' +
-                 '• **0.5** - Whitelist-created links\n' +
-                 '• **0.3** - Auto-detected from tickets\n' +
-                 '• **Staff whitelist protection** - Only highest confidence links allowed\n' +
-                 '• **Super Admin Override** - Can upgrade any confidence level to 1.0 with reason',
+            name: 'Member Addition & BattleMetrics Integration',
+            value: '• **New `/addmember`** - Add Discord users as members with automatic role assignment\n' +
+                 '• **BattleMetrics Member Flag** - Automatically adds "=B&B= Member" flag to player profiles\n' +
+                 '• **Steam Account Linking** - Creates confidence 1.0 link with BattleMetrics validation\n' +
+                 '• **Automatic Role Sync** - Triggers whitelist and role synchronization on member addition\n' +
+                 '• **Comprehensive Logging** - Full audit trail with BattleMetrics profile metadata\n' +
+                 '• **BattleMetrics Verification** - Validates player exists in BattleMetrics before adding\n' +
+                 '• **Nickname Management** - Interactive nickname editing with modal dialog during addition\n' +
+                 '• **Graceful Error Handling** - Handles existing flags, missing permissions, and API errors',
             inline: false
           }
         );
 
-        // Add a second embed for additional info
+        // Add a second embed for usage info
         const infoEmbed = new EmbedBuilder()
           .setColor(0x57f287)
-          .setTitle('Command Overview')
-          .setDescription('Available commands and their purposes')
+          .setTitle('How to Use `/addmember`')
+          .setDescription('Complete workflow for adding new members')
           .addFields(
             {
-              name: 'Admin Commands',
-              value: '`/adminlink` - Link Steam ID to Discord user\n' +
-                   '`/upgradeconfidence` - Upgrade to 1.0 confidence (Super Admin)\n' +
-                   '`/whitelist grant` - Grant whitelist access (requires Discord user)\n' +
-                   '`/whitelist grant-steamid` - Grant by Steam ID only (admin-only)\n' +
-                   '`/whitelist extend` - Extend whitelist duration\n' +
-                   '`/whitelist revoke` - Remove whitelist access\n' +
-                   '`/onduty` & `/offduty` - Manage admin duty status\n' +
-                   '`/ondutytutor` & `/offdutytutor` - Manage tutor duty\n' +
-                   '`/addspecialty` & `/removespecialty` - Manage specialty roles (Lead only)\n' +
-                   '`/removetutor` - Remove all tutor roles (Lead only)',
-              inline: true
+              name: 'Command Syntax',
+              value: '`/addmember @discorduser <steamid>`\n\n' +
+                   '**Parameters:**\n' +
+                   '• `@discorduser` - Discord user to add as member\n' +
+                   '• `<steamid>` - Their Steam ID64',
+              inline: false
             },
             {
-              name: 'User Commands',
-              value: '`/linkid` - Self-verify your Steam ID\n' +
-                   '`/whitelist info` - Check whitelist status\n' +
-                   '`/ping` - Test bot connectivity\n' +
-                   '`/help` - View command help\n' +
-                   '`/whatsnew` - This command!',
-              inline: true
+              name: 'What Happens',
+              value: '1. Validates Steam ID format\n' +
+                   '2. Looks up player in BattleMetrics\n' +
+                   '3. Shows confirmation with Discord server nickname preview\n' +
+                   '4. Allows editing Discord server nickname before confirming\n' +
+                   '5. Creates Steam account link (1.0 confidence)\n' +
+                   '6. Adds Member role to Discord user\n' +
+                   '7. Sets Discord server nickname\n' +
+                   '8. Adds "=B&B= Member" flag in BattleMetrics\n' +
+                   '9. Triggers whitelist synchronization\n' +
+                   '10. Logs to audit trail and member addition channel',
+              inline: false
             },
             {
-              name: 'Integration Features',
-              value: '• **HTTP Whitelist API** - External server access with multiple endpoints\n' +
-                   '• **Unified `/combined` Endpoint** - Complete whitelist with group definitions\n' +
-                   '• **Individual Endpoints** - `/staff`, `/members`, `/whitelist` for debugging\n' +
-                   '• **SquadJS Integration** - Real-time game events\n' +
-                   '• **Discord Logging** - Comprehensive audit trail\n' +
-                   '• **Automatic Migrations** - Database updates\n' +
-                   '• **Multi-server Support** - 5 Squad servers',
+              name: 'Permissions',
+              value: 'Restricted to users with **Applications** role',
               inline: false
             }
           );
