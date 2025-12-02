@@ -70,33 +70,29 @@ module.exports = {
           await new Promise(resolve => setTimeout(resolve, 2000));
         }
 
-        // Create or update the link
-        const linkResult = await PlayerDiscordLink.createManualLink(
+        // Create or update the link with 1.0 confidence (admin verified)
+        const { link, created } = await PlayerDiscordLink.createOrUpdateLink(
           targetUser.id,
           steamId,
           null, // eosId
           targetUser.username,
           {
-            created_by: interaction.user.id,
-            created_by_tag: interaction.user.tag,
-            reason: reason
+            linkSource: 'manual',
+            confidenceScore: 1.0,
+            isPrimary: true,
+            metadata: {
+              admin_link: true,
+              created_by: interaction.user.id,
+              created_by_tag: interaction.user.tag,
+              created_at: new Date().toISOString(),
+              reason: reason
+            }
           }
         );
 
-        // Fetch the actual link to get the real confidence score
-        const actualLink = await PlayerDiscordLink.findOne({
-          where: {
-            discord_user_id: targetUser.id,
-            steamid64: steamId
-          }
-        });
-
-        const actualConfidence = actualLink ? parseFloat(actualLink.confidence_score) : 0.7;
-        const confidenceDisplay = actualConfidence === 1.0
-          ? '1.0 (Verified)'
-          : actualConfidence === 0.7
-            ? '0.7 (Admin Created)'
-            : `${actualConfidence.toFixed(2)} (${actualLink?.link_source || 'Unknown'})`;
+        const linkResult = { created };
+        const actualConfidence = 1.0;
+        const confidenceDisplay = '1.0 (Admin Verified)';
 
         // Log to Discord - fetch member to get display name
         let targetMember;
@@ -122,24 +118,22 @@ module.exports = {
           'Reason': reason
         });
 
-        // Determine embed color and warning message based on confidence
-        const embedColor = actualConfidence >= 1.0 ? 0x00ff00 : 0xffa500;
-        const warningMessage = actualConfidence >= 1.0
-          ? 'This link has high confidence (1.0) and can be used for staff whitelist access.'
-          : 'This link has confidence score below 1.0 and **cannot** grant staff whitelist access. Only self-verified links (confidence 1.0) can access staff whitelist.';
+        // Admin links always have 1.0 confidence
+        const embedColor = 0x00ff00;
+        const warningMessage = 'This link has maximum confidence (1.0) and grants full staff whitelist access, where applicable.';
 
         // Create success embed
         const successEmbed = createResponseEmbed({
           title: '✅ Steam ID Linked Successfully',
-          description: linkResult.created ? 'New link created' : 'Existing link updated',
+          description: linkResult.created ? 'New link created with full confidence' : 'Existing link updated with full confidence',
           fields: [
             { name: 'Discord User', value: `<@${targetUser.id}>`, inline: true },
             { name: 'Steam ID', value: steamId, inline: true },
-            { name: 'Link Type', value: 'Manual (Admin)', inline: true },
+            { name: 'Link Type', value: 'Admin Verified', inline: true },
             { name: 'Confidence Score', value: confidenceDisplay, inline: true },
             { name: 'Created By', value: `<@${interaction.user.id}>`, inline: true },
             { name: 'Reason', value: reason, inline: false },
-            { name: actualConfidence >= 1.0 ? '✅ Note' : '⚠️ Important', value: warningMessage, inline: false }
+            { name: '✅ Staff Access', value: warningMessage, inline: false }
           ],
           color: embedColor
         });
@@ -173,8 +167,7 @@ module.exports = {
         // - Upgrades any existing unapproved/security-blocked entries to approved status
         // - Invalidates whitelist cache so changes appear immediately
         //
-        // Note: Admin-created links have 0.7 confidence, which is below the 1.0 threshold for staff whitelist.
-        // Users with staff roles will need to use /linkid to self-verify and get 1.0 confidence for staff access.
+        // Note: Admin-created links have 1.0 confidence and grant full staff whitelist access.
         await triggerUserRoleSync(interaction.client, targetUser.id, {
           source: 'adminlink',
           skipNotification: false

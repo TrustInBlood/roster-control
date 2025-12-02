@@ -10,7 +10,6 @@ const { DISCORD_ROLES, getAllAdminRoles, getAllStaffRoles } = require(isDevelopm
 const { SQUAD_GROUPS, getAllTrackedRoles } = require(isDevelopment ? './squadGroups.development' : './squadGroups');
 const COMMAND_PERMISSIONS = {
   // Super admin commands (highest level access)
-  'upgradeconfidence': [DISCORD_ROLES.SUPER_ADMIN], // Super admin only: Upgrade confidence scores to 1.0
   'sync': [DISCORD_ROLES.SUPER_ADMIN],       // Super admin only: Sync Discord roles to database whitelist entries
 
   // Head Admin commands
