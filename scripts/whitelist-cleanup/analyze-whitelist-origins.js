@@ -588,12 +588,12 @@ async function main() {
     // SQL DELETE statements
     const sql = generateDeleteSQL();
     fs.writeFileSync(outputPath('remove-imported-entries.sql'), sql);
-    console.log(`  ✓ remove-imported-entries.sql`);
+    console.log('  ✓ remove-imported-entries.sql');
 
     // Summary report
     const summary = generateSummary();
     fs.writeFileSync(outputPath('whitelist-origins-summary.txt'), summary);
-    console.log(`  ✓ whitelist-origins-summary.txt`);
+    console.log('  ✓ whitelist-origins-summary.txt');
 
     console.log('');
     console.log('='.repeat(70));

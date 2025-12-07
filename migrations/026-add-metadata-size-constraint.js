@@ -95,7 +95,7 @@ module.exports = {
         `);
         console.log('✅ Removed CHECK constraint');
       } catch (error) {
-        if (!error.message.includes("Can't DROP") && !error.message.includes('does not exist')) {
+        if (!error.message.includes('Can\'t DROP') && !error.message.includes('does not exist')) {
           throw error;
         }
       }
@@ -107,7 +107,7 @@ module.exports = {
         `);
         console.log('✅ Removed generated column');
       } catch (error) {
-        if (!error.message.includes("Can't DROP") && !error.message.includes('does not exist')) {
+        if (!error.message.includes('Can\'t DROP') && !error.message.includes('does not exist')) {
           throw error;
         }
       }

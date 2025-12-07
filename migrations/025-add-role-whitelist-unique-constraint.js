@@ -107,7 +107,7 @@ module.exports = {
         console.error('');
         console.error('    SELECT discord_user_id, COUNT(*) as count');
         console.error('    FROM whitelists');
-        console.error("    WHERE source = 'role' AND revoked = false");
+        console.error('    WHERE source = \'role\' AND revoked = false');
         console.error('    GROUP BY discord_user_id');
         console.error('    HAVING count > 1;');
         console.error('');
@@ -140,7 +140,7 @@ module.exports = {
         `);
         console.log('✅ Removed generated column');
       } catch (error) {
-        if (!error.message.includes("Can't DROP")) {
+        if (!error.message.includes('Can\'t DROP')) {
           throw error;
         }
       }

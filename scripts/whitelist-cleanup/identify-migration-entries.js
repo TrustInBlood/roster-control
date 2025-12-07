@@ -420,12 +420,12 @@ async function main() {
     // SQL DELETE statements
     const sql = generateDeleteSQL();
     fs.writeFileSync(outputPath('remove-expired-entries.sql'), sql);
-    console.log(`  ✓ remove-expired-entries.sql`);
+    console.log('  ✓ remove-expired-entries.sql');
 
     // Summary report
     const summary = generateSummary();
     fs.writeFileSync(outputPath('expired-entries-summary.txt'), summary);
-    console.log(`  ✓ expired-entries-summary.txt`);
+    console.log('  ✓ expired-entries-summary.txt');
 
     console.log('');
     console.log('='.repeat(70));

@@ -60,7 +60,7 @@ async function runTests() {
       granted_at: new Date(),
       revoked_by: 'SECURITY_SYSTEM',
       revoked_at: new Date(),
-      revoked_reason: `Security block: insufficient link confidence (0.70/1.0)`,
+      revoked_reason: 'Security block: insufficient link confidence (0.70/1.0)',
       reason: 'SECURITY BLOCKED: Role-based access denied for SquadAdmin',
       expiration: null,
       metadata: {

@@ -448,8 +448,8 @@ module.exports = {
 
               if (memberChat) {
                 const welcomeMessage = `**Let's welcome our new member!!!** <@${targetUser.id}>\n\n` +
-                  `Make sure to change your tag to -B&B- in game (DO NOT PUT "=B&B=" as those are admin tags)\n` +
-                  `And read all the rules in <#${memberRulesId}>`;
+                  'Make sure to change your tag to -B&B- in game (DO NOT PUT "=B&B=" as those are admin tags)\n' +
+                  'And read all the rules in <#${memberRulesId}>';
 
                 await memberChat.send(welcomeMessage);
                 serviceLogger.info(`Sent welcome message to members chat ${memberChatId}`);

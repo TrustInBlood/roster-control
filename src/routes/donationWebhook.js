@@ -245,7 +245,7 @@ function formatPublicNotification(donationData, processingResult, hasErrors) {
 
   let notification = '```\n';
   notification += `Name: ${safeName}\n`;
-  notification += `Type: Donation\n`;
+  notification += 'Type: Donation\n';
   notification += `Amount: ${amount}\n`;
   notification += `Message: ${safeMessage}\n`;
   notification += '```\n';
@@ -290,7 +290,7 @@ function formatAdminNotification(donationData, processingResult, hasErrors) {
 
   let notification = '```\n';
   notification += `Name: ${safeName}\n`;
-  notification += `Type: Donation\n`;
+  notification += 'Type: Donation\n';
   notification += `Amount: ${amount}\n`;
   notification += `Message: ${safeMessage}\n`;
   notification += `Email: ${safeEmail}\n`;
@@ -323,7 +323,7 @@ function formatPublicErrorNotification(donationData, processingResult) {
 
   let notification = '```\n';
   notification += `Name: ${safeName}\n`;
-  notification += `Type: Donation\n`;
+  notification += 'Type: Donation\n';
   notification += `Amount: ${amount}\n`;
   notification += `Message: ${safeMessage}\n`;
   notification += '```\n';
@@ -353,7 +353,7 @@ function formatAdminErrorNotification(donationData, processingResult) {
   let notification = '❌ **Donation Processing Failed**\n\n';
   notification += '```\n';
   notification += `Name: ${safeName}\n`;
-  notification += `Type: Donation\n`;
+  notification += 'Type: Donation\n';
   notification += `Amount: ${amount}\n`;
   notification += `Email: ${safeEmail}\n`;
   notification += `Message: ${safeMessage}\n`;

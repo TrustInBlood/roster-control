@@ -161,11 +161,11 @@ async function fixWhitelistStacking() {
       const correctStackedExpiration = calculateStackedExpiration(sortedEntries);
 
       if (correctStackedExpiration === null) {
-        console.log(`   Status: Permanent whitelist - no fix needed`);
+        console.log('   Status: Permanent whitelist - no fix needed');
         continue;
       }
 
-      console.log(`\n   Current entries:`);
+      console.log('\n   Current entries:');
       sortedEntries.forEach((entry, index) => {
         const grantedAt = new Date(entry.granted_at);
         const currentExpiration = entry.expiration ? new Date(entry.expiration) : null;
@@ -191,7 +191,7 @@ async function fixWhitelistStacking() {
         Math.abs(currentLastExpiration - correctStackedExpiration) > (60 * 60 * 1000);
 
       if (needsUpdate) {
-        console.log(`\n   ⚠️  Expiration mismatch detected!`);
+        console.log('\n   ⚠️  Expiration mismatch detected!');
         console.log(`      Current: ${currentLastExpiration ? currentLastExpiration.toISOString().split('T')[0] : 'null'}`);
         console.log(`      Correct: ${correctStackedExpiration.toISOString().split('T')[0]}`);
 
@@ -217,7 +217,7 @@ async function fixWhitelistStacking() {
           entryId: lastEntry.id
         });
       } else {
-        console.log(`\n   ✅ Expiration is correct - no update needed`);
+        console.log('\n   ✅ Expiration is correct - no update needed');
       }
     }
 

@@ -146,7 +146,7 @@ function analyzeProdDb(prodData) {
   });
 
   console.log(`  Total prod DB entries: ${stats.prodDb.total}`);
-  console.log(`  By source:`);
+  console.log('  By source:');
   console.log(`    donation: ${stats.prodDb.donations}`);
   console.log(`    manual: ${stats.prodDb.manual}`);
   console.log(`    role: ${stats.prodDb.role}`);
@@ -343,7 +343,7 @@ function generateReport() {
 
   lines.push('Production Database Data:');
   lines.push(`  Total entries: ${stats.prodDb.total}`);
-  lines.push(`  By source:`);
+  lines.push('  By source:');
   lines.push(`    donation: ${stats.prodDb.donations}`);
   lines.push(`    manual: ${stats.prodDb.manual}`);
   lines.push(`    role: ${stats.prodDb.role}`);
@@ -441,7 +441,7 @@ async function main() {
     // Save summary
     const summary = generateReport();
     fs.writeFileSync(outputPath('comparison-summary.txt'), summary);
-    console.log(`  ✓ comparison-summary.txt`);
+    console.log('  ✓ comparison-summary.txt');
 
     console.log('');
     console.log('='.repeat(70));

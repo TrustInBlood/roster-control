@@ -94,7 +94,7 @@ async function runTest() {
       throw new Error(`FAIL: Expected 1 entry, found ${entriesAfterConcurrent.length}`);
     }
 
-    logger.info(`SUCCESS: Only 1 entry created despite 5 concurrent operations`);
+    logger.info('SUCCESS: Only 1 entry created despite 5 concurrent operations');
 
     // TEST CASE 2: Concurrent role changes (add/remove)
     logger.info('');

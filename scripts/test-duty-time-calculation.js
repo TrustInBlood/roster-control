@@ -67,7 +67,7 @@ async function runTest() {
 
     logger.info(`Total time: ${stats.totalHours.toFixed(2)} hours`);
     logger.info(`Sessions: ${stats.sessionCount}`);
-    logger.info(`Expected: 2.5 hours, 1 session`);
+    logger.info('Expected: 2.5 hours, 1 session');
 
     if (Math.abs(stats.totalHours - 2.5) > 0.01) {
       throw new Error(`FAIL: Expected 2.5 hours, got ${stats.totalHours}`);
@@ -103,7 +103,7 @@ async function runTest() {
 
     logger.info(`Total sessions: ${stats.sessionCount}`);
     logger.info(`Active session: ${stats.sessions.find(s => s.isActive) ? 'Yes' : 'No'}`);
-    logger.info(`Expected: 2 sessions, with 1 active`);
+    logger.info('Expected: 2 sessions, with 1 active');
 
     if (stats.sessionCount !== 2) {
       throw new Error(`FAIL: Expected 2 sessions, got ${stats.sessionCount}`);
@@ -205,7 +205,7 @@ async function runTest() {
     logger.info(`Sessions: ${stats.sessionCount}`);
     logger.info(`Average session: ${(stats.averageSessionMs / (1000 * 60 * 60)).toFixed(2)} hours`);
     logger.info(`Longest session: ${(stats.longestSessionMs / (1000 * 60 * 60)).toFixed(2)} hours`);
-    logger.info(`Expected: 6.5 total hours, 3 sessions, 2.17 avg, 3.0 longest`);
+    logger.info('Expected: 6.5 total hours, 3 sessions, 2.17 avg, 3.0 longest');
 
     if (Math.abs(stats.totalHours - 6.5) > 0.01) {
       throw new Error(`FAIL: Expected 6.5 hours, got ${stats.totalHours}`);
@@ -282,7 +282,7 @@ async function runTest() {
     logger.info(`Admin duty: ${adminStats.totalHours.toFixed(2)} hours`);
     logger.info(`Tutor duty: ${tutorStats.totalHours.toFixed(2)} hours`);
     logger.info(`Both: ${bothStats.totalHours.toFixed(2)} hours`);
-    logger.info(`Expected: 2.0 admin, 3.0 tutor, 5.0 both`);
+    logger.info('Expected: 2.0 admin, 3.0 tutor, 5.0 both');
 
     if (Math.abs(adminStats.totalHours - 2.0) > 0.01) {
       throw new Error(`FAIL: Expected 2.0 admin hours, got ${adminStats.totalHours}`);
@@ -362,7 +362,7 @@ async function runTest() {
 
     logger.info(`Filtered (Oct 21 only): ${filteredStats.totalHours.toFixed(2)} hours`);
     logger.info(`All time: ${allStats.totalHours.toFixed(2)} hours`);
-    logger.info(`Expected: 3.0 filtered, 5.0 all time`);
+    logger.info('Expected: 3.0 filtered, 5.0 all time');
 
     if (Math.abs(filteredStats.totalHours - 3.0) > 0.01) {
       throw new Error(`FAIL: Expected 3.0 filtered hours, got ${filteredStats.totalHours}`);

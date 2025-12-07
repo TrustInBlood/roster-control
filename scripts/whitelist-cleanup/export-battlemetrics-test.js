@@ -323,12 +323,12 @@ function generateSQL(entries) {
 
       const steamId = entry.player.steamId || 'NULL';
       const eosId = entry.player.eosId ? `'${entry.player.eosId}'` : 'NULL';
-      const username = entry.player.name ? `'${entry.player.name.replace(/'/g, "''")}'` : 'NULL';
+      const username = entry.player.name ? `'${entry.player.name.replace(/'/g, '\'\'')}'` : 'NULL';
       const durationValue = duration.value !== null ? duration.value : 'NULL';
       const durationType = duration.type ? `'${duration.type}'` : 'NULL';
       const expirationStr = expiration !== 'NULL' ? `'${expiration}'` : 'NULL';
 
-      const row = `  ('whitelist', '${steamId}', ${eosId}, ${username}, 'Donation', ${durationValue}, ${durationType}, 'BATTLEMETRICS_MIGRATION', '${createdAt}', ${expirationStr}, 1, 0, 'donation', '${metadata.replace(/'/g, "''")}', ${CONFIG.defaultGroupId})`;
+      const row = `  ('whitelist', '${steamId}', ${eosId}, ${username}, 'Donation', ${durationValue}, ${durationType}, 'BATTLEMETRICS_MIGRATION', '${createdAt}', ${expirationStr}, 1, 0, 'donation', '${metadata.replace(/'/g, '\'\'')}', ${CONFIG.defaultGroupId})`;
 
       // Add comma except for last row
       return idx < batch.length - 1 ? row + ',' : row + ';';
