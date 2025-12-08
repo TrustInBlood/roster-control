@@ -423,6 +423,7 @@
 
   <script>
     const token = new URLSearchParams(window.location.search).get('token');
+
     if (!token) {
       document.getElementById('loading').style.display = 'none';
       document.getElementById('error-container').style.display = 'block';
@@ -586,6 +587,21 @@
             errorsDiv.appendChild(p);
           });
         }
+
+        // Add "Next Batch" button
+        const nextBatchDiv = document.createElement('div');
+        nextBatchDiv.style.marginTop = '20px';
+        nextBatchDiv.innerHTML = `
+          <button id="next-batch-btn" class="execute-btn" style="background: #5865f2;">
+            Load Next Batch
+          </button>
+        `;
+        document.getElementById('results-section').appendChild(nextBatchDiv);
+
+        document.getElementById('next-batch-btn').addEventListener('click', () => {
+          // Reload the page to get the next batch
+          window.location.reload();
+        });
 
       } catch (error) {
         document.getElementById('progress-section').classList.remove('active');

@@ -221,10 +221,11 @@ class MemberPurgeService {
    * @param {Guild} guild - Discord guild
    * @param {string} actorId - Discord user ID of admin executing purge
    * @param {string} actorName - Username of admin executing purge
+   * @param {number} limit - Max users to process in this batch (default 30)
    * @returns {Promise<{success: boolean, results: Object}>}
    */
-  async executePurge(guild, actorId, actorName) {
-    this.logger.warn('EXECUTING MEMBER PURGE', { actorId, actorName, guildId: guild.id });
+  async executePurge(guild, actorId, actorName, limit = 30) {
+    this.logger.warn('EXECUTING MEMBER PURGE', { actorId, actorName, guildId: guild.id, batchLimit: limit });
 
     const results = {
       processed: 0,
@@ -238,8 +239,8 @@ class MemberPurgeService {
     };
 
     try {
-      // Get all affected members (no limit)
-      const { affectedUsers, totalAffected } = await this.generatePreview(guild, 10000);
+      // Get affected members for this batch (same limit as preview)
+      const { affectedUsers, totalAffected } = await this.generatePreview(guild, limit);
 
       this.logger.info(`Processing ${totalAffected} members for purge`);
 
