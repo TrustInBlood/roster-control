@@ -365,6 +365,14 @@ async function initializeWhitelist() {
     app.use('/webhook', battlemetricsRouter);
     loggerConsole.log('BattleMetrics webhook routes registered at /webhook/battlemetrics/whitelist');
 
+    // Setup purge routes (temporary - remove after purge is complete)
+    if (process.env.PURGE_SECRET_TOKEN) {
+      const { setupPurgeRoutes } = require('./routes/purge');
+      const purgeRouter = setupPurgeRoutes(client);
+      app.use('/purge', purgeRouter);
+      loggerConsole.log('Purge routes registered at /purge (temporary)');
+    }
+
     // Start HTTP server
     const port = whitelistServices.config.http.port;
     const host = whitelistServices.config.http.host;
@@ -375,6 +383,9 @@ async function initializeWhitelist() {
       loggerConsole.log(`  - Whitelist endpoint: http://${host}:${port}/whitelist`);
       loggerConsole.log(`  - Donation webhook: http://${host}:${port}/webhook/donations`);
       loggerConsole.log(`  - BattleMetrics webhook: http://${host}:${port}/webhook/battlemetrics/whitelist`);
+      if (process.env.PURGE_SECRET_TOKEN) {
+        loggerConsole.log(`  - Purge interface: http://${host}:${port}/purge?token=*** (temporary)`);
+      }
     });
 
     // Store for graceful shutdown

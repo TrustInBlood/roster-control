@@ -2,6 +2,7 @@ const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { PlayerDiscordLink, UnlinkHistory } = require('../database/models');
 const { isValidSteamId } = require('../utils/steamId');
 const { triggerUserRoleSync } = require('../utils/triggerUserRoleSync');
+const { getRoleArchiveService } = require('../services/RoleArchiveService');
 const { Op } = require('sequelize');
 
 module.exports = {
@@ -219,10 +220,44 @@ module.exports = {
           skipNotification: true
         });
 
+        // Check for archived roles to restore
+        const roleArchiveService = getRoleArchiveService(interaction.client);
+        const restoreResult = await roleArchiveService.restoreUserRoles(
+          discordUserId,
+          interaction.guild,
+          discordUserId
+        );
+
+        if (restoreResult.restoredRoles && restoreResult.restoredRoles.length > 0) {
+          const restoredNames = restoreResult.restoredRoles
+            .filter(r => r.restored)
+            .map(r => r.name);
+
+          if (restoredNames.length > 0) {
+            // Send follow-up message about restored roles
+            await interaction.followUp({
+              embeds: [{
+                color: 0x00ff00,
+                title: '🔄 Roles Restored',
+                description: 'Your previously removed roles have been restored!',
+                fields: [{
+                  name: 'Restored Roles',
+                  value: restoredNames.join(', '),
+                  inline: false
+                }],
+                timestamp: new Date().toISOString(),
+                footer: { text: 'Roster Control System' }
+              }],
+              flags: MessageFlags.Ephemeral
+            });
+          }
+        }
+
         interaction.client.logger?.info('User upgraded link confidence via /linkid', {
           discordUserId,
           steamId,
-          previousConfidence: existingLink.confidence_score
+          previousConfidence: existingLink.confidence_score,
+          rolesRestored: restoreResult.restoredRoles?.filter(r => r.restored).length || 0
         });
 
         return;
@@ -338,11 +373,45 @@ module.exports = {
         skipNotification: false
       });
 
+      // Check for archived roles to restore
+      const roleArchiveService = getRoleArchiveService(interaction.client);
+      const restoreResult = await roleArchiveService.restoreUserRoles(
+        discordUserId,
+        interaction.guild,
+        discordUserId
+      );
+
+      if (restoreResult.restoredRoles && restoreResult.restoredRoles.length > 0) {
+        const restoredNames = restoreResult.restoredRoles
+          .filter(r => r.restored)
+          .map(r => r.name);
+
+        if (restoredNames.length > 0) {
+          // Send follow-up message about restored roles
+          await interaction.followUp({
+            embeds: [{
+              color: 0x00ff00,
+              title: '🔄 Roles Restored',
+              description: 'Your previously removed roles have been restored!',
+              fields: [{
+                name: 'Restored Roles',
+                value: restoredNames.join(', '),
+                inline: false
+              }],
+              timestamp: new Date().toISOString(),
+              footer: { text: 'Roster Control System' }
+            }],
+            flags: MessageFlags.Ephemeral
+          });
+        }
+      }
+
       interaction.client.logger?.info('User linked Steam ID via /linkid', {
         discordUserId,
         steamId,
         created,
-        replacedPrevious: existingLink && existingLink.steamid64 !== steamId
+        replacedPrevious: existingLink && existingLink.steamid64 !== steamId,
+        rolesRestored: restoreResult.restoredRoles?.filter(r => r.restored).length || 0
       });
 
     } catch (error) {

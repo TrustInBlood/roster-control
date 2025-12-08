@@ -16,6 +16,7 @@ const DISCORD_ROLES_DEV = {
   SQUAD_ADMIN: null,                         // CREATE: "Test Squad Admin"
   MODERATOR: null,                           // CREATE: "Test Moderator"
   STAFF: '1420297163166191627',                               // CREATE: "Test Staff"
+  TICKET_SUPPORT: null,                      // CREATE: "Test Ticket Support"
   APPLICATIONS: '1444815201516912720',                        // CREATE: "Test Applications" - Handles member applications
 
   // Duty System Roles
@@ -95,7 +96,9 @@ function getAllMemberRoles() {
 function getAllStaffRoles() {
   const staffRoles = [
     ...getAllAdminRoles(),
-    DISCORD_ROLES_DEV.MODERATOR
+    DISCORD_ROLES_DEV.MODERATOR,
+    DISCORD_ROLES_DEV.STAFF,
+    DISCORD_ROLES_DEV.TICKET_SUPPORT
   ].filter(Boolean);
 
   // SECURITY: If no staff roles are configured, return a special marker

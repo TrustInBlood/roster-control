@@ -16,6 +16,7 @@ const DISCORD_ROLES = {
   SQUAD_ADMIN: '814554233377652736',       // "Squad Admin"
   MODERATOR: '1285786746948423730',       // "Moderator"
   STAFF: '1397788169264562267',           // "Staff"
+  TICKET_SUPPORT: '1221983850440429608',  // "Ticket Support"
   APPLICATIONS: '1332116503260168233',     // "Applications" - Handles member applications
 
   // Duty System Roles
@@ -96,11 +97,13 @@ function getAllMemberRoles() {
   ].filter(Boolean);
 }
 
-// Helper function to get all staff role IDs (admins + moderators)
+// Helper function to get all staff role IDs (admins + moderators + ticket support)
 function getAllStaffRoles() {
   const staffRoles = [
     ...getAllAdminRoles(),
-    DISCORD_ROLES.MODERATOR
+    DISCORD_ROLES.MODERATOR,
+    DISCORD_ROLES.STAFF,
+    DISCORD_ROLES.TICKET_SUPPORT
   ].filter(Boolean);
 
   // SECURITY: If no staff roles are configured, return a special marker
