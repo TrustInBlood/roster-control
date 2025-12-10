@@ -39,17 +39,17 @@ const INFO_POSTS = {
       fields: [
         {
           name: 'How It Works',
-          value: 'You can only receive one reward per day - Reset Everyday.\nWhitelist is stackable.\nWhitelist is added automatically to your account. Take 1-2hrs to activate.',
+          value: 'You can only receive one reward per day - resets every day.\nWhitelist is stackable.\nWhitelist is added automatically to your account. Takes 1-2hrs to activate.',
           inline: false
         },
         {
           name: 'Rate',
-          value: 'Rate is vary depending on situations.',
+          value: 'Rates vary depending on the situation.',
           inline: false
         },
         {
           name: 'Note',
-          value: 'This play rules can be changed for any reason.',
+          value: 'These rules can be changed for any reason.',
           inline: false
         }
       ],
@@ -62,19 +62,22 @@ const INFO_POSTS = {
   SERVICE_MEMBERS: {
     buttonLabel: 'Service Members',
     buttonEmoji: '🎖️',
+    channels: {
+      tickets: '1204601712246001734'
+    },
     embed: {
       color: 0xff0000,
       title: 'SERVICE MEMBERS AND FIRST RESPONDERS REWARD',
-      description: 'The Bloody Bucket is now offering FREE whitelist **FOR LIFE** to Military and First Responders. (**6-MONTH** each verify)',
+      description: 'The Bloody Bucket is now offering FREE whitelist **FOR LIFE** to Military and First Responders. (**6-MONTH** verification required)',
       fields: [
         {
           name: 'How to Apply',
-          value: 'Just open up a ticket and provide required proofs and we can get you set up!',
+          value: 'Just open a ticket in {#tickets} and provide the required proofs, and we can get you set up!',
           inline: false
         },
         {
           name: 'Important',
-          value: '(Please DO NOT post a picture of your CAC here. It\'s illegal to take photo of a CAC card.)',
+          value: '(Please DO NOT post a picture of your CAC here. It\'s illegal to take a photo of a CAC card.)',
           inline: false
         }
       ],
@@ -87,24 +90,32 @@ const INFO_POSTS = {
   REPORT_TOXIC: {
     buttonLabel: 'Report Toxic',
     buttonEmoji: '🚨',
+    channels: {
+      tickets: '1204601712246001734'
+    },
     embed: {
       color: 0xff4500,
       title: 'REPORT TOXIC PLAYERS',
-      description: 'Reporting a troll, toxic, or bad behavior players will be rewarded with whitelist.',
+      description: 'Reporting trolls, toxic players, or players with bad behavior will be rewarded with whitelist.',
       fields: [
         {
           name: 'Reward',
-          value: 'A reward is 1-3 days each time depending on the situation. Occasionally 30 days could be rewarded out.',
+          value: 'A reward of 1-3 days each time depending on the situation. Occasionally 30 days could be rewarded.',
           inline: false
         },
         {
           name: 'Tip',
-          value: 'Make sure to provide a solid evidence and remind the staff for your reward.',
+          value: 'Make sure to provide solid evidence and remind the staff about your reward.',
+          inline: false
+        },
+        {
+          name: 'How to Report',
+          value: 'Open a ticket in {#tickets} with your evidence.',
           inline: false
         }
       ],
       footer: {
-        text: 'Update: 11/9/2025'
+        text: 'Updated: 11/9/2025'
       }
     }
   },
@@ -112,6 +123,9 @@ const INFO_POSTS = {
   DONATION: {
     buttonLabel: 'Donation',
     buttonEmoji: '💰',
+    channels: {
+      howToDonate: '1202285020480282706'
+    },
     embed: {
       color: 0xffd700,
       title: 'DONATION',
@@ -129,7 +143,7 @@ const INFO_POSTS = {
         },
         {
           name: 'How to Donate',
-          value: 'See the how-to-donate channel for instructions.',
+          value: 'See {#howToDonate} for instructions.',
           inline: false
         }
       ],
