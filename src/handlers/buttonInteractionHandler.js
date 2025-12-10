@@ -29,13 +29,11 @@ const serviceLogger = createServiceLogger('ButtonInteractionHandler');
 const BUTTON_IDS = {
   LINK: 'whitelist_post_link',
   STATUS: 'whitelist_post_status',
-  UNLINK: 'whitelist_post_unlink',
-  // Info buttons
-  INFO_SEED: 'info_seed_reward',
-  INFO_SERVICE: 'info_service_members',
-  INFO_TOXIC: 'info_report_toxic',
-  INFO_DONATION: 'info_donation'
+  UNLINK: 'whitelist_post_unlink'
 };
+
+// Prefix for dynamically generated info buttons
+const INFO_BUTTON_PREFIX = 'info_';
 
 // Prefixes for dynamic button IDs (unlink confirmation flow)
 const UNLINK_CONFIRM_PREFIX = 'unlink_confirm_';
@@ -63,6 +61,12 @@ async function handleButtonInteraction(interaction) {
       return;
     }
 
+    // Check for dynamic info buttons
+    if (customId.startsWith(INFO_BUTTON_PREFIX)) {
+      await handleInfoButton(interaction, customId);
+      return;
+    }
+
     switch (customId) {
     case BUTTON_IDS.LINK:
       await handleLinkButton(interaction);
@@ -72,18 +76,6 @@ async function handleButtonInteraction(interaction) {
       break;
     case BUTTON_IDS.UNLINK:
       await handleUnlinkButton(interaction);
-      break;
-    case BUTTON_IDS.INFO_SEED:
-      await handleInfoButton(interaction, 'SEED_REWARD');
-      break;
-    case BUTTON_IDS.INFO_SERVICE:
-      await handleInfoButton(interaction, 'SERVICE_MEMBERS');
-      break;
-    case BUTTON_IDS.INFO_TOXIC:
-      await handleInfoButton(interaction, 'REPORT_TOXIC');
-      break;
-    case BUTTON_IDS.INFO_DONATION:
-      await handleInfoButton(interaction, 'DONATION');
       break;
     // Return early for unhandled buttons (not ours)
     default:
@@ -914,14 +906,15 @@ function replaceChannelPlaceholders(text, channels) {
 /**
  * Handle info button clicks - display configurable ephemeral content
  * @param {import('discord.js').Interaction} interaction
- * @param {string} infoType - Key from INFO_POSTS config
+ * @param {string} buttonId - Button ID to look up in INFO_POSTS config
  */
-async function handleInfoButton(interaction, infoType) {
+async function handleInfoButton(interaction, buttonId) {
   try {
-    const infoConfig = INFO_POSTS[infoType];
+    // Find the info config that matches this buttonId
+    const infoConfig = Object.values(INFO_POSTS).find(post => post.buttonId === buttonId);
 
     if (!infoConfig) {
-      serviceLogger.error('Unknown info type:', infoType);
+      serviceLogger.error('Unknown info button:', buttonId);
       await interaction.reply({
         content: 'This information is not available.',
         flags: MessageFlags.Ephemeral

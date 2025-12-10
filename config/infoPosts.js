@@ -2,6 +2,15 @@
  * Production Info Posts Configuration
  * Contains embed content for informational buttons on the whitelist post
  *
+ * ADDING NEW INFO BUTTONS:
+ * Each entry must have:
+ *   - buttonId: Must start with 'info_' prefix (e.g., 'info_my_button')
+ *   - buttonLabel: Text displayed on the button
+ *   - buttonEmoji: (optional) Emoji displayed on the button
+ *   - embed: The embed content shown when clicked
+ *
+ * Buttons are automatically generated from this config - no code changes needed.
+ *
  * CHANNEL REFERENCES:
  * You can reference Discord channels in your embed text using placeholders:
  *   {#channelKey} - Will be replaced with <#channelId> when displayed
@@ -30,6 +39,7 @@
  */
 const INFO_POSTS = {
   SEED_REWARD: {
+    buttonId: 'info_seed_reward',
     buttonLabel: 'Seed Reward',
     buttonEmoji: '🌱',
     embed: {
@@ -60,6 +70,7 @@ const INFO_POSTS = {
   },
 
   SERVICE_MEMBERS: {
+    buttonId: 'info_service_members',
     buttonLabel: 'Service Members',
     buttonEmoji: '🎖️',
     channels: {
@@ -88,6 +99,7 @@ const INFO_POSTS = {
   },
 
   REPORT_TOXIC: {
+    buttonId: 'info_report_toxic',
     buttonLabel: 'Report Toxic',
     buttonEmoji: '🚨',
     channels: {
@@ -121,6 +133,7 @@ const INFO_POSTS = {
   },
 
   DONATION: {
+    buttonId: 'info_donation',
     buttonLabel: 'Donation',
     buttonEmoji: '💰',
     channels: {

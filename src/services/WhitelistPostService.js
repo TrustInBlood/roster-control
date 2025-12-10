@@ -199,32 +199,33 @@ class WhitelistPostService {
           .setEmoji('📋')
       );
 
-    // Row 2: Info buttons (from config)
-    const row2 = new ActionRowBuilder()
-      .addComponents(
-        new ButtonBuilder()
-          .setCustomId(BUTTON_IDS.INFO_SEED)
-          .setLabel(INFO_POSTS.SEED_REWARD.buttonLabel)
-          .setStyle(ButtonStyle.Secondary)
-          .setEmoji(INFO_POSTS.SEED_REWARD.buttonEmoji),
-        new ButtonBuilder()
-          .setCustomId(BUTTON_IDS.INFO_SERVICE)
-          .setLabel(INFO_POSTS.SERVICE_MEMBERS.buttonLabel)
-          .setStyle(ButtonStyle.Secondary)
-          .setEmoji(INFO_POSTS.SERVICE_MEMBERS.buttonEmoji),
-        new ButtonBuilder()
-          .setCustomId(BUTTON_IDS.INFO_TOXIC)
-          .setLabel(INFO_POSTS.REPORT_TOXIC.buttonLabel)
-          .setStyle(ButtonStyle.Secondary)
-          .setEmoji(INFO_POSTS.REPORT_TOXIC.buttonEmoji),
-        new ButtonBuilder()
-          .setCustomId(BUTTON_IDS.INFO_DONATION)
-          .setLabel(INFO_POSTS.DONATION.buttonLabel)
-          .setStyle(ButtonStyle.Secondary)
-          .setEmoji(INFO_POSTS.DONATION.buttonEmoji)
-      );
+    // Row 2+: Info buttons (dynamically generated from config)
+    const infoButtons = Object.values(INFO_POSTS)
+      .filter(post => post.buttonId && post.buttonLabel)
+      .map(post => {
+        const button = new ButtonBuilder()
+          .setCustomId(post.buttonId)
+          .setLabel(post.buttonLabel)
+          .setStyle(ButtonStyle.Secondary);
 
-    return [row1, row2];
+        if (post.buttonEmoji) {
+          button.setEmoji(post.buttonEmoji);
+        }
+
+        return button;
+      });
+
+    const rows = [row1];
+
+    // Discord allows max 5 buttons per row, so chunk info buttons accordingly
+    for (let i = 0; i < infoButtons.length; i += 5) {
+      const chunk = infoButtons.slice(i, i + 5);
+      if (chunk.length > 0) {
+        rows.push(new ActionRowBuilder().addComponents(...chunk));
+      }
+    }
+
+    return rows;
   }
 
   /**
