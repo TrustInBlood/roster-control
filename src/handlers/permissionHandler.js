@@ -23,12 +23,12 @@ function checkPermissions(interaction, commandName) {
   }
 
   // If explicitly set to empty array, it means everyone can use the command
-  // This should only be used for public commands like 'ping' and 'help'
+  // This should only be used for public commands like 'ping', 'help', 'linkid', 'unlink'
   if (Array.isArray(allowedRoles) && allowedRoles.length === 0) {
-    // Log a warning for admin command names with empty permissions
-    const adminCommands = ['link', 'unlink', 'whitelist', 'duty', 'onduty', 'offduty', 'admin', 'mod', 'ban', 'kick'];
+    // Log a warning for admin command names with empty permissions (excludes user self-service commands)
+    const adminCommands = ['whitelist', 'duty', 'onduty', 'offduty', 'admin', 'mod', 'ban', 'kick'];
     if (adminCommands.includes(commandName.toLowerCase())) {
-      loggerConsole.error(`SECURITY WARNING: Admin command '${commandName}' has empty permission array! This allows everyone access!`);
+      loggerConsole.warn(`SECURITY WARNING: Admin command '${commandName}' has empty permission array! This allows everyone access!`);
     }
     return true;
   }
