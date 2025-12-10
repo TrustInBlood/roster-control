@@ -3,7 +3,9 @@ const {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
-  ActionRowBuilder
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle
 } = require('discord.js');
 const { PlayerDiscordLink, UnlinkHistory, Whitelist } = require('../database/models');
 const { isValidSteamId } = require('../utils/steamId');
@@ -21,12 +23,17 @@ const serviceLogger = createServiceLogger('ButtonInteractionHandler');
 const BUTTON_IDS = {
   LINK: 'whitelist_post_link',
   STATUS: 'whitelist_post_status',
+  UNLINK: 'whitelist_post_unlink',
   // Info buttons
   INFO_SEED: 'info_seed_reward',
   INFO_SERVICE: 'info_service_members',
   INFO_TOXIC: 'info_report_toxic',
   INFO_DONATION: 'info_donation'
 };
+
+// Prefixes for dynamic button IDs (unlink confirmation flow)
+const UNLINK_CONFIRM_PREFIX = 'unlink_confirm_';
+const UNLINK_CANCEL_PREFIX = 'unlink_cancel_';
 
 // Modal custom ID prefix (will be suffixed with user ID for uniqueness)
 const MODAL_ID_PREFIX = 'whitelist_post_link_modal_';
@@ -38,12 +45,27 @@ const MODAL_ID_PREFIX = 'whitelist_post_link_modal_';
 async function handleButtonInteraction(interaction) {
   // Handle button clicks
   if (interaction.isButton()) {
-    switch (interaction.customId) {
+    const customId = interaction.customId;
+
+    // Check for dynamic unlink confirmation buttons first
+    if (customId.startsWith(UNLINK_CONFIRM_PREFIX)) {
+      await handleUnlinkConfirm(interaction);
+      return;
+    }
+    if (customId.startsWith(UNLINK_CANCEL_PREFIX)) {
+      await handleUnlinkCancel(interaction);
+      return;
+    }
+
+    switch (customId) {
     case BUTTON_IDS.LINK:
       await handleLinkButton(interaction);
       break;
     case BUTTON_IDS.STATUS:
       await handleStatusButton(interaction);
+      break;
+    case BUTTON_IDS.UNLINK:
+      await handleUnlinkButton(interaction);
       break;
     case BUTTON_IDS.INFO_SEED:
       await handleInfoButton(interaction, 'SEED_REWARD');
@@ -104,11 +126,6 @@ async function handleLinkButton(interaction) {
             name: 'Linked Since',
             value: `<t:${Math.floor(existingLink.created_at.getTime() / 1000)}:R>`,
             inline: true
-          },
-          {
-            name: 'Need to change your Steam ID?',
-            value: 'Use the `/unlink` command to remove your current link. Note: There is a 30-day cooldown after unlinking.',
-            inline: false
           }
         ],
         timestamp: new Date().toISOString(),
@@ -673,6 +690,288 @@ async function handleStatusButton(interaction) {
       content: 'Failed to retrieve whitelist status. Please try again later.',
       flags: replyMethod === 'reply' ? MessageFlags.Ephemeral : undefined
     });
+  }
+}
+
+/**
+ * Handle the "Unlink" button click
+ * Shows confirmation dialog before unlinking
+ */
+async function handleUnlinkButton(interaction) {
+  try {
+    const discordUserId = interaction.user.id;
+
+    // Check if user has a link
+    const existingLink = await PlayerDiscordLink.findByDiscordId(discordUserId);
+
+    if (!existingLink) {
+      const notLinkedEmbed = {
+        color: 0xff4444,
+        title: 'No Account Linked',
+        description: 'You do not have a Steam account linked to your Discord.',
+        fields: [
+          {
+            name: 'Want to link?',
+            value: 'Click the **Link Steam ID** button to connect your Steam account.',
+            inline: false
+          }
+        ],
+        timestamp: new Date().toISOString(),
+        footer: { text: 'Roster Control System' }
+      };
+
+      await interaction.reply({
+        embeds: [notLinkedEmbed],
+        flags: MessageFlags.Ephemeral
+      });
+      return;
+    }
+
+    // Show confirmation warning
+    const warningEmbed = {
+      color: 0xffa500,
+      title: 'Unlinking Warning',
+      description: 'Are you sure you want to unlink your Steam ID? **This action has consequences.**',
+      fields: [
+        {
+          name: 'Steam ID',
+          value: existingLink.steamid64,
+          inline: true
+        },
+        {
+          name: 'Link Confidence',
+          value: `${(existingLink.confidence_score * 100).toFixed(0)}%`,
+          inline: true
+        },
+        {
+          name: 'Linked Since',
+          value: `<t:${Math.floor(existingLink.created_at.getTime() / 1000)}:R>`,
+          inline: true
+        },
+        {
+          name: 'IMPORTANT: 30-Day Cooldown',
+          value: '**You will NOT be able to link a new Steam ID for 30 days after unlinking.**\n\nThis cooldown prevents abuse of the linking system.',
+          inline: false
+        },
+        {
+          name: 'What will happen?',
+          value: '- Your Steam ID will be unlinked from your Discord account\n- Your whitelist access may be affected\n- You cannot link a different Steam ID for 30 days\n- You can re-link the SAME Steam ID immediately',
+          inline: false
+        }
+      ],
+      timestamp: new Date().toISOString(),
+      footer: { text: 'Roster Control System - Confirmation Required' }
+    };
+
+    // Generate unique IDs for confirmation buttons (include user ID for security)
+    const uniqueId = `${discordUserId}_${Date.now()}`;
+    const confirmId = `${UNLINK_CONFIRM_PREFIX}${uniqueId}`;
+    const cancelId = `${UNLINK_CANCEL_PREFIX}${uniqueId}`;
+
+    const confirmRow = new ActionRowBuilder()
+      .addComponents(
+        new ButtonBuilder()
+          .setCustomId(confirmId)
+          .setLabel('Yes, Unlink (30-day cooldown)')
+          .setStyle(ButtonStyle.Danger),
+        new ButtonBuilder()
+          .setCustomId(cancelId)
+          .setLabel('Cancel')
+          .setStyle(ButtonStyle.Secondary)
+      );
+
+    await interaction.reply({
+      embeds: [warningEmbed],
+      components: [confirmRow],
+      flags: MessageFlags.Ephemeral
+    });
+
+  } catch (error) {
+    serviceLogger.error('Error handling unlink button:', error);
+
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({
+        content: 'An error occurred. Please try again later.',
+        flags: MessageFlags.Ephemeral
+      });
+    }
+  }
+}
+
+/**
+ * Handle unlink confirmation button
+ */
+async function handleUnlinkConfirm(interaction) {
+  try {
+    // Extract user ID from custom ID for security verification
+    const customId = interaction.customId;
+    const uniquePart = customId.replace(UNLINK_CONFIRM_PREFIX, '');
+    const expectedUserId = uniquePart.split('_')[0];
+
+    // Security check: Only allow the original user
+    if (interaction.user.id !== expectedUserId) {
+      await interaction.reply({
+        content: 'You cannot interact with this confirmation.',
+        flags: MessageFlags.Ephemeral
+      });
+      return;
+    }
+
+    await interaction.deferUpdate();
+
+    const discordUserId = interaction.user.id;
+
+    // Re-fetch the link to ensure it still exists
+    const existingLink = await PlayerDiscordLink.findByDiscordId(discordUserId);
+
+    if (!existingLink) {
+      await interaction.editReply({
+        embeds: [{
+          color: 0xff4444,
+          title: 'No Account Linked',
+          description: 'Your account is no longer linked.',
+          timestamp: new Date().toISOString(),
+          footer: { text: 'Roster Control System' }
+        }],
+        components: []
+      });
+      return;
+    }
+
+    // Find ALL links for this user (not just primary)
+    const allLinks = await PlayerDiscordLink.findAllByDiscordId(discordUserId);
+
+    // Record ALL links in UnlinkHistory before deletion
+    for (const link of allLinks) {
+      const isPrimary = link.steamid64 === existingLink.steamid64;
+      await UnlinkHistory.recordUnlink(
+        discordUserId,
+        link.steamid64,
+        link.eosID,
+        link.username,
+        isPrimary
+          ? 'User request via whitelist post button (primary link)'
+          : `User request via whitelist post button (secondary link, ${(link.confidence_score * 100).toFixed(0)}% confidence)`
+      );
+    }
+
+    // Delete ALL links
+    for (const link of allLinks) {
+      await link.destroy();
+    }
+
+    // Calculate cooldown end
+    const cooldownEndDate = new Date();
+    cooldownEndDate.setDate(cooldownEndDate.getDate() + 30);
+
+    const successEmbed = {
+      color: 0xff9900,
+      title: 'Account Unlinked Successfully',
+      fields: [
+        {
+          name: 'Unlinked Steam ID',
+          value: existingLink.steamid64,
+          inline: true
+        },
+        {
+          name: 'Username',
+          value: existingLink.username || 'Unknown',
+          inline: true
+        },
+        {
+          name: '30-Day Cooldown Active',
+          value: `You cannot link a **different** Steam ID until:\n<t:${Math.floor(cooldownEndDate.getTime() / 1000)}:F>\n(<t:${Math.floor(cooldownEndDate.getTime() / 1000)}:R>)`,
+          inline: false
+        },
+        {
+          name: 'Important Notes',
+          value: `- You can re-link the SAME Steam ID (\`${existingLink.steamid64}\`) immediately\n- Linking a different Steam ID will be blocked for 30 days\n- Contact staff if you need urgent assistance`,
+          inline: false
+        }
+      ],
+      timestamp: new Date().toISOString(),
+      footer: { text: 'Roster Control System' }
+    };
+
+    await interaction.editReply({
+      embeds: [successEmbed],
+      components: []
+    });
+
+    serviceLogger.info('User unlinked via whitelist post button', {
+      discordUserId,
+      steamid64: existingLink.steamid64,
+      linkCount: allLinks.length,
+      cooldownUntil: cooldownEndDate.toISOString()
+    });
+
+  } catch (error) {
+    serviceLogger.error('Error handling unlink confirm:', error);
+
+    const replyMethod = interaction.deferred || interaction.replied ? 'editReply' : 'reply';
+    await interaction[replyMethod]({
+      content: 'Failed to unlink your account. Please try again later.',
+      flags: replyMethod === 'reply' ? MessageFlags.Ephemeral : undefined
+    });
+  }
+}
+
+/**
+ * Handle unlink cancel button
+ */
+async function handleUnlinkCancel(interaction) {
+  try {
+    // Extract user ID from custom ID for security verification
+    const customId = interaction.customId;
+    const uniquePart = customId.replace(UNLINK_CANCEL_PREFIX, '');
+    const expectedUserId = uniquePart.split('_')[0];
+
+    // Security check: Only allow the original user
+    if (interaction.user.id !== expectedUserId) {
+      await interaction.reply({
+        content: 'You cannot interact with this confirmation.',
+        flags: MessageFlags.Ephemeral
+      });
+      return;
+    }
+
+    const discordUserId = interaction.user.id;
+    const existingLink = await PlayerDiscordLink.findByDiscordId(discordUserId);
+
+    const cancelledEmbed = {
+      color: 0x808080,
+      title: 'Unlink Cancelled',
+      description: 'Your account link has NOT been changed.',
+      fields: existingLink ? [
+        {
+          name: 'Steam ID',
+          value: existingLink.steamid64,
+          inline: true
+        },
+        {
+          name: 'Status',
+          value: 'Still Linked',
+          inline: true
+        }
+      ] : [],
+      timestamp: new Date().toISOString(),
+      footer: { text: 'Roster Control System' }
+    };
+
+    await interaction.update({
+      embeds: [cancelledEmbed],
+      components: []
+    });
+
+  } catch (error) {
+    serviceLogger.error('Error handling unlink cancel:', error);
+
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({
+        content: 'An error occurred.',
+        flags: MessageFlags.Ephemeral
+      });
+    }
   }
 }
 
