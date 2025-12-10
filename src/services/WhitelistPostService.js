@@ -1,6 +1,6 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { InteractivePost } = require('../database/models');
-const { CHANNELS } = require('../utils/environment');
+const { CHANNELS, INFO_POSTS } = require('../utils/environment');
 const { createServiceLogger } = require('../utils/logger');
 const { BUTTON_IDS } = require('../handlers/buttonInteractionHandler');
 
@@ -95,11 +95,11 @@ class WhitelistPostService {
       if (!message) return false;
 
       const embed = this.createEmbed();
-      const buttons = this.createButtons();
+      const buttonRows = this.createButtons();
 
       await message.edit({
         embeds: [embed],
-        components: [buttons]
+        components: buttonRows
       });
 
       return true;
@@ -131,11 +131,11 @@ class WhitelistPostService {
       }
 
       const embed = this.createEmbed();
-      const buttons = this.createButtons();
+      const buttonRows = this.createButtons();
 
       const message = await channel.send({
         embeds: [embed],
-        components: [buttons]
+        components: buttonRows
       });
 
       // Save to database
@@ -181,10 +181,11 @@ class WhitelistPostService {
 
   /**
    * Create the buttons for the whitelist post
-   * @returns {ActionRowBuilder} - Action row with buttons
+   * @returns {ActionRowBuilder[]} - Array of action rows with buttons
    */
   createButtons() {
-    return new ActionRowBuilder()
+    // Row 1: Account management buttons
+    const row1 = new ActionRowBuilder()
       .addComponents(
         new ButtonBuilder()
           .setCustomId(BUTTON_IDS.LINK)
@@ -197,6 +198,33 @@ class WhitelistPostService {
           .setStyle(ButtonStyle.Secondary)
           .setEmoji('📋')
       );
+
+    // Row 2: Info buttons (from config)
+    const row2 = new ActionRowBuilder()
+      .addComponents(
+        new ButtonBuilder()
+          .setCustomId(BUTTON_IDS.INFO_SEED)
+          .setLabel(INFO_POSTS.SEED_REWARD.buttonLabel)
+          .setStyle(ButtonStyle.Secondary)
+          .setEmoji(INFO_POSTS.SEED_REWARD.buttonEmoji),
+        new ButtonBuilder()
+          .setCustomId(BUTTON_IDS.INFO_SERVICE)
+          .setLabel(INFO_POSTS.SERVICE_MEMBERS.buttonLabel)
+          .setStyle(ButtonStyle.Secondary)
+          .setEmoji(INFO_POSTS.SERVICE_MEMBERS.buttonEmoji),
+        new ButtonBuilder()
+          .setCustomId(BUTTON_IDS.INFO_TOXIC)
+          .setLabel(INFO_POSTS.REPORT_TOXIC.buttonLabel)
+          .setStyle(ButtonStyle.Secondary)
+          .setEmoji(INFO_POSTS.REPORT_TOXIC.buttonEmoji),
+        new ButtonBuilder()
+          .setCustomId(BUTTON_IDS.INFO_DONATION)
+          .setLabel(INFO_POSTS.DONATION.buttonLabel)
+          .setStyle(ButtonStyle.Secondary)
+          .setEmoji(INFO_POSTS.DONATION.buttonEmoji)
+      );
+
+    return [row1, row2];
   }
 
   /**

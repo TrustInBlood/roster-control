@@ -56,24 +56,27 @@ function loadConfigExports(configName, exports) {
 const squadGroups = loadConfig('squadGroups');
 const channels = loadConfig('channels');
 const discordRoles = loadConfig('discordRoles');
+const infoPosts = loadConfig('infoPosts');
 
 module.exports = {
   // Environment flags
   isDevelopment,
   isProduction,
-  
+
   // Configuration loading utilities
   getConfigPath,
   loadConfig,
   loadConfigExports,
-  
+
   // Pre-loaded configurations
   squadGroups,
   channels,
   discordRoles,
-  
+  infoPosts,
+
   // Commonly used destructured exports
   getHighestPriorityGroup: squadGroups.getHighestPriorityGroup,
   CHANNELS: channels.CHANNELS,
-  DISCORD_ROLES: discordRoles.DISCORD_ROLES
+  DISCORD_ROLES: discordRoles.DISCORD_ROLES,
+  INFO_POSTS: infoPosts.INFO_POSTS
 };

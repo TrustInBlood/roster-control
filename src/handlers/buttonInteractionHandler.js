@@ -12,6 +12,7 @@ const { getRoleArchiveService } = require('../services/RoleArchiveService');
 const WhitelistAuthorityService = require('../services/WhitelistAuthorityService');
 const notificationService = require('../services/NotificationService');
 const { createServiceLogger } = require('../utils/logger');
+const { INFO_POSTS } = require('../utils/environment');
 const { Op } = require('sequelize');
 
 const serviceLogger = createServiceLogger('ButtonInteractionHandler');
@@ -19,7 +20,12 @@ const serviceLogger = createServiceLogger('ButtonInteractionHandler');
 // Button custom IDs for the whitelist post
 const BUTTON_IDS = {
   LINK: 'whitelist_post_link',
-  STATUS: 'whitelist_post_status'
+  STATUS: 'whitelist_post_status',
+  // Info buttons
+  INFO_SEED: 'info_seed_reward',
+  INFO_SERVICE: 'info_service_members',
+  INFO_TOXIC: 'info_report_toxic',
+  INFO_DONATION: 'info_donation'
 };
 
 // Modal custom ID prefix (will be suffixed with user ID for uniqueness)
@@ -38,6 +44,18 @@ async function handleButtonInteraction(interaction) {
       break;
     case BUTTON_IDS.STATUS:
       await handleStatusButton(interaction);
+      break;
+    case BUTTON_IDS.INFO_SEED:
+      await handleInfoButton(interaction, 'SEED_REWARD');
+      break;
+    case BUTTON_IDS.INFO_SERVICE:
+      await handleInfoButton(interaction, 'SERVICE_MEMBERS');
+      break;
+    case BUTTON_IDS.INFO_TOXIC:
+      await handleInfoButton(interaction, 'REPORT_TOXIC');
+      break;
+    case BUTTON_IDS.INFO_DONATION:
+      await handleInfoButton(interaction, 'DONATION');
       break;
     // Return early for unhandled buttons (not ours)
     default:
@@ -655,6 +673,77 @@ async function handleStatusButton(interaction) {
       content: 'Failed to retrieve whitelist status. Please try again later.',
       flags: replyMethod === 'reply' ? MessageFlags.Ephemeral : undefined
     });
+  }
+}
+
+/**
+ * Replace channel placeholders {#key} with Discord channel mentions <#channelId>
+ * @param {string} text - Text containing placeholders
+ * @param {object} channels - Channel mapping { key: channelId }
+ * @returns {string} - Text with placeholders replaced
+ */
+function replaceChannelPlaceholders(text, channels) {
+  if (!text || !channels) return text;
+
+  return text.replace(/\{#(\w+)\}/g, (match, key) => {
+    const channelId = channels[key];
+    if (channelId) {
+      return `<#${channelId}>`;
+    }
+    // Leave placeholder as-is if channel not found
+    serviceLogger.warn(`Channel placeholder {#${key}} not found in channels config`);
+    return match;
+  });
+}
+
+/**
+ * Handle info button clicks - display configurable ephemeral content
+ * @param {import('discord.js').Interaction} interaction
+ * @param {string} infoType - Key from INFO_POSTS config
+ */
+async function handleInfoButton(interaction, infoType) {
+  try {
+    const infoConfig = INFO_POSTS[infoType];
+
+    if (!infoConfig) {
+      serviceLogger.error('Unknown info type:', infoType);
+      await interaction.reply({
+        content: 'This information is not available.',
+        flags: MessageFlags.Ephemeral
+      });
+      return;
+    }
+
+    const channels = infoConfig.channels || {};
+
+    // Build embed from config with channel placeholder replacement
+    const embed = {
+      color: infoConfig.embed.color,
+      title: infoConfig.embed.title,
+      description: replaceChannelPlaceholders(infoConfig.embed.description, channels),
+      fields: (infoConfig.embed.fields || []).map(field => ({
+        name: field.name,
+        value: replaceChannelPlaceholders(field.value, channels),
+        inline: field.inline
+      })),
+      timestamp: new Date().toISOString(),
+      footer: infoConfig.embed.footer || { text: 'Roster Control System' }
+    };
+
+    await interaction.reply({
+      embeds: [embed],
+      flags: MessageFlags.Ephemeral
+    });
+
+  } catch (error) {
+    serviceLogger.error('Error handling info button:', error);
+
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({
+        content: 'An error occurred. Please try again later.',
+        flags: MessageFlags.Ephemeral
+      });
+    }
   }
 }
 
