@@ -19,6 +19,8 @@ const CHANNELS = {
   DONATION_ANNOUNCEMENTS: '1432404113601335447',
   // Channel for donation admin logs (includes email)
   DONATION_ADMIN_LOGS: '1432404161521127547',
+  // Channel for persistent whitelist management post
+  WHITELIST_POST: '1448167332764712960', // Whitelist channel
 };
 
 /**

@@ -43,11 +43,6 @@ module.exports = {
               name: 'Example',
               value: '`76561198123456789`',
               inline: false
-            },
-            {
-              name: 'How to find your Steam ID',
-              value: 'Visit [steamid.io](https://steamid.io) and enter your Steam profile URL or locate it on your Steam profile page.',
-              inline: false
             }
           ],
           timestamp: new Date().toISOString(),

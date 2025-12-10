@@ -81,6 +81,11 @@ client.on('ready', async () => {
   notificationService.initialize(client);
   loggerConsole.log('NotificationService initialized');
 
+  // Initialize WhitelistPostService (persistent interactive post)
+  const WhitelistPostService = require('./services/WhitelistPostService');
+  const whitelistPostService = new WhitelistPostService(client, logger);
+  await whitelistPostService.initialize();
+
   // Initialize MemberCacheService for optimized member fetching in large guilds
   const { initializeMemberCache } = require('./services/MemberCacheService');
   await initializeMemberCache(client);
@@ -310,9 +315,21 @@ async function ensureDatabaseReady() {
 // Import handlers
 const { permissionMiddleware } = require('./handlers/permissionHandler');
 const { handleCommandError } = require('./handlers/errorHandler');
+const { handleButtonInteraction } = require('./handlers/buttonInteractionHandler');
 
-// Command handler
+// Interaction handler (commands, buttons, modals)
 client.on('interactionCreate', async interaction => {
+  // Handle button interactions and modal submissions for persistent posts
+  if (interaction.isButton() || interaction.isModalSubmit()) {
+    try {
+      await handleButtonInteraction(interaction);
+    } catch (error) {
+      loggerConsole.error('Error handling button/modal interaction:', error);
+    }
+    return;
+  }
+
+  // Handle slash commands
   if (!interaction.isCommand()) return;
 
   const command = client.commands.get(interaction.commandName);
