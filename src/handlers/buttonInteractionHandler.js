@@ -15,6 +15,12 @@ const WhitelistAuthorityService = require('../services/WhitelistAuthorityService
 const notificationService = require('../services/NotificationService');
 const { createServiceLogger } = require('../utils/logger');
 const { INFO_POSTS } = require('../utils/environment');
+const {
+  buildWarningEmbed,
+  buildSuccessEmbed,
+  buildCancelledEmbed,
+  performUnlink
+} = require('../utils/unlinkFlow');
 const { Op } = require('sequelize');
 
 const serviceLogger = createServiceLogger('ButtonInteractionHandler');
@@ -727,42 +733,6 @@ async function handleUnlinkButton(interaction) {
       return;
     }
 
-    // Show confirmation warning
-    const warningEmbed = {
-      color: 0xffa500,
-      title: 'Unlinking Warning',
-      description: 'Are you sure you want to unlink your Steam ID? **This action has consequences.**',
-      fields: [
-        {
-          name: 'Steam ID',
-          value: existingLink.steamid64,
-          inline: true
-        },
-        {
-          name: 'Link Confidence',
-          value: `${(existingLink.confidence_score * 100).toFixed(0)}%`,
-          inline: true
-        },
-        {
-          name: 'Linked Since',
-          value: `<t:${Math.floor(existingLink.created_at.getTime() / 1000)}:R>`,
-          inline: true
-        },
-        {
-          name: 'IMPORTANT: 30-Day Cooldown',
-          value: '**You will NOT be able to link a new Steam ID for 30 days after unlinking.**\n\nThis cooldown prevents abuse of the linking system.',
-          inline: false
-        },
-        {
-          name: 'What will happen?',
-          value: '- Your Steam ID will be unlinked from your Discord account\n- Your whitelist access may be affected\n- You cannot link a different Steam ID for 30 days\n- You can re-link the SAME Steam ID immediately',
-          inline: false
-        }
-      ],
-      timestamp: new Date().toISOString(),
-      footer: { text: 'Roster Control System - Confirmation Required' }
-    };
-
     // Generate unique IDs for confirmation buttons (include user ID for security)
     const uniqueId = `${discordUserId}_${Date.now()}`;
     const confirmId = `${UNLINK_CONFIRM_PREFIX}${uniqueId}`;
@@ -781,7 +751,7 @@ async function handleUnlinkButton(interaction) {
       );
 
     await interaction.reply({
-      embeds: [warningEmbed],
+      embeds: [buildWarningEmbed(existingLink)],
       components: [confirmRow],
       flags: MessageFlags.Ephemeral
     });
@@ -838,71 +808,12 @@ async function handleUnlinkConfirm(interaction) {
       return;
     }
 
-    // Find ALL links for this user (not just primary)
-    const allLinks = await PlayerDiscordLink.findAllByDiscordId(discordUserId);
-
-    // Record ALL links in UnlinkHistory before deletion
-    for (const link of allLinks) {
-      const isPrimary = link.steamid64 === existingLink.steamid64;
-      await UnlinkHistory.recordUnlink(
-        discordUserId,
-        link.steamid64,
-        link.eosID,
-        link.username,
-        isPrimary
-          ? 'User request via whitelist post button (primary link)'
-          : `User request via whitelist post button (secondary link, ${(link.confidence_score * 100).toFixed(0)}% confidence)`
-      );
-    }
-
-    // Delete ALL links
-    for (const link of allLinks) {
-      await link.destroy();
-    }
-
-    // Calculate cooldown end
-    const cooldownEndDate = new Date();
-    cooldownEndDate.setDate(cooldownEndDate.getDate() + 30);
-
-    const successEmbed = {
-      color: 0xff9900,
-      title: 'Account Unlinked Successfully',
-      fields: [
-        {
-          name: 'Unlinked Steam ID',
-          value: existingLink.steamid64,
-          inline: true
-        },
-        {
-          name: 'Username',
-          value: existingLink.username || 'Unknown',
-          inline: true
-        },
-        {
-          name: '30-Day Cooldown Active',
-          value: `You cannot link a **different** Steam ID until:\n<t:${Math.floor(cooldownEndDate.getTime() / 1000)}:F>\n(<t:${Math.floor(cooldownEndDate.getTime() / 1000)}:R>)`,
-          inline: false
-        },
-        {
-          name: 'Important Notes',
-          value: `- You can re-link the SAME Steam ID (\`${existingLink.steamid64}\`) immediately\n- Linking a different Steam ID will be blocked for 30 days\n- Contact staff if you need urgent assistance`,
-          inline: false
-        }
-      ],
-      timestamp: new Date().toISOString(),
-      footer: { text: 'Roster Control System' }
-    };
+    // Perform the unlink using shared utility
+    const { cooldownEndDate } = await performUnlink(discordUserId, existingLink, 'whitelist post button');
 
     await interaction.editReply({
-      embeds: [successEmbed],
+      embeds: [buildSuccessEmbed(existingLink, cooldownEndDate)],
       components: []
-    });
-
-    serviceLogger.info('User unlinked via whitelist post button', {
-      discordUserId,
-      steamid64: existingLink.steamid64,
-      linkCount: allLinks.length,
-      cooldownUntil: cooldownEndDate.toISOString()
     });
 
   } catch (error) {
@@ -935,31 +846,10 @@ async function handleUnlinkCancel(interaction) {
       return;
     }
 
-    const discordUserId = interaction.user.id;
-    const existingLink = await PlayerDiscordLink.findByDiscordId(discordUserId);
-
-    const cancelledEmbed = {
-      color: 0x808080,
-      title: 'Unlink Cancelled',
-      description: 'Your account link has NOT been changed.',
-      fields: existingLink ? [
-        {
-          name: 'Steam ID',
-          value: existingLink.steamid64,
-          inline: true
-        },
-        {
-          name: 'Status',
-          value: 'Still Linked',
-          inline: true
-        }
-      ] : [],
-      timestamp: new Date().toISOString(),
-      footer: { text: 'Roster Control System' }
-    };
+    const existingLink = await PlayerDiscordLink.findByDiscordId(interaction.user.id);
 
     await interaction.update({
-      embeds: [cancelledEmbed],
+      embeds: [buildCancelledEmbed(existingLink)],
       components: []
     });
 
