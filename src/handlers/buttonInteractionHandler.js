@@ -14,7 +14,7 @@ const { getRoleArchiveService } = require('../services/RoleArchiveService');
 const WhitelistAuthorityService = require('../services/WhitelistAuthorityService');
 const notificationService = require('../services/NotificationService');
 const { createServiceLogger } = require('../utils/logger');
-const { INFO_POSTS } = require('../utils/environment');
+const environment = require('../utils/environment');
 const {
   buildWarningEmbed,
   buildSuccessEmbed,
@@ -911,7 +911,8 @@ function replaceChannelPlaceholders(text, channels) {
 async function handleInfoButton(interaction, buttonId) {
   try {
     // Find the info config that matches this buttonId
-    const infoConfig = Object.values(INFO_POSTS).find(post => post.buttonId === buttonId);
+    // Get INFO_POSTS fresh each time to pick up reloaded config
+    const infoConfig = Object.values(environment.INFO_POSTS).find(post => post.buttonId === buttonId);
 
     if (!infoConfig) {
       serviceLogger.error('Unknown info button:', buttonId);

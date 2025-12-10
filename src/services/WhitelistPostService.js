@@ -1,8 +1,11 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { InteractivePost } = require('../database/models');
-const { CHANNELS, INFO_POSTS } = require('../utils/environment');
+const environment = require('../utils/environment');
 const { createServiceLogger } = require('../utils/logger');
 const { BUTTON_IDS } = require('../handlers/buttonInteractionHandler');
+
+// Use getter to always get fresh config after reloads
+const CHANNELS = environment.CHANNELS;
 
 const serviceLogger = createServiceLogger('WhitelistPostService');
 
@@ -225,7 +228,8 @@ class WhitelistPostService {
       );
 
     // Row 2+: Info buttons (dynamically generated from config)
-    const infoButtons = Object.values(INFO_POSTS)
+    // Get INFO_POSTS fresh each time to pick up reloaded config
+    const infoButtons = Object.values(environment.INFO_POSTS)
       .filter(post => post.buttonId && post.buttonLabel)
       .map(post => {
         const button = new ButtonBuilder()

@@ -166,6 +166,27 @@ const INFO_POSTS = {
         text: 'Updated: 9/22/2025'
       }
     }
+  },
+
+  MYSTEAMID: {
+    buttonId: 'info_steamid',
+    buttonLabel: 'Find SteamID',
+    buttonEmoji: '❔',
+    embed: {
+      color: 0xffd700,
+      title: 'How to Find Your SteamID',
+      description: 'Use the guide below to quickly locate your SteamID.',
+      fields: [
+        {
+          name: 'Steps',
+          value: '1. Open your Steam profile.\n2. Copy the numbers at the end of your profile URL.\n\nHere\'s an example image:\nhttps://media.discordapp.net/attachments/1207033540999389185/1352427606682632342/image.png',
+          inline: false
+        }
+      ],
+      footer: {
+        text: 'Updated: 12/10/2025'
+      }
+    }
   }
 };
 
