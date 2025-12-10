@@ -111,6 +111,31 @@ class WhitelistPostService {
   }
 
   /**
+   * Update the tracked whitelist post from database
+   * Does NOT create a new post if it doesn't exist - throws an error instead
+   * @param {string} guildId - Discord guild ID
+   * @returns {Promise<void>}
+   */
+  async updateTrackedPost(guildId) {
+    const existingPost = await InteractivePost.findByType(guildId, POST_TYPE);
+
+    if (!existingPost) {
+      throw new Error('No whitelist post found in database. Use recreate option to create one.');
+    }
+
+    const updated = await this.updateExistingPost(existingPost.channel_id, existingPost.message_id);
+
+    if (!updated) {
+      throw new Error('Failed to update whitelist post. The message may have been deleted. Use recreate option to create a new one.');
+    }
+
+    serviceLogger.info('Whitelist post updated successfully', {
+      channelId: existingPost.channel_id,
+      messageId: existingPost.message_id
+    });
+  }
+
+  /**
    * Create the whitelist post in the configured channel
    * @param {string} guildId - Discord guild ID
    * @param {string} channelId - Channel ID where post should be created

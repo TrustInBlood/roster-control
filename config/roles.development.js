@@ -23,6 +23,7 @@ const COMMAND_PERMISSIONS = {
   'whatsnew': ['1365205433236717598'],  // Admin roles can use whatsnew command
   'unlinkedstaff': ['1365205433236717598'], // Admin roles can view unlinked staff
   'auditwhitelist': ['1365205433236717598'], // Admin roles can audit whitelist security
+  'reloadposts': ['1365205433236717598'], // Admin roles can reload info posts config
   'checkenv': ['1365205433236717598'],    // Admin roles can check environment
   'addmember': ['1444815201516912720'],  // Applications role
 

@@ -32,6 +32,7 @@ const COMMAND_PERMISSIONS = {
   'whatsnew': getAllAdminRoles(),   // All admin roles can use whatsnew command
   'unlinkedstaff': getAllAdminRoles(), // All admin roles can view unlinked staff
   'auditwhitelist': getAllAdminRoles(), // All admin roles can audit whitelist security
+  'reloadposts': [DISCORD_ROLES.HEAD_ADMIN, DISCORD_ROLES.EXECUTIVE_ADMIN], // Head admin and executive admin can reload info posts config
 
   // Tutor management commands (Tutor Lead only)
   'addspecialty': [DISCORD_ROLES.TUTOR_LEAD],
