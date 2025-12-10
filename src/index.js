@@ -81,11 +81,6 @@ client.on('ready', async () => {
   notificationService.initialize(client);
   loggerConsole.log('NotificationService initialized');
 
-  // Initialize WhitelistPostService (persistent interactive post)
-  const WhitelistPostService = require('./services/WhitelistPostService');
-  const whitelistPostService = new WhitelistPostService(client, logger);
-  await whitelistPostService.initialize();
-
   // Initialize MemberCacheService for optimized member fetching in large guilds
   const { initializeMemberCache } = require('./services/MemberCacheService');
   await initializeMemberCache(client);
@@ -108,6 +103,13 @@ client.on('ready', async () => {
   // Wait a moment for all guilds to be loaded
   setTimeout(async () => {
     await performStartupSync(client);
+
+    // Initialize WhitelistPostService (persistent interactive post)
+    // Must run AFTER performStartupSync which runs database migrations
+    const WhitelistPostService = require('./services/WhitelistPostService');
+    const whitelistPostService = new WhitelistPostService(client, logger);
+    await whitelistPostService.initialize();
+    loggerConsole.log('WhitelistPostService initialized');
 
     // Initialize ticket prompt tracking after startup sync
     await initializeTicketPromptTracking(client);
