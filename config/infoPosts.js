@@ -4,12 +4,14 @@
  *
  * ADDING NEW INFO BUTTONS:
  * Each entry must have:
- *   - buttonId: Must start with 'info_' prefix (e.g., 'info_my_button')
+ *   - Unique key name (e.g., SEED_REWARD, MY_BUTTON) - duplicates will be overwritten
+ *   - buttonId: Must start with 'info_' prefix and be unique (e.g., 'info_my_button')
  *   - buttonLabel: Text displayed on the button
  *   - buttonEmoji: (optional) Emoji displayed on the button
  *   - embed: The embed content shown when clicked
  *
  * Buttons are automatically generated from this config - no code changes needed.
+ * Use /reloadposts to apply changes without restarting the bot.
  *
  * CHANNEL REFERENCES:
  * You can reference Discord channels in your embed text using placeholders:
