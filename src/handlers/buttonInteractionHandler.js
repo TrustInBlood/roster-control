@@ -116,7 +116,7 @@ async function handleLinkButton(interaction) {
       order: [['confidence_score', 'DESC'], ['created_at', 'DESC']]
     });
 
-    // If user is already linked at 1.0 confidence, inform them
+    // If user is already linked at 1.0 confidence, inform them with unlink option
     if (existingLink && existingLink.confidence_score >= 1.0) {
       const alreadyLinkedEmbed = {
         color: 0x00ff00,
@@ -132,14 +132,27 @@ async function handleLinkButton(interaction) {
             name: 'Linked Since',
             value: `<t:${Math.floor(existingLink.created_at.getTime() / 1000)}:R>`,
             inline: true
-          }
+          },
         ],
         timestamp: new Date().toISOString(),
         footer: { text: 'Roster Control System' }
       };
 
+      // Generate unique ID for unlink button
+      const uniqueId = `${discordUserId}_${Date.now()}`;
+      const confirmId = `${UNLINK_CONFIRM_PREFIX}${uniqueId}`;
+
+      const unlinkRow = new ActionRowBuilder()
+        .addComponents(
+          new ButtonBuilder()
+            .setCustomId(confirmId)
+            .setLabel('Unlink Steam ID')
+            .setStyle(ButtonStyle.Danger)
+        );
+
       await interaction.reply({
         embeds: [alreadyLinkedEmbed],
+        components: [unlinkRow],
         flags: MessageFlags.Ephemeral
       });
       return;
@@ -218,7 +231,7 @@ async function handleLinkModalSubmit(interaction) {
       return;
     }
 
-    // Check for 30-day cooldown from recent unlink
+    // Check for 30-day cooldown from recent unlink (only applies to DIFFERENT Steam IDs)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -230,7 +243,8 @@ async function handleLinkModalSubmit(interaction) {
       order: [['unlinked_at', 'DESC']]
     });
 
-    if (recentUnlink) {
+    // Allow re-linking the same Steam ID that was unlinked (no cooldown)
+    if (recentUnlink && recentUnlink.steamid64 !== steamId) {
       const unlinkDate = new Date(recentUnlink.unlinked_at);
       const cooldownEndDate = new Date(unlinkDate);
       cooldownEndDate.setDate(cooldownEndDate.getDate() + 30);
@@ -290,7 +304,19 @@ async function handleLinkModalSubmit(interaction) {
           footer: { text: 'Roster Control System' }
         };
 
-        await interaction.editReply({ embeds: [alreadyLinkedEmbed] });
+        // Generate unique ID for unlink button
+        const uniqueId = `${interaction.user.id}_${Date.now()}`;
+        const confirmId = `${UNLINK_CONFIRM_PREFIX}${uniqueId}`;
+
+        const unlinkRow = new ActionRowBuilder()
+          .addComponents(
+            new ButtonBuilder()
+              .setCustomId(confirmId)
+              .setLabel('Unlink Steam ID')
+              .setStyle(ButtonStyle.Danger)
+          );
+
+        await interaction.editReply({ embeds: [alreadyLinkedEmbed], components: [unlinkRow] });
         return;
       }
 

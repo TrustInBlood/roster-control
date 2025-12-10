@@ -193,11 +193,6 @@ class WhitelistPostService {
           .setStyle(ButtonStyle.Primary)
           .setEmoji('🔗'),
         new ButtonBuilder()
-          .setCustomId(BUTTON_IDS.UNLINK)
-          .setLabel('Unlink Steam ID')
-          .setStyle(ButtonStyle.Danger)
-          .setEmoji('🔓'),
-        new ButtonBuilder()
           .setCustomId(BUTTON_IDS.STATUS)
           .setLabel('View Whitelist Status')
           .setStyle(ButtonStyle.Secondary)
