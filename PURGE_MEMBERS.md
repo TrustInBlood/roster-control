@@ -122,26 +122,26 @@ One-time member purge to remove roles from users without linked Steam accounts. 
 
 ## Phase 7: Execute Purge
 
-- [ ] Deploy to production
-- [ ] Run migration: `npm run db:migrate:prod`
-- [ ] Access purge webpage and review preview
-- [ ] Execute purge
-- [ ] Verify results and audit logs
+- [x] Deploy to production
+- [x] Run migration: `npm run db:migrate:prod`
+- [x] Access purge webpage and review preview
+- [x] Execute purge
+- [x] Verify results and audit logs
 
 ---
 
 ## Phase 8: Cleanup (After Purge Complete)
 
 ### Delete Temporary Files
-- [ ] `src/routes/purge.js`
-- [ ] `src/services/MemberPurgeService.js`
-- [ ] `src/views/purge.html`
+- [x] `src/routes/purge.js`
+- [x] `src/services/MemberPurgeService.js`
+- [x] `src/views/purge.html`
 
 ### Remove from src/index.js
-- [ ] The `if (process.env.PURGE_SECRET_TOKEN)` block
+- [x] The `if (process.env.PURGE_SECRET_TOKEN)` block
 
 ### Remove from .env
-- [ ] `PURGE_SECRET_TOKEN` line
+- [x] `PURGE_SECRET_TOKEN` line
 
 ---
 
