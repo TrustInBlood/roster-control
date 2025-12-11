@@ -210,15 +210,15 @@ router.get('/:steamid64', requireAuth, requirePermission('VIEW_WHITELIST'), asyn
         discord_username: latestEntry.discord_username,
         discord_user_id: latestEntry.discord_user_id
       },
-      currentStatus: currentStatus ? {
+      currentStatus: currentStatus?.hasWhitelist ? {
         isActive: true,
         status: currentStatus.status,
         expiration: currentStatus.expiration,
-        isPermanent: currentStatus.isPermanent,
+        isPermanent: currentStatus.status === 'Active (permanent)',
         totalDuration: currentStatus.totalDuration
       } : {
         isActive: false,
-        status: 'expired'
+        status: currentStatus?.status || 'expired'
       },
       accountLink: accountLink ? {
         discord_user_id: accountLink.discord_user_id,
@@ -405,8 +405,8 @@ router.put('/:id/extend', requireAuth, requirePermission('GRANT_WHITELIST'), asy
   }
 });
 
-// DELETE /api/v1/whitelist/:steamid64 - Revoke whitelist entries
-router.delete('/:steamid64', requireAuth, requirePermission('REVOKE_WHITELIST'), async (req, res) => {
+// POST /api/v1/whitelist/:steamid64/revoke - Revoke whitelist entries
+router.post('/:steamid64/revoke', requireAuth, requirePermission('REVOKE_WHITELIST'), async (req, res) => {
   try {
     const { Whitelist } = require('../../database/models');
     const { steamid64 } = req.params;

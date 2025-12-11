@@ -63,9 +63,7 @@ export const whitelistApi = {
   },
 
   revoke: async (steamid64: string, request: RevokeWhitelistRequest): Promise<{ success: boolean; revokedCount: number; message: string }> => {
-    const { data } = await api.delete<{ success: boolean; revokedCount: number; message: string }>(`/whitelist/${steamid64}`, {
-      data: request,
-    })
+    const { data } = await api.post<{ success: boolean; revokedCount: number; message: string }>(`/whitelist/${steamid64}/revoke`, request)
     return data
   },
 }

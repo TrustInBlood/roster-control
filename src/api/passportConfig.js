@@ -77,7 +77,10 @@ function configurePassport(app, sequelize, discordClient) {
         try {
           const guild = await discordClient.guilds.fetch(guildId);
           guildMember = await guild.members.fetch(profile.id);
-          roles = guildMember.roles.cache.map(role => role.id);
+          // Filter out @everyone role (has same ID as guild)
+          roles = guildMember.roles.cache
+            .filter(role => role.id !== guild.id)
+            .map(role => role.id);
 
           logger.info('Fetched guild member info', {
             userId: profile.id,

@@ -338,7 +338,10 @@ function ExtendModal({
             className="w-full bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 resize-none"
           />
           {extendMutation.error && (
-            <p className="text-sm text-red-400">{(extendMutation.error as Error).message}</p>
+            <p className="text-sm text-red-400">
+              {(extendMutation.error as { response?: { data?: { error?: string } } }).response?.data?.error
+                || (extendMutation.error as Error).message}
+            </p>
           )}
           <div className="flex justify-end gap-3">
             <button type="button" onClick={onClose} className="text-gray-400 hover:text-white">
@@ -401,7 +404,10 @@ function RevokeModal({
             className="w-full bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 resize-none"
           />
           {revokeMutation.error && (
-            <p className="text-sm text-red-400">{(revokeMutation.error as Error).message}</p>
+            <p className="text-sm text-red-400">
+              {(revokeMutation.error as { response?: { data?: { error?: string } } }).response?.data?.error
+                || (revokeMutation.error as Error).message}
+            </p>
           )}
           <div className="flex justify-end gap-3">
             <button type="button" onClick={onClose} className="text-gray-400 hover:text-white">
