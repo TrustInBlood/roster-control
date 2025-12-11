@@ -1,0 +1,74 @@
+const express = require('express');
+const router = express.Router();
+const passport = require('passport');
+const { createServiceLogger } = require('../../utils/logger');
+
+const logger = createServiceLogger('DashboardAuth');
+
+// GET /api/v1/auth/login - Initiate Discord OAuth
+router.get('/login', passport.authenticate('discord'));
+
+// GET /api/v1/auth/callback - Discord OAuth callback
+router.get('/callback',
+  passport.authenticate('discord', {
+    failureRedirect: '/login?error=auth_failed'
+  }),
+  (req, res) => {
+    logger.info('User logged in via Discord OAuth', {
+      userId: req.user.id,
+      username: req.user.username
+    });
+
+    // Redirect to dashboard frontend
+    const redirectUrl = process.env.DASHBOARD_URL || '/';
+    res.redirect(redirectUrl);
+  }
+);
+
+// GET /api/v1/auth/me - Get current user info
+router.get('/me', (req, res) => {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const { id, username, discriminator, avatar, roles, guildMember } = req.user;
+
+  res.json({
+    id,
+    username,
+    discriminator,
+    avatar,
+    avatarUrl: avatar
+      ? `https://cdn.discordapp.com/avatars/${id}/${avatar}.png`
+      : `https://cdn.discordapp.com/embed/avatars/${parseInt(discriminator || '0') % 5}.png`,
+    roles: roles || [],
+    displayName: guildMember?.displayName || username
+  });
+});
+
+// POST /api/v1/auth/logout - Logout
+router.post('/logout', (req, res) => {
+  if (req.user) {
+    logger.info('User logged out', {
+      userId: req.user.id,
+      username: req.user.username
+    });
+  }
+
+  req.logout((err) => {
+    if (err) {
+      logger.error('Error during logout', { error: err.message });
+      return res.status(500).json({ error: 'Logout failed' });
+    }
+
+    req.session.destroy((err) => {
+      if (err) {
+        logger.error('Error destroying session', { error: err.message });
+      }
+      res.clearCookie('connect.sid');
+      res.json({ success: true });
+    });
+  });
+});
+
+module.exports = router;

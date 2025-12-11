@@ -1,0 +1,64 @@
+import { type ClassValue, clsx } from 'clsx'
+import { twMerge } from 'tailwind-merge'
+import { formatDistanceToNow, format, parseISO } from 'date-fns'
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}
+
+export function formatDate(date: string | Date | null): string {
+  if (!date) return 'N/A'
+  const d = typeof date === 'string' ? parseISO(date) : date
+  return format(d, 'MMM d, yyyy')
+}
+
+export function formatDateTime(date: string | Date | null): string {
+  if (!date) return 'N/A'
+  const d = typeof date === 'string' ? parseISO(date) : date
+  return format(d, 'MMM d, yyyy h:mm a')
+}
+
+export function formatRelativeTime(date: string | Date | null): string {
+  if (!date) return 'N/A'
+  const d = typeof date === 'string' ? parseISO(date) : date
+  return formatDistanceToNow(d, { addSuffix: true })
+}
+
+export function getStatusColor(status: string): string {
+  switch (status) {
+    case 'active':
+      return 'bg-green-500/20 text-green-400 border-green-500/30'
+    case 'permanent':
+      return 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+    case 'expired':
+      return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+    case 'revoked':
+      return 'bg-red-500/20 text-red-400 border-red-500/30'
+    default:
+      return 'bg-gray-500/20 text-gray-400 border-gray-500/30'
+  }
+}
+
+export function getSourceColor(source: string | null): string {
+  switch (source) {
+    case 'role':
+      return 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+    case 'manual':
+      return 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+    case 'donation':
+      return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+    case 'import':
+      return 'bg-gray-500/20 text-gray-400 border-gray-500/30'
+    default:
+      return 'bg-gray-500/20 text-gray-400 border-gray-500/30'
+  }
+}
+
+export function truncateSteamId(steamid64: string): string {
+  if (steamid64.length <= 10) return steamid64
+  return `${steamid64.slice(0, 6)}...${steamid64.slice(-4)}`
+}
+
+export function copyToClipboard(text: string): Promise<void> {
+  return navigator.clipboard.writeText(text)
+}

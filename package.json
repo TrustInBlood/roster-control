@@ -26,7 +26,10 @@
     "db:migrate:status:prod": "NODE_ENV=production node scripts/migration-status.js",
     "db:migrate:rollback": "node scripts/rollback-migration.js",
     "db:migrate:rollback:dev": "NODE_ENV=development node scripts/rollback-migration.js",
-    "db:migrate:rollback:prod": "NODE_ENV=production node scripts/rollback-migration.js"
+    "db:migrate:rollback:prod": "NODE_ENV=production node scripts/rollback-migration.js",
+    "dashboard:dev": "npm run --prefix dashboard dev",
+    "dashboard:build": "npm run --prefix dashboard build",
+    "dashboard:preview": "npm run --prefix dashboard preview"
   },
   "keywords": [
     "discord",
@@ -41,12 +44,18 @@
   "private": true,
   "dependencies": {
     "axios": "^1.12.0",
+    "connect-session-sequelize": "^7.1.7",
+    "cors": "^2.8.5",
     "discord.js": "^14.14.1",
     "dotenv": "^16.3.1",
     "dotenv-flow": "^4.1.0",
     "express": "^4.18.2",
+    "express-session": "^1.18.0",
+    "helmet": "^7.1.0",
     "mariadb": "^3.2.3",
     "node-fetch": "^3.3.2",
+    "passport": "^0.7.0",
+    "passport-discord": "^0.1.4",
     "sequelize": "^6.35.2",
     "socket.io-client": "^4.7.4",
     "umzug": "^3.5.1",
