@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { whitelistApi } from '../lib/api'
+import { useAuth } from './useAuth'
 import type {
   WhitelistFilters,
   GrantWhitelistRequest,
@@ -8,24 +9,29 @@ import type {
 } from '../types/whitelist'
 
 export function useWhitelistList(filters: WhitelistFilters = {}) {
+  const { user } = useAuth()
   return useQuery({
     queryKey: ['whitelist', 'list', filters],
     queryFn: () => whitelistApi.list(filters),
+    enabled: !!user,
   })
 }
 
 export function useWhitelistStats() {
+  const { user } = useAuth()
   return useQuery({
     queryKey: ['whitelist', 'stats'],
     queryFn: whitelistApi.getStats,
+    enabled: !!user,
   })
 }
 
 export function useWhitelistDetail(steamid64: string) {
+  const { user } = useAuth()
   return useQuery({
     queryKey: ['whitelist', 'detail', steamid64],
     queryFn: () => whitelistApi.getDetail(steamid64),
-    enabled: !!steamid64,
+    enabled: !!user && !!steamid64,
   })
 }
 

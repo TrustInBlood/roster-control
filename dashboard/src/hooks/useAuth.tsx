@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import type { User, AuthContextType, Permission } from '../types/auth'
+import type { AuthContextType, Permission } from '../types/auth'
 import { authApi } from '../lib/api'
 
 // Role IDs that have specific permissions

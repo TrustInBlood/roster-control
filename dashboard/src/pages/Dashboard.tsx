@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { List, Users, Clock, Shield } from 'lucide-react'
+import { List, Users, Shield } from 'lucide-react'
 import { useWhitelistStats } from '../hooks/useWhitelist'
 
 export default function Dashboard() {

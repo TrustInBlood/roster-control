@@ -2,15 +2,13 @@ import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Copy, Plus, Trash2, Clock, User, Shield, History } from 'lucide-react'
 import { useWhitelistDetail, useExtendWhitelist, useRevokeWhitelist } from '../hooks/useWhitelist'
-import { cn, formatDate, formatDateTime, formatRelativeTime, getStatusColor, getSourceColor, copyToClipboard } from '../lib/utils'
+import { cn, formatDateTime, formatRelativeTime, getStatusColor, getSourceColor, copyToClipboard } from '../lib/utils'
 import type { ExtendWhitelistRequest, RevokeWhitelistRequest } from '../types/whitelist'
 
 export default function WhitelistDetail() {
   const { steamid64 } = useParams<{ steamid64: string }>()
   const navigate = useNavigate()
   const { data, isLoading, error } = useWhitelistDetail(steamid64!)
-  const extendMutation = useExtendWhitelist()
-  const revokeMutation = useRevokeWhitelist()
 
   const [showExtendModal, setShowExtendModal] = useState(false)
   const [showRevokeModal, setShowRevokeModal] = useState(false)
@@ -291,7 +289,7 @@ function ExtendModal({
   onSuccess: () => void
 }) {
   const extendMutation = useExtendWhitelist()
-  const [duration, setDuration] = useState({ value: 1, type: 'months' as const })
+  const [duration, setDuration] = useState<{ value: number; type: 'days' | 'months' | 'hours' }>({ value: 1, type: 'months' })
   const [note, setNote] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {

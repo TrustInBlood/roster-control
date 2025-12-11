@@ -389,15 +389,17 @@ async function initializeWhitelist() {
       app.use('/api/v1', dashboardApiRoutes);
       loggerConsole.log('Dashboard API routes registered at /api/v1');
 
-      // Serve dashboard static files in production
+      // Serve dashboard static files (if dist exists)
       const dashboardPath = path.join(__dirname, '..', 'dashboard', 'dist');
-      if (process.env.NODE_ENV === 'production' && fs.existsSync(dashboardPath)) {
+      if (fs.existsSync(dashboardPath)) {
         app.use(express.static(dashboardPath));
         // SPA fallback - serve index.html for all non-API routes
         app.get(/^(?!\/api|\/webhook|\/whitelist).*$/, (req, res) => {
           res.sendFile(path.join(dashboardPath, 'index.html'));
         });
         loggerConsole.log('Dashboard static files served from /dashboard/dist');
+      } else {
+        loggerConsole.warn('Dashboard dist folder not found - run "npm run dashboard:build" to build frontend');
       }
     } else {
       loggerConsole.warn('Dashboard disabled - Discord OAuth not configured');

@@ -19,9 +19,8 @@ router.get('/callback',
       username: req.user.username
     });
 
-    // Redirect to dashboard frontend
-    const redirectUrl = process.env.DASHBOARD_URL || '/';
-    res.redirect(redirectUrl);
+    // Redirect to dashboard frontend (served from same origin)
+    res.redirect('/');
   }
 );
 

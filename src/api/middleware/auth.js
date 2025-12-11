@@ -1,9 +1,12 @@
 const { createServiceLogger } = require('../../utils/logger');
+const { loadConfig } = require('../../utils/environment');
+
+// Load environment-specific Discord roles
 const {
   DISCORD_ROLES,
   getAllAdminRoles,
   getAllStaffRoles
-} = require('../../../config/discordRoles');
+} = loadConfig('discordRoles');
 
 const logger = createServiceLogger('DashboardAuthMiddleware');
 
