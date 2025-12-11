@@ -49,61 +49,45 @@ function normalizeStatus(status) {
   return lower;
 }
 
-// GET /api/v1/whitelist - List whitelist entries with pagination and filters
+// GET /api/v1/whitelist - List whitelisted players (grouped by Steam ID)
 router.get('/', requireAuth, requirePermission('VIEW_WHITELIST'), async (req, res) => {
   try {
     const { Whitelist } = require('../../database/models');
+    const sequelize = require('sequelize');
 
     const {
       page = 1,
       limit = 25,
       status, // active, expired, revoked, permanent
       source, // role, manual, donation, import
-      type, // staff, whitelist
       search, // search by steamid64, username, discord_username
       sortBy = 'granted_at',
       sortOrder = 'DESC'
     } = req.query;
 
-    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
 
-    // Build where clause
-    const where = {};
-
-    if (type) {
-      where.type = type;
-    }
+    // Build base where clause for filtering
+    const baseWhere = { approved: true };
 
     if (source) {
-      where.source = source;
+      baseWhere.source = source;
     }
 
     if (search) {
-      where[Op.or] = [
+      baseWhere[Op.or] = [
         { steamid64: { [Op.like]: `%${search}%` } },
         { username: { [Op.like]: `%${search}%` } },
         { discord_username: { [Op.like]: `%${search}%` } }
       ];
     }
 
-    // Status filtering requires post-processing since it's calculated
-    if (status === 'revoked') {
-      where.revoked = true;
-    } else if (status) {
-      where.revoked = false;
-      where.approved = true;
-    }
-
-    // Validate sort column
-    const validSortColumns = ['granted_at', 'steamid64', 'username', 'discord_username', 'source', 'type'];
-    const safeSortBy = validSortColumns.includes(sortBy) ? sortBy : 'granted_at';
-    const safeSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
-
-    const { count, rows } = await Whitelist.findAndCountAll({
-      where,
-      order: [[safeSortBy, safeSortOrder]],
-      limit: parseInt(limit),
-      offset,
+    // Get all unique Steam IDs first, then fetch their data
+    // This approach ensures accurate pagination by player
+    const allEntries = await Whitelist.findAll({
+      where: baseWhere,
+      order: [['steamid64', 'ASC'], ['granted_at', 'DESC']],
       include: [{
         model: require('../../database/models').Group,
         as: 'group',
@@ -111,37 +95,150 @@ router.get('/', requireAuth, requirePermission('VIEW_WHITELIST'), async (req, re
       }]
     });
 
-    // Calculate status for each entry and filter if needed
-    let entries = rows.map(entry => {
-      const entryJson = entry.toJSON();
-      const entryStatus = getEntryStatus(entry);
-      const expiration = calculateExpiration(entry);
+    // Group entries by steamid64 and calculate player status
+    const playerMap = new Map();
 
-      return {
-        ...entryJson,
-        status: entryStatus,
-        calculatedExpiration: expiration,
-        groupName: entry.group?.group_name || null
-      };
-    });
+    for (const entry of allEntries) {
+      const steamid64 = entry.steamid64;
 
-    // Filter by status if specified (excluding revoked which is filtered in query)
-    if (status && status !== 'revoked') {
-      entries = entries.filter(e => e.status === status);
+      if (!playerMap.has(steamid64)) {
+        playerMap.set(steamid64, {
+          entries: [],
+          latestEntry: null
+        });
+      }
+
+      const playerData = playerMap.get(steamid64);
+      playerData.entries.push(entry);
+
+      // Track latest entry for display info
+      if (!playerData.latestEntry || new Date(entry.granted_at) > new Date(playerData.latestEntry.granted_at)) {
+        playerData.latestEntry = entry;
+      }
     }
 
+    // Calculate status for each player
+    let players = [];
+
+    for (const [steamid64, playerData] of playerMap) {
+      const { entries, latestEntry } = playerData;
+
+      // Check if player has any non-revoked entries
+      const activeEntries = entries.filter(e => !e.revoked);
+      const allRevoked = activeEntries.length === 0;
+
+      let playerStatus;
+      let expiration = null;
+
+      if (allRevoked) {
+        playerStatus = 'revoked';
+      } else {
+        // Check for permanent
+        const hasPermanent = activeEntries.some(e =>
+          e.duration_value === null && e.duration_type === null
+        );
+
+        if (hasPermanent) {
+          playerStatus = 'permanent';
+        } else {
+          // Calculate stacked expiration
+          const now = new Date();
+          const validEntries = activeEntries.filter(e => {
+            if (e.duration_value === 0) return false;
+            const exp = calculateExpiration(e);
+            return exp && exp > now;
+          });
+
+          if (validEntries.length === 0) {
+            playerStatus = 'expired';
+            // Find most recent expiration for display
+            for (const e of activeEntries) {
+              const exp = calculateExpiration(e);
+              if (exp && (!expiration || exp > expiration)) {
+                expiration = exp;
+              }
+            }
+          } else {
+            playerStatus = 'active';
+            // Calculate stacked expiration
+            const earliest = validEntries.sort((a, b) =>
+              new Date(a.granted_at) - new Date(b.granted_at)
+            )[0];
+            let stackedExp = new Date(earliest.granted_at);
+
+            let totalMonths = 0, totalDays = 0, totalHours = 0;
+            for (const e of validEntries) {
+              if (e.duration_type === 'months') totalMonths += e.duration_value;
+              else if (e.duration_type === 'days') totalDays += e.duration_value;
+              else if (e.duration_type === 'hours') totalHours += e.duration_value;
+            }
+
+            if (totalMonths > 0) stackedExp.setMonth(stackedExp.getMonth() + totalMonths);
+            if (totalDays > 0) stackedExp.setDate(stackedExp.getDate() + totalDays);
+            if (totalHours > 0) stackedExp.setTime(stackedExp.getTime() + (totalHours * 60 * 60 * 1000));
+
+            expiration = stackedExp;
+          }
+        }
+      }
+
+      // Determine primary source (prefer non-revoked entries)
+      const primaryEntry = activeEntries.length > 0 ? activeEntries[0] : entries[0];
+
+      players.push({
+        steamid64,
+        username: latestEntry.username,
+        discord_username: latestEntry.discord_username,
+        discord_user_id: latestEntry.discord_user_id,
+        eosID: latestEntry.eosID,
+        status: playerStatus,
+        expiration: expiration ? expiration.toISOString() : null,
+        source: primaryEntry.source,
+        entryCount: entries.length,
+        latestGrantedAt: latestEntry.granted_at,
+        groupName: latestEntry.group?.group_name || null
+      });
+    }
+
+    // Filter by status if specified
+    if (status) {
+      players = players.filter(p => p.status === status);
+    }
+
+    // Sort players
+    const validSortColumns = ['latestGrantedAt', 'steamid64', 'username', 'discord_username', 'source', 'status'];
+    const sortField = sortBy === 'granted_at' ? 'latestGrantedAt' : sortBy;
+    const safeSortBy = validSortColumns.includes(sortField) ? sortField : 'latestGrantedAt';
+    const safeSortOrder = sortOrder.toUpperCase() === 'ASC' ? 1 : -1;
+
+    players.sort((a, b) => {
+      const aVal = a[safeSortBy];
+      const bVal = b[safeSortBy];
+      if (aVal === null || aVal === undefined) return 1;
+      if (bVal === null || bVal === undefined) return -1;
+      if (aVal < bVal) return -1 * safeSortOrder;
+      if (aVal > bVal) return 1 * safeSortOrder;
+      return 0;
+    });
+
+    // Paginate
+    const total = players.length;
+    const totalPages = Math.ceil(total / limitNum);
+    const offset = (pageNum - 1) * limitNum;
+    const paginatedPlayers = players.slice(offset, offset + limitNum);
+
     res.json({
-      entries,
+      entries: paginatedPlayers,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total: count,
-        totalPages: Math.ceil(count / parseInt(limit))
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages
       }
     });
   } catch (error) {
-    logger.error('Error fetching whitelist entries', { error: error.message });
-    res.status(500).json({ error: 'Failed to fetch whitelist entries' });
+    logger.error('Error fetching whitelist players', { error: error.message });
+    res.status(500).json({ error: 'Failed to fetch whitelist players' });
   }
 });
 
@@ -149,15 +246,41 @@ router.get('/', requireAuth, requirePermission('VIEW_WHITELIST'), async (req, re
 router.get('/stats', requireAuth, requirePermission('VIEW_WHITELIST'), async (req, res) => {
   try {
     const { Whitelist } = require('../../database/models');
+    const sequelize = require('sequelize');
 
-    const [totalEntries, activeEntries, revokedEntries, sourceBreakdown] = await Promise.all([
-      Whitelist.count({ where: { approved: true } }),
-      Whitelist.count({ where: { approved: true, revoked: false } }),
-      Whitelist.count({ where: { revoked: true } }),
+    // Count unique players instead of entries
+    const [totalPlayers, activePlayers, revokedPlayers, sourceBreakdown] = await Promise.all([
+      // Total unique players who have ever had a whitelist
+      Whitelist.count({
+        where: { approved: true },
+        distinct: true,
+        col: 'steamid64'
+      }),
+      // Unique players with active (non-revoked) whitelist entries
+      Whitelist.count({
+        where: { approved: true, revoked: false },
+        distinct: true,
+        col: 'steamid64'
+      }),
+      // Unique players who only have revoked entries (no active ones)
+      Whitelist.count({
+        where: {
+          steamid64: {
+            [Op.notIn]: sequelize.literal(
+              '(SELECT DISTINCT steamid64 FROM whitelists WHERE approved = 1 AND revoked = 0)'
+            )
+          },
+          approved: true,
+          revoked: true
+        },
+        distinct: true,
+        col: 'steamid64'
+      }),
+      // Source breakdown by unique players
       Whitelist.findAll({
         attributes: [
           'source',
-          [require('sequelize').fn('COUNT', '*'), 'count']
+          [sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('steamid64'))), 'count']
         ],
         where: { approved: true, revoked: false },
         group: ['source']
@@ -165,9 +288,9 @@ router.get('/stats', requireAuth, requirePermission('VIEW_WHITELIST'), async (re
     ]);
 
     res.json({
-      total: totalEntries,
-      active: activeEntries,
-      revoked: revokedEntries,
+      total: totalPlayers,
+      active: activePlayers,
+      revoked: revokedPlayers,
       bySource: sourceBreakdown.reduce((acc, row) => {
         acc[row.source || 'unknown'] = parseInt(row.getDataValue('count'));
         return acc;

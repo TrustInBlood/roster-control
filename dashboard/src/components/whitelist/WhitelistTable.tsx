@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom'
 import { ChevronUp, ChevronDown, Copy, ExternalLink } from 'lucide-react'
-import type { WhitelistEntry } from '../../types/whitelist'
-import { cn, formatDate, formatRelativeTime, getStatusColor, getSourceColor, copyToClipboard } from '../../lib/utils'
+import type { WhitelistPlayer } from '../../types/whitelist'
+import { cn, formatRelativeTime, getStatusColor, getSourceColor, copyToClipboard } from '../../lib/utils'
 
 interface WhitelistTableProps {
-  entries: WhitelistEntry[]
+  players: WhitelistPlayer[]
   isLoading: boolean
   pagination?: {
     page: number
@@ -25,14 +25,14 @@ const columns = [
   { key: 'username', label: 'Username', sortable: true },
   { key: 'discord_username', label: 'Discord', sortable: true },
   { key: 'source', label: 'Source', sortable: true },
-  { key: 'status', label: 'Status', sortable: false },
-  { key: 'calculatedExpiration', label: 'Expires', sortable: false },
-  { key: 'granted_at', label: 'Granted', sortable: true },
+  { key: 'status', label: 'Status', sortable: true },
+  { key: 'expiration', label: 'Expires', sortable: false },
+  { key: 'entryCount', label: 'Entries', sortable: false },
   { key: 'actions', label: '', sortable: false },
 ]
 
 export default function WhitelistTable({
-  entries,
+  players,
   isLoading,
   pagination,
   onPageChange,
@@ -49,22 +49,21 @@ export default function WhitelistTable({
 
   const handleCopy = async (text: string) => {
     await copyToClipboard(text)
-    // Could add a toast notification here
   }
 
   if (isLoading) {
     return (
       <div className="p-8 text-center">
         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-discord-blurple mx-auto"></div>
-        <p className="text-gray-400 mt-4">Loading entries...</p>
+        <p className="text-gray-400 mt-4">Loading players...</p>
       </div>
     )
   }
 
-  if (entries.length === 0) {
+  if (players.length === 0) {
     return (
       <div className="p-8 text-center">
-        <p className="text-gray-400">No whitelist entries found</p>
+        <p className="text-gray-400">No whitelisted players found</p>
       </div>
     )
   }
@@ -99,18 +98,18 @@ export default function WhitelistTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-discord-lighter">
-            {entries.map((entry) => (
+            {players.map((player) => (
               <tr
-                key={entry.id}
+                key={player.steamid64}
                 className="hover:bg-discord-lighter/50 transition-colors"
               >
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <code className="text-sm text-blue-400 font-mono">
-                      {entry.steamid64}
+                      {player.steamid64}
                     </code>
                     <button
-                      onClick={() => handleCopy(entry.steamid64)}
+                      onClick={() => handleCopy(player.steamid64)}
                       className="text-gray-500 hover:text-white transition-colors"
                       title="Copy Steam ID"
                     >
@@ -120,51 +119,51 @@ export default function WhitelistTable({
                 </td>
                 <td className="px-4 py-3">
                   <span className="text-sm text-white">
-                    {entry.username || '-'}
+                    {player.username || '-'}
                   </span>
                 </td>
                 <td className="px-4 py-3">
                   <span className="text-sm text-gray-300">
-                    {entry.discord_username || '-'}
+                    {player.discord_username || '-'}
                   </span>
                 </td>
                 <td className="px-4 py-3">
                   <span
                     className={cn(
                       'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border',
-                      getSourceColor(entry.source)
+                      getSourceColor(player.source)
                     )}
                   >
-                    {entry.source || 'unknown'}
+                    {player.source || 'unknown'}
                   </span>
                 </td>
                 <td className="px-4 py-3">
                   <span
                     className={cn(
                       'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border',
-                      getStatusColor(entry.status)
+                      getStatusColor(player.status)
                     )}
                   >
-                    {entry.status}
+                    {player.status}
                   </span>
                 </td>
                 <td className="px-4 py-3">
                   <span className="text-sm text-gray-300">
-                    {entry.status === 'permanent'
+                    {player.status === 'permanent'
                       ? 'Never'
-                      : entry.calculatedExpiration
-                      ? formatRelativeTime(entry.calculatedExpiration)
+                      : player.expiration
+                      ? formatRelativeTime(player.expiration)
                       : '-'}
                   </span>
                 </td>
                 <td className="px-4 py-3">
                   <span className="text-sm text-gray-400">
-                    {formatDate(entry.granted_at)}
+                    {player.entryCount}
                   </span>
                 </td>
                 <td className="px-4 py-3">
                   <Link
-                    to={`/whitelist/${entry.steamid64}`}
+                    to={`/whitelist/${player.steamid64}`}
                     className="text-discord-blurple hover:text-discord-blurple/80 transition-colors"
                     title="View details"
                   >
@@ -183,7 +182,7 @@ export default function WhitelistTable({
           <p className="text-sm text-gray-400">
             Showing {((pagination.page - 1) * pagination.limit) + 1} to{' '}
             {Math.min(pagination.page * pagination.limit, pagination.total)} of{' '}
-            {pagination.total} entries
+            {pagination.total} players
           </p>
           <div className="flex items-center gap-2">
             <button

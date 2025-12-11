@@ -27,6 +27,20 @@ export interface WhitelistEntry {
   groupName: string | null
 }
 
+export interface WhitelistPlayer {
+  steamid64: string
+  username: string | null
+  discord_username: string | null
+  discord_user_id: string | null
+  eosID: string | null
+  status: 'active' | 'expired' | 'revoked' | 'permanent'
+  expiration: string | null
+  source: 'role' | 'manual' | 'import' | 'donation' | null
+  entryCount: number
+  latestGrantedAt: string
+  groupName: string | null
+}
+
 export interface WhitelistStats {
   total: number
   active: number
@@ -70,7 +84,7 @@ export interface WhitelistDetailResponse {
 }
 
 export interface WhitelistListResponse {
-  entries: WhitelistEntry[]
+  entries: WhitelistPlayer[]
   pagination: {
     page: number
     limit: number

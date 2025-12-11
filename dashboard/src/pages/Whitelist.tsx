@@ -54,7 +54,7 @@ export default function Whitelist() {
         <div>
           <h1 className="text-2xl font-bold text-white">Whitelist Management</h1>
           <p className="text-gray-400 mt-1">
-            {data?.pagination.total ?? 0} total entries
+            {data?.pagination.total ?? 0} whitelisted players
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -134,7 +134,7 @@ export default function Whitelist() {
       {/* Table */}
       <div className="bg-discord-light rounded-lg overflow-hidden">
         <WhitelistTable
-          entries={data?.entries ?? []}
+          players={data?.entries ?? []}
           isLoading={isLoading}
           pagination={data?.pagination}
           onPageChange={(page) => updateFilter('page', page.toString())}
