@@ -45,8 +45,8 @@ export interface WhitelistUser {
 export interface WhitelistCurrentStatus {
   isActive: boolean
   status: string
-  expiration: string | null
-  isPermanent: boolean
+  expiration?: string | null
+  isPermanent?: boolean
   totalDuration?: {
     months: number
     days: number

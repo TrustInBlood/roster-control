@@ -37,6 +37,18 @@ function getEntryStatus(entry) {
   return 'expired';
 }
 
+// Helper to normalize status from model to consistent lowercase format
+function normalizeStatus(status) {
+  if (!status) return 'expired';
+  const lower = status.toLowerCase();
+  if (lower.includes('permanent')) return 'permanent';
+  if (lower.includes('active')) return 'active';
+  if (lower.includes('expired')) return 'expired';
+  if (lower.includes('revoked')) return 'revoked';
+  if (lower.includes('no whitelist')) return 'expired';
+  return lower;
+}
+
 // GET /api/v1/whitelist - List whitelist entries with pagination and filters
 router.get('/', requireAuth, requirePermission('VIEW_WHITELIST'), async (req, res) => {
   try {
@@ -212,13 +224,15 @@ router.get('/:steamid64', requireAuth, requirePermission('VIEW_WHITELIST'), asyn
       },
       currentStatus: currentStatus?.hasWhitelist ? {
         isActive: true,
-        status: currentStatus.status,
+        status: normalizeStatus(currentStatus.status),
         expiration: currentStatus.expiration,
         isPermanent: currentStatus.status === 'Active (permanent)',
         totalDuration: currentStatus.totalDuration
       } : {
         isActive: false,
-        status: currentStatus?.status || 'expired'
+        status: normalizeStatus(currentStatus?.status),
+        expiration: currentStatus?.expiration || null,
+        isPermanent: false
       },
       accountLink: accountLink ? {
         discord_user_id: accountLink.discord_user_id,

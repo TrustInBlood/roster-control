@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Copy, Plus, Trash2, Clock, User, Shield, History } from 'lucide-react'
 import { useWhitelistDetail, useExtendWhitelist, useRevokeWhitelist } from '../hooks/useWhitelist'
 import { cn, formatDateTime, formatRelativeTime, getStatusColor, getSourceColor, copyToClipboard } from '../lib/utils'
@@ -7,7 +7,6 @@ import type { ExtendWhitelistRequest, RevokeWhitelistRequest } from '../types/wh
 
 export default function WhitelistDetail() {
   const { steamid64 } = useParams<{ steamid64: string }>()
-  const navigate = useNavigate()
   const { data, isLoading, error } = useWhitelistDetail(steamid64!)
 
   const [showExtendModal, setShowExtendModal] = useState(false)
@@ -270,7 +269,7 @@ export default function WhitelistDetail() {
           onClose={() => setShowRevokeModal(false)}
           onSuccess={() => {
             setShowRevokeModal(false)
-            navigate('/whitelist')
+            // Stay on detail page - data will refresh via query invalidation
           }}
         />
       )}
