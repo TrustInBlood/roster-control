@@ -354,6 +354,21 @@ async function initializeWhitelist() {
 
     // Setup HTTP server
     const app = express();
+    const helmet = require('helmet');
+    const cors = require('cors');
+
+    // Security middleware
+    app.use(helmet({
+      contentSecurityPolicy: false // Disable for dashboard SPA
+    }));
+
+    // CORS configuration for dashboard
+    app.use(cors({
+      origin: process.env.NODE_ENV === 'production'
+        ? process.env.DASHBOARD_URL || false
+        : ['http://localhost:5173', 'http://localhost:3001'],
+      credentials: true
+    }));
 
     // Add middleware to preserve raw body for signature verification
     app.use(express.json({
@@ -363,6 +378,32 @@ async function initializeWhitelist() {
       }
     }));
     app.use(express.urlencoded({ extended: true }));
+
+    // Configure passport for Discord OAuth (dashboard authentication)
+    const { configurePassport } = require('./api/passportConfig');
+    const dashboardEnabled = configurePassport(app, databaseManager.getSequelize(), client);
+
+    if (dashboardEnabled) {
+      // Mount dashboard API routes
+      const dashboardApiRoutes = require('./api/v1');
+      app.use('/api/v1', dashboardApiRoutes);
+      loggerConsole.log('Dashboard API routes registered at /api/v1');
+
+      // Serve dashboard static files (if dist exists)
+      const dashboardPath = path.join(__dirname, '..', 'dashboard', 'dist');
+      if (fs.existsSync(dashboardPath)) {
+        app.use(express.static(dashboardPath));
+        // SPA fallback - serve index.html for all non-API routes
+        app.get(/^(?!\/api|\/webhook|\/whitelist).*$/, (req, res) => {
+          res.sendFile(path.join(dashboardPath, 'index.html'));
+        });
+        loggerConsole.log('Dashboard static files served from /dashboard/dist');
+      } else {
+        loggerConsole.warn('Dashboard dist folder not found - run "npm run dashboard:build" to build frontend');
+      }
+    } else {
+      loggerConsole.warn('Dashboard disabled - Discord OAuth not configured');
+    }
 
     // Setup whitelist routes and services
     const whitelistServices = await setupWhitelistRoutes(
@@ -394,6 +435,9 @@ async function initializeWhitelist() {
       loggerConsole.log(`  - Whitelist endpoint: http://${host}:${port}/whitelist`);
       loggerConsole.log(`  - Donation webhook: http://${host}:${port}/webhook/donations`);
       loggerConsole.log(`  - BattleMetrics webhook: http://${host}:${port}/webhook/battlemetrics/whitelist`);
+      if (dashboardEnabled) {
+        loggerConsole.log(`  - Dashboard API: http://${host}:${port}/api/v1`);
+      }
     });
 
     // Store for graceful shutdown
