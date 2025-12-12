@@ -39,6 +39,9 @@ const INFO_BUTTON_PREFIX = 'info_';
 const UNLINK_CONFIRM_PREFIX = 'unlink_confirm_';
 const UNLINK_CANCEL_PREFIX = 'unlink_cancel_';
 
+// Prefix for ticket link buttons
+const TICKET_LINK_BUTTON_PREFIX = 'ticket_link_';
+
 // Modal custom ID prefix (will be suffixed with user ID for uniqueness)
 const MODAL_ID_PREFIX = 'whitelist_post_link_modal_';
 
@@ -64,6 +67,12 @@ async function handleButtonInteraction(interaction) {
     // Check for dynamic info buttons
     if (customId.startsWith(INFO_BUTTON_PREFIX)) {
       await handleInfoButton(interaction, customId);
+      return;
+    }
+
+    // Check for ticket link buttons
+    if (customId.startsWith(TICKET_LINK_BUTTON_PREFIX)) {
+      await handleTicketLinkButton(interaction);
       return;
     }
 
@@ -957,6 +966,191 @@ async function handleInfoButton(interaction, buttonId) {
 }
 
 /**
+ * Handle ticket link button click
+ * Anyone in the ticket can click this to link the Steam ID to the target user
+ */
+async function handleTicketLinkButton(interaction) {
+  try {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+    // Parse the custom ID: ticket_link_{targetUserId}_{steamId}
+    const customId = interaction.customId;
+    const parts = customId.replace(TICKET_LINK_BUTTON_PREFIX, '').split('_');
+
+    if (parts.length < 2) {
+      await interaction.editReply({
+        content: 'Invalid button data. Please try again.',
+      });
+      return;
+    }
+
+    const targetUserId = parts[0];
+    const steamId = parts[1];
+
+    // Validate Steam ID format
+    if (!isValidSteamId(steamId)) {
+      await interaction.editReply({
+        embeds: [{
+          color: 0xff4444,
+          title: 'Invalid Steam ID',
+          description: 'The Steam ID in this button is no longer valid.',
+          timestamp: new Date().toISOString(),
+          footer: { text: 'Roster Control System' }
+        }]
+      });
+      return;
+    }
+
+    // Check if already linked at 1.0 confidence
+    const existingLink = await PlayerDiscordLink.findOne({
+      where: {
+        discord_user_id: targetUserId,
+        steamid64: steamId
+      }
+    });
+
+    if (existingLink && parseFloat(existingLink.confidence_score) >= 1.0) {
+      await interaction.editReply({
+        embeds: [{
+          color: 0x00ff00,
+          title: 'Already Linked',
+          description: `This Steam ID is already linked to <@${targetUserId}> with full confidence.`,
+          fields: [
+            { name: 'Steam ID', value: `\`${steamId}\``, inline: true },
+            { name: 'Confidence', value: '100%', inline: true },
+            { name: 'Linked Since', value: `<t:${Math.floor(existingLink.created_at.getTime() / 1000)}:R>`, inline: true }
+          ],
+          timestamp: new Date().toISOString(),
+          footer: { text: 'Roster Control System' }
+        }]
+      });
+
+      // Disable the button on the original message
+      await disableTicketLinkButton(interaction.message, customId);
+      return;
+    }
+
+    // Create or upgrade the link
+    const previousConfidence = existingLink ? parseFloat(existingLink.confidence_score) : null;
+
+    const { created } = await PlayerDiscordLink.createOrUpdateLink(
+      targetUserId,
+      steamId,
+      null, // eosId
+      null, // username (will be fetched if needed)
+      {
+        linkSource: 'manual', // Ticket button click counts as manual verification
+        confidenceScore: 1.0,
+        isPrimary: true,
+        metadata: {
+          linked_via: 'ticket_button',
+          linked_by: interaction.user.id,
+          linked_by_tag: interaction.user.tag,
+          linked_at: new Date().toISOString(),
+          channel_id: interaction.channel.id,
+          channel_name: interaction.channel.name,
+          previous_confidence: previousConfidence
+        }
+      }
+    );
+
+    const actionType = created ? 'linked' : (previousConfidence ? 'verified' : 'linked');
+    const title = created ? 'Account Linked' : 'Account Link Verified';
+    const description = created
+      ? `Steam ID successfully linked to <@${targetUserId}>.`
+      : `Steam ID link for <@${targetUserId}> has been verified.`;
+
+    await interaction.editReply({
+      embeds: [{
+        color: 0x00ff00,
+        title: title,
+        description: description,
+        fields: [
+          { name: 'Steam ID', value: `\`${steamId}\``, inline: true },
+          { name: 'Confidence', value: previousConfidence ? `${(previousConfidence * 100).toFixed(0)}% → 100%` : '100%', inline: true },
+          { name: 'Linked By', value: `<@${interaction.user.id}>`, inline: true }
+        ],
+        timestamp: new Date().toISOString(),
+        footer: { text: 'Roster Control System' }
+      }]
+    });
+
+    // Disable the button on the original message
+    await disableTicketLinkButton(interaction.message, customId);
+
+    // Trigger role sync for the target user
+    await triggerUserRoleSync(interaction.client, targetUserId, {
+      source: 'ticket_link_button',
+      skipNotification: false
+    });
+
+    // Send notification
+    await notificationService.sendAccountLinkNotification({
+      success: true,
+      description: `<@${targetUserId}>'s Steam ID was ${actionType} via ticket button by <@${interaction.user.id}>`,
+      fields: [
+        { name: 'Target User', value: `<@${targetUserId}>`, inline: true },
+        { name: 'Steam ID', value: `\`${steamId}\``, inline: true },
+        { name: 'Linked By', value: `<@${interaction.user.id}>`, inline: true },
+        { name: 'Channel', value: `<#${interaction.channel.id}>`, inline: true }
+      ]
+    });
+
+    serviceLogger.info('Steam ID linked via ticket button', {
+      targetUserId,
+      steamId,
+      linkedBy: interaction.user.id,
+      channelId: interaction.channel.id,
+      created,
+      previousConfidence
+    });
+
+  } catch (error) {
+    serviceLogger.error('Error handling ticket link button:', error);
+
+    const replyMethod = interaction.deferred || interaction.replied ? 'editReply' : 'reply';
+    await interaction[replyMethod]({
+      content: 'Failed to link the Steam ID. Please try again later or use `/adminlink`.',
+      flags: replyMethod === 'reply' ? MessageFlags.Ephemeral : undefined
+    });
+  }
+}
+
+/**
+ * Disable the ticket link button after it's been used
+ * @param {Message} message - The message containing the button
+ * @param {string} buttonId - The custom ID of the button to disable
+ */
+async function disableTicketLinkButton(message, buttonId) {
+  try {
+    if (!message.components || message.components.length === 0) return;
+
+    const newComponents = message.components.map(row => {
+      const newRow = new ActionRowBuilder();
+      row.components.forEach(component => {
+        if (component.customId === buttonId) {
+          newRow.addComponents(
+            ButtonBuilder.from(component)
+              .setLabel('Linked')
+              .setStyle(ButtonStyle.Success)
+              .setDisabled(true)
+              .setEmoji('✅')
+          );
+        } else {
+          newRow.addComponents(ButtonBuilder.from(component));
+        }
+      });
+      return newRow;
+    });
+
+    await message.edit({ components: newComponents });
+  } catch (error) {
+    serviceLogger.warn('Failed to disable ticket link button:', error.message);
+    // Non-blocking - button still works, just won't be visually disabled
+  }
+}
+
+/**
  * Calculate expiration date from granted_at and duration
  */
 function calculateExpirationDate(grantedAt, durationValue, durationType) {
@@ -976,5 +1170,6 @@ function calculateExpirationDate(grantedAt, durationValue, durationType) {
 module.exports = {
   handleButtonInteraction,
   BUTTON_IDS,
-  MODAL_ID_PREFIX
+  MODAL_ID_PREFIX,
+  TICKET_LINK_BUTTON_PREFIX
 };

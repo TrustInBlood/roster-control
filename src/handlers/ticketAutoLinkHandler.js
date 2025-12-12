@@ -4,7 +4,7 @@
  * when they provide Steam IDs in ticket channels
  */
 
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { looksLikeSteamId, isValidSteamId } = require('../utils/steamId');
 const { PlayerDiscordLink } = require('../database/models');
 const { channels } = require('../utils/environment');
@@ -403,7 +403,7 @@ async function processTicketSteamId(message, steamId, targetUser) {
 
     // BattleMetrics profile lookup
     if (TICKET_CONFIG.BATTLEMETRICS_LOOKUP_ENABLED) {
-      await postBattleMetricsProfile(message, steamId);
+      await postBattleMetricsProfile(message, steamId, targetUser);
     }
 
   } catch (error) {
@@ -411,16 +411,46 @@ async function processTicketSteamId(message, steamId, targetUser) {
   }
 }
 
+// Button custom ID prefix for ticket linking
+const TICKET_LINK_BUTTON_PREFIX = 'ticket_link_';
+
 /**
  * Post BattleMetrics profile link to ticket channel
+ * Also shows link status and provides a Link button if not linked
  * @param {Message} message - Discord message object
  * @param {string} steamId - Valid Steam ID64
+ * @param {User} targetUser - The user this Steam ID is associated with
  */
-async function postBattleMetricsProfile(message, steamId) {
+async function postBattleMetricsProfile(message, steamId, targetUser) {
   try {
     // Call BattleMetrics API with configured timeout
     const timeout = TICKET_CONFIG.BATTLEMETRICS_TIMEOUT_MS || 5000;
     const result = await battlemetricsService.searchPlayerBySteamId(steamId, timeout);
+
+    // Check if this Steam ID is linked to the target user
+    const existingLink = await PlayerDiscordLink.findOne({
+      where: {
+        discord_user_id: targetUser.id,
+        steamid64: steamId
+      }
+    });
+
+    const isLinked = !!existingLink;
+    const linkConfidence = existingLink ? parseFloat(existingLink.confidence_score) : 0;
+
+    // Build link status field
+    let linkStatusValue;
+    let linkStatusEmoji;
+    if (isLinked && linkConfidence >= 1.0) {
+      linkStatusEmoji = '✅';
+      linkStatusValue = `Linked to <@${targetUser.id}> (${(linkConfidence * 100).toFixed(0)}% confidence)`;
+    } else if (isLinked) {
+      linkStatusEmoji = '⚠️';
+      linkStatusValue = `Soft-linked to <@${targetUser.id}> (${(linkConfidence * 100).toFixed(0)}% confidence - needs verification)`;
+    } else {
+      linkStatusEmoji = '❌';
+      linkStatusValue = `Not linked to <@${targetUser.id}>`;
+    }
 
     // Post result based on whether player was found
     if (result.found && result.profileUrl) {
@@ -430,18 +460,34 @@ async function postBattleMetricsProfile(message, steamId) {
         .setDescription(`Player profile for Steam ID: \`${steamId}\``)
         .addFields(
           { name: 'Player Name', value: result.playerData.name || 'Unknown', inline: true },
-          { name: 'BM Profile', value: `[View Profile](${result.profileUrl})`, inline: true }
-          // Future: Add ban count, playtime, last seen, etc.
+          { name: 'BM Profile', value: `[View Profile](${result.profileUrl})`, inline: true },
+          { name: `${linkStatusEmoji} Account Link`, value: linkStatusValue, inline: false }
         )
         .setTimestamp()
         .setFooter({ text: 'BattleMetrics Profile Lookup' });
 
-      await message.channel.send({ embeds: [embed] });
+      // Create components array (Link button if not linked at 1.0 confidence)
+      const components = [];
+      if (!isLinked || linkConfidence < 1.0) {
+        const buttonLabel = isLinked ? 'Verify Link' : 'Link Account';
+        const linkButton = new ButtonBuilder()
+          .setCustomId(`${TICKET_LINK_BUTTON_PREFIX}${targetUser.id}_${steamId}`)
+          .setLabel(buttonLabel)
+          .setStyle(ButtonStyle.Primary)
+          .setEmoji('🔗');
+
+        const row = new ActionRowBuilder().addComponents(linkButton);
+        components.push(row);
+      }
+
+      await message.channel.send({ embeds: [embed], components });
 
       loggerConsole.log('Posted BattleMetrics profile to ticket:', {
         channelId: message.channel.id,
         steamId,
-        playerName: result.playerData.name
+        playerName: result.playerData.name,
+        isLinked,
+        linkConfidence
       });
     } else if (!result.found && !result.error) {
       // Player not found in BattleMetrics - post notification
@@ -454,16 +500,33 @@ async function postBattleMetricsProfile(message, steamId) {
             name: 'What does this mean?',
             value: 'This player has not been seen on any servers tracked by BattleMetrics, or their profile is private.',
             inline: false
-          }
+          },
+          { name: `${linkStatusEmoji} Account Link`, value: linkStatusValue, inline: false }
         )
         .setTimestamp()
         .setFooter({ text: 'BattleMetrics Profile Lookup' });
 
-      await message.channel.send({ embeds: [embed] });
+      // Create components array (Link button if not linked at 1.0 confidence)
+      const components = [];
+      if (!isLinked || linkConfidence < 1.0) {
+        const buttonLabel = isLinked ? 'Verify Link' : 'Link Account';
+        const linkButton = new ButtonBuilder()
+          .setCustomId(`${TICKET_LINK_BUTTON_PREFIX}${targetUser.id}_${steamId}`)
+          .setLabel(buttonLabel)
+          .setStyle(ButtonStyle.Primary)
+          .setEmoji('🔗');
+
+        const row = new ActionRowBuilder().addComponents(linkButton);
+        components.push(row);
+      }
+
+      await message.channel.send({ embeds: [embed], components });
 
       loggerConsole.log('BattleMetrics profile not found:', {
         channelId: message.channel.id,
-        steamId
+        steamId,
+        isLinked,
+        linkConfidence
       });
     } else if (result.error) {
       // Log errors but don't spam the channel with error messages
