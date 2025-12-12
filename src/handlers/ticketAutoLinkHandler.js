@@ -20,7 +20,8 @@ const handledTickets = new Set();
 
 /**
  * Initialize ticket prompt tracking on bot startup
- * Scans all existing ticket channels to see if we've already prompted them
+ * Scans all existing ticket channels to see if we've already handled them
+ * (either found a Steam ID or prompted for one)
  * @param {Client} client - Discord client
  */
 async function initializeTicketPromptTracking(client) {
@@ -29,7 +30,7 @@ async function initializeTicketPromptTracking(client) {
     const channels = await guild.channels.fetch();
 
     let ticketChannelCount = 0;
-    let alreadyPromptedCount = 0;
+    let alreadyHandledCount = 0;
 
     for (const [, channel] of channels) {
       // Skip non-text channels
@@ -40,28 +41,76 @@ async function initializeTicketPromptTracking(client) {
 
       ticketChannelCount++;
 
-      // Check message history for existing prompt OR confirmed Steam ID
+      // Check message history for existing handling
       try {
-        const recentMessages = await channel.messages.fetch({ limit: 20 });
-        const alreadyHandled = recentMessages.some(msg =>
+        const recentMessages = await channel.messages.fetch({ limit: 50 });
+
+        // Check 1: Did the bot already post a BattleMetrics or prompt embed?
+        const botAlreadyResponded = recentMessages.some(msg =>
           msg.author.id === client.user.id &&
           msg.embeds.length > 0 &&
           (msg.embeds[0].title === '⚠️ Steam ID Required' ||
-           msg.embeds[0].title === '🔍 BattleMetrics Profile Found')
+           msg.embeds[0].title === '🔍 BattleMetrics Profile Found' ||
+           msg.embeds[0].title === '❌ BattleMetrics Profile Not Found')
         );
 
-        if (alreadyHandled) {
+        if (botAlreadyResponded) {
           handledTickets.add(channel.id);
-          alreadyPromptedCount++;
+          alreadyHandledCount++;
+          continue;
+        }
+
+        // Check 2: Is there already a Steam ID in any message in this channel?
+        // This catches cases where Steam ID exists but bot hadn't responded yet (pre-feature)
+        // or bot response was deleted
+        let steamIdFound = false;
+        for (const [, msg] of recentMessages) {
+          // Check message content
+          const contentSteamIds = extractSteamIds(msg.content);
+          if (contentSteamIds.length > 0) {
+            steamIdFound = true;
+            break;
+          }
+
+          // Check embeds
+          if (msg.embeds && msg.embeds.length > 0) {
+            for (const embed of msg.embeds) {
+              if (embed.description) {
+                const embedSteamIds = extractSteamIds(embed.description);
+                if (embedSteamIds.length > 0) {
+                  steamIdFound = true;
+                  break;
+                }
+              }
+              if (embed.fields) {
+                for (const field of embed.fields) {
+                  if (field.value) {
+                    const fieldSteamIds = extractSteamIds(field.value);
+                    if (fieldSteamIds.length > 0) {
+                      steamIdFound = true;
+                      break;
+                    }
+                  }
+                }
+              }
+              if (steamIdFound) break;
+            }
+          }
+          if (steamIdFound) break;
+        }
+
+        if (steamIdFound) {
+          handledTickets.add(channel.id);
+          alreadyHandledCount++;
         }
       } catch (error) {
-        loggerConsole.warn(`Failed to check prompt history for ticket channel ${channel.name}:`, error.message);
+        loggerConsole.warn(`Failed to check history for ticket channel ${channel.name}:`, error.message);
       }
     }
 
     loggerConsole.log('Ticket prompt tracking initialized:', {
       ticketChannels: ticketChannelCount,
-      alreadyPrompted: alreadyPromptedCount
+      alreadyHandled: alreadyHandledCount
     });
   } catch (error) {
     loggerConsole.error('Error initializing ticket prompt tracking:', error);
