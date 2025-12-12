@@ -393,8 +393,9 @@ async function initializeWhitelist() {
       const dashboardPath = path.join(__dirname, '..', 'dashboard', 'dist');
       if (fs.existsSync(dashboardPath)) {
         app.use(express.static(dashboardPath));
-        // SPA fallback - serve index.html for all non-API routes
-        app.get(/^(?!\/api|\/webhook|\/whitelist).*$/, (req, res) => {
+        // SPA fallback - serve index.html for all non-API, non-whitelist routes
+        // Excludes: /api, /webhook, /whitelist, /combined (legacy whitelist endpoint)
+        app.get(/^(?!\/api|\/webhook|\/whitelist|\/combined).*$/, (req, res) => {
           res.sendFile(path.join(dashboardPath, 'index.html'));
         });
         loggerConsole.log('Dashboard static files served from /dashboard/dist');
