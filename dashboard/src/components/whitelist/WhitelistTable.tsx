@@ -26,8 +26,8 @@ const columns = [
   { key: 'discord_username', label: 'Discord', sortable: true },
   { key: 'source', label: 'Source', sortable: true },
   { key: 'status', label: 'Status', sortable: true },
-  { key: 'expiration', label: 'Expires', sortable: false },
-  { key: 'entryCount', label: 'Entries', sortable: false },
+  { key: 'expiration', label: 'Expires', sortable: true },
+  { key: 'entryCount', label: 'Entries', sortable: true },
   { key: 'actions', label: '', sortable: false },
 ]
 

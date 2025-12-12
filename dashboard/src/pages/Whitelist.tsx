@@ -14,11 +14,11 @@ export default function Whitelist() {
   const filters: WhitelistFilters = {
     page: parseInt(searchParams.get('page') || '1'),
     limit: parseInt(searchParams.get('limit') || '25'),
-    status: searchParams.get('status') as WhitelistFilters['status'] || undefined,
     source: searchParams.get('source') as WhitelistFilters['source'] || undefined,
     search: searchParams.get('search') || undefined,
     sortBy: searchParams.get('sortBy') || 'granted_at',
     sortOrder: (searchParams.get('sortOrder') as 'ASC' | 'DESC') || 'DESC',
+    showExpired: searchParams.get('showExpired') === 'true',
   }
 
   const { data, isLoading, refetch, isFetching } = useWhitelistList(filters)
@@ -93,19 +93,6 @@ export default function Whitelist() {
             </div>
           </form>
 
-          {/* Status Filter */}
-          <select
-            value={filters.status || ''}
-            onChange={(e) => updateFilter('status', e.target.value || undefined)}
-            className="bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-discord-blurple"
-          >
-            <option value="">All Statuses</option>
-            <option value="active">Active</option>
-            <option value="permanent">Permanent</option>
-            <option value="expired">Expired</option>
-            <option value="revoked">Revoked</option>
-          </select>
-
           {/* Source Filter */}
           <select
             value={filters.source || ''}
@@ -119,8 +106,19 @@ export default function Whitelist() {
             <option value="import">Import</option>
           </select>
 
+          {/* Show Expired Toggle */}
+          <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={filters.showExpired || false}
+              onChange={(e) => updateFilter('showExpired', e.target.checked ? 'true' : undefined)}
+              className="rounded border-discord-lighter bg-discord-darker text-discord-blurple focus:ring-discord-blurple"
+            />
+            Show expired/revoked
+          </label>
+
           {/* Clear Filters */}
-          {(filters.status || filters.source || filters.search) && (
+          {(filters.source || filters.search || filters.showExpired) && (
             <button
               onClick={clearFilters}
               className="text-sm text-gray-400 hover:text-white transition-colors"

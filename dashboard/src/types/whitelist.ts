@@ -96,12 +96,11 @@ export interface WhitelistListResponse {
 export interface WhitelistFilters {
   page?: number
   limit?: number
-  status?: 'active' | 'expired' | 'revoked' | 'permanent'
   source?: 'role' | 'manual' | 'donation' | 'import'
-  type?: 'staff' | 'whitelist'
   search?: string
   sortBy?: string
   sortOrder?: 'ASC' | 'DESC'
+  showExpired?: boolean
 }
 
 export interface GrantWhitelistRequest {

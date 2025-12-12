@@ -200,20 +200,29 @@ router.get('/', requireAuth, requirePermission('VIEW_WHITELIST'), async (req, re
       });
     }
 
-    // Filter by status if specified
-    if (status) {
-      players = players.filter(p => p.status === status);
+    // Filter by status - by default only show active (active + permanent)
+    // If showExpired is true, show all statuses
+    const showExpired = req.query.showExpired === 'true';
+    if (!showExpired) {
+      players = players.filter(p => p.status === 'active' || p.status === 'permanent');
     }
 
     // Sort players
-    const validSortColumns = ['latestGrantedAt', 'steamid64', 'username', 'discord_username', 'source', 'status'];
+    const validSortColumns = ['latestGrantedAt', 'steamid64', 'username', 'discord_username', 'source', 'status', 'expiration', 'entryCount'];
     const sortField = sortBy === 'granted_at' ? 'latestGrantedAt' : sortBy;
     const safeSortBy = validSortColumns.includes(sortField) ? sortField : 'latestGrantedAt';
     const safeSortOrder = sortOrder.toUpperCase() === 'ASC' ? 1 : -1;
 
     players.sort((a, b) => {
-      const aVal = a[safeSortBy];
-      const bVal = b[safeSortBy];
+      let aVal = a[safeSortBy];
+      let bVal = b[safeSortBy];
+
+      // Handle date strings for expiration
+      if (safeSortBy === 'expiration') {
+        aVal = aVal ? new Date(aVal).getTime() : (safeSortOrder === 1 ? Infinity : -Infinity);
+        bVal = bVal ? new Date(bVal).getTime() : (safeSortOrder === 1 ? Infinity : -Infinity);
+      }
+
       if (aVal === null || aVal === undefined) return 1;
       if (bVal === null || bVal === undefined) return -1;
       if (aVal < bVal) return -1 * safeSortOrder;
@@ -246,55 +255,72 @@ router.get('/', requireAuth, requirePermission('VIEW_WHITELIST'), async (req, re
 router.get('/stats', requireAuth, requirePermission('VIEW_WHITELIST'), async (req, res) => {
   try {
     const { Whitelist } = require('../../database/models');
-    const sequelize = require('sequelize');
 
-    // Count unique players instead of entries
-    const [totalPlayers, activePlayers, revokedPlayers, sourceBreakdown] = await Promise.all([
-      // Total unique players who have ever had a whitelist
-      Whitelist.count({
-        where: { approved: true },
-        distinct: true,
-        col: 'steamid64'
-      }),
-      // Unique players with active (non-revoked) whitelist entries
-      Whitelist.count({
-        where: { approved: true, revoked: false },
-        distinct: true,
-        col: 'steamid64'
-      }),
-      // Unique players who only have revoked entries (no active ones)
-      Whitelist.count({
-        where: {
-          steamid64: {
-            [Op.notIn]: sequelize.literal(
-              '(SELECT DISTINCT steamid64 FROM whitelists WHERE approved = 1 AND revoked = 0)'
-            )
-          },
-          approved: true,
-          revoked: true
-        },
-        distinct: true,
-        col: 'steamid64'
-      }),
-      // Source breakdown by unique players
-      Whitelist.findAll({
-        attributes: [
-          'source',
-          [sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('steamid64'))), 'count']
-        ],
-        where: { approved: true, revoked: false },
-        group: ['source']
-      })
-    ]);
+    // Fetch all entries and calculate player statuses (same logic as list endpoint)
+    const allEntries = await Whitelist.findAll({
+      where: { approved: true },
+      order: [['steamid64', 'ASC'], ['granted_at', 'DESC']]
+    });
+
+    // Group entries by steamid64
+    const playerMap = new Map();
+
+    for (const entry of allEntries) {
+      const steamid64 = entry.steamid64;
+      if (!playerMap.has(steamid64)) {
+        playerMap.set(steamid64, { entries: [] });
+      }
+      playerMap.get(steamid64).entries.push(entry);
+    }
+
+    // Calculate stats
+    let activeCount = 0;
+    const sourceCount = {};
+
+    for (const [, playerData] of playerMap) {
+      const { entries } = playerData;
+      const activeEntries = entries.filter(e => !e.revoked);
+      const allRevoked = activeEntries.length === 0;
+
+      let playerStatus;
+      if (allRevoked) {
+        playerStatus = 'revoked';
+      } else {
+        // Check for permanent
+        const hasPermanent = activeEntries.some(e =>
+          e.duration_value === null && e.duration_type === null
+        );
+
+        if (hasPermanent) {
+          playerStatus = 'permanent';
+        } else {
+          // Check if any entries are still active (not expired)
+          const now = new Date();
+          const hasActive = activeEntries.some(e => {
+            if (e.duration_value === 0) return false;
+            const exp = calculateExpiration(e);
+            return exp && exp > now;
+          });
+
+          playerStatus = hasActive ? 'active' : 'expired';
+        }
+      }
+
+      // Count active players (active or permanent)
+      if (playerStatus === 'active' || playerStatus === 'permanent') {
+        activeCount++;
+
+        // Count by source (only for active players)
+        const primaryEntry = activeEntries[0];
+        const source = primaryEntry?.source || 'unknown';
+        sourceCount[source] = (sourceCount[source] || 0) + 1;
+      }
+    }
 
     res.json({
-      total: totalPlayers,
-      active: activePlayers,
-      revoked: revokedPlayers,
-      bySource: sourceBreakdown.reduce((acc, row) => {
-        acc[row.source || 'unknown'] = parseInt(row.getDataValue('count'));
-        return acc;
-      }, {})
+      total: playerMap.size,
+      active: activeCount,
+      bySource: sourceCount
     });
   } catch (error) {
     logger.error('Error fetching whitelist stats', { error: error.message });
