@@ -3,12 +3,15 @@ const router = express.Router();
 
 const authRoutes = require('./auth');
 const whitelistRoutes = require('./whitelist');
+const { requireStaff } = require('../middleware/auth');
 
 // Mount routes
 router.use('/auth', authRoutes);
-router.use('/whitelist', whitelistRoutes);
 
-// Health check endpoint
+// All routes below require staff role
+router.use('/whitelist', requireStaff, whitelistRoutes);
+
+// Health check endpoint (public)
 router.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });

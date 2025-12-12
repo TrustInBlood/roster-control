@@ -1,17 +1,19 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Copy, Plus, Trash2, Clock, User, Shield, History } from 'lucide-react'
-import { useWhitelistDetail, useExtendWhitelist, useRevokeWhitelist } from '../hooks/useWhitelist'
+import { ArrowLeft, Copy, Plus, Trash2, Clock, User, Shield, History, Pencil } from 'lucide-react'
+import { useWhitelistDetail, useExtendWhitelist, useRevokeWhitelist, useRevokeWhitelistEntry, useEditWhitelistEntry } from '../hooks/useWhitelist'
 import { cn, formatDateTime, formatRelativeTime, getStatusColor, getSourceColor, copyToClipboard } from '../lib/utils'
-import type { ExtendWhitelistRequest, RevokeWhitelistRequest } from '../types/whitelist'
+import type { ExtendWhitelistRequest, RevokeWhitelistRequest, EditWhitelistRequest, WhitelistEntry } from '../types/whitelist'
 
 export default function WhitelistDetail() {
   const { steamid64 } = useParams<{ steamid64: string }>()
   const { data, isLoading, error } = useWhitelistDetail(steamid64!)
 
-  const [showExtendModal, setShowExtendModal] = useState(false)
+  const [showAddModal, setShowAddModal] = useState(false)
   const [showRevokeModal, setShowRevokeModal] = useState(false)
-  const [selectedEntryId, setSelectedEntryId] = useState<number | null>(null)
+  const [showRevokeEntryModal, setShowRevokeEntryModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [selectedEntry, setSelectedEntry] = useState<WhitelistEntry | null>(null)
 
   const handleCopy = async (text: string) => {
     await copyToClipboard(text)
@@ -60,30 +62,30 @@ export default function WhitelistDetail() {
             </button>
           </p>
         </div>
-        {currentStatus.isActive && (
-          <div className="flex gap-2">
-            <button
-              onClick={() => {
-                const activeEntry = history.find(e => e.status === 'active' || e.status === 'permanent')
-                if (activeEntry) {
-                  setSelectedEntryId(activeEntry.id)
-                  setShowExtendModal(true)
-                }
-              }}
-              className="bg-discord-blurple hover:bg-discord-blurple/80 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              Extend
-            </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              const activeEntry = history.find(e => e.status === 'active' || e.status === 'permanent')
+              if (activeEntry) {
+                setSelectedEntry(activeEntry)
+              }
+              setShowAddModal(true)
+            }}
+            className="bg-discord-blurple hover:bg-discord-blurple/80 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Add Whitelist
+          </button>
+          {currentStatus.isActive && (
             <button
               onClick={() => setShowRevokeModal(true)}
               className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2"
             >
               <Trash2 className="w-4 h-4" />
-              Revoke
+              Revoke All
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Info Cards */}
@@ -194,7 +196,7 @@ export default function WhitelistDetail() {
               )}
             >
               <div className="flex items-start justify-between">
-                <div>
+                <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <span
                       className={cn(
@@ -224,40 +226,101 @@ export default function WhitelistDetail() {
                       Duration: {entry.duration_value} {entry.duration_type}
                     </p>
                   )}
+                  {!entry.duration_value && !entry.revoked && (
+                    <p className="text-xs text-gray-500">
+                      Duration: Permanent
+                    </p>
+                  )}
                 </div>
-                {entry.revoked && (
-                  <div className="text-right">
-                    <p className="text-xs text-red-400">Revoked</p>
-                    <p className="text-xs text-gray-500">
-                      {formatDateTime(entry.revoked_at)}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      by {entry.revoked_by}
-                    </p>
-                    {entry.revoked_reason && (
-                      <p className="text-xs text-gray-400 mt-1">
-                        Reason: {entry.revoked_reason}
+                <div className="flex items-start gap-2">
+                  {entry.revoked ? (
+                    <div className="text-right">
+                      <p className="text-xs text-red-400">Revoked</p>
+                      <p className="text-xs text-gray-500">
+                        {formatDateTime(entry.revoked_at)}
                       </p>
-                    )}
-                  </div>
-                )}
+                      <p className="text-xs text-gray-500">
+                        by {entry.revoked_by}
+                      </p>
+                      {entry.revoked_reason && (
+                        <p className="text-xs text-gray-400 mt-1">
+                          Reason: {entry.revoked_reason}
+                        </p>
+                      )}
+                    </div>
+                  ) : entry.source !== 'role' && (
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => {
+                          setSelectedEntry(entry)
+                          setShowEditModal(true)
+                        }}
+                        className="p-1.5 text-gray-400 hover:text-white hover:bg-discord-lighter rounded transition-colors"
+                        title="Edit entry"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedEntry(entry)
+                          setShowRevokeEntryModal(true)
+                        }}
+                        className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-discord-lighter rounded transition-colors"
+                        title="Revoke entry"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Extend Modal */}
-      {showExtendModal && selectedEntryId && (
-        <ExtendModal
-          entryId={selectedEntryId}
+      {/* Add Whitelist Modal */}
+      {showAddModal && (
+        <AddWhitelistModal
+          steamid64={steamid64!}
+          existingEntry={selectedEntry}
           onClose={() => {
-            setShowExtendModal(false)
-            setSelectedEntryId(null)
+            setShowAddModal(false)
+            setSelectedEntry(null)
           }}
           onSuccess={() => {
-            setShowExtendModal(false)
-            setSelectedEntryId(null)
+            setShowAddModal(false)
+            setSelectedEntry(null)
+          }}
+        />
+      )}
+
+      {/* Edit Modal */}
+      {showEditModal && selectedEntry && (
+        <EditModal
+          entry={selectedEntry}
+          onClose={() => {
+            setShowEditModal(false)
+            setSelectedEntry(null)
+          }}
+          onSuccess={() => {
+            setShowEditModal(false)
+            setSelectedEntry(null)
+          }}
+        />
+      )}
+
+      {/* Revoke Entry Modal */}
+      {showRevokeEntryModal && selectedEntry && (
+        <RevokeEntryModal
+          entry={selectedEntry}
+          onClose={() => {
+            setShowRevokeEntryModal(false)
+            setSelectedEntry(null)
+          }}
+          onSuccess={() => {
+            setShowRevokeEntryModal(false)
+            setSelectedEntry(null)
           }}
         />
       )}
@@ -269,7 +332,6 @@ export default function WhitelistDetail() {
           onClose={() => setShowRevokeModal(false)}
           onSuccess={() => {
             setShowRevokeModal(false)
-            // Stay on detail page - data will refresh via query invalidation
           }}
         />
       )}
@@ -277,62 +339,84 @@ export default function WhitelistDetail() {
   )
 }
 
-// Extend Modal Component
-function ExtendModal({
-  entryId,
+// Add Whitelist Modal Component (renamed from Extend)
+function AddWhitelistModal({
+  steamid64,
+  existingEntry,
   onClose,
   onSuccess,
 }: {
-  entryId: number
+  steamid64: string
+  existingEntry: WhitelistEntry | null
   onClose: () => void
   onSuccess: () => void
 }) {
   const extendMutation = useExtendWhitelist()
   const [duration, setDuration] = useState<{ value: number; type: 'days' | 'months' | 'hours' }>({ value: 1, type: 'months' })
   const [note, setNote] = useState('')
+  const [isPermanent, setIsPermanent] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const request: ExtendWhitelistRequest = {
-      duration_value: duration.value,
-      duration_type: duration.type,
-      note: note || undefined,
-    }
-    try {
-      await extendMutation.mutateAsync({ id: entryId, request })
-      onSuccess()
-    } catch {
-      // Error handled by mutation state
+
+    // If we have an existing entry, use extend endpoint
+    if (existingEntry) {
+      const request: ExtendWhitelistRequest = {
+        duration_value: isPermanent ? 0 : duration.value,
+        duration_type: isPermanent ? 'days' : duration.type,
+        note: note || undefined,
+      }
+      try {
+        await extendMutation.mutateAsync({ id: existingEntry.id, request })
+        onSuccess()
+      } catch {
+        // Error handled by mutation state
+      }
     }
   }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-discord-light rounded-lg w-full max-w-md mx-4 p-4">
-        <h3 className="text-lg font-semibold text-white mb-4">Extend Whitelist</h3>
+        <h3 className="text-lg font-semibold text-white mb-4">Add Whitelist</h3>
+        <p className="text-sm text-gray-400 mb-4">
+          Add additional whitelist time for {steamid64}
+        </p>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2 mb-2">
             <input
-              type="number"
-              min="1"
-              value={duration.value}
-              onChange={(e) => setDuration({ ...duration, value: parseInt(e.target.value) || 1 })}
-              className="w-24 bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-sm text-white"
+              type="checkbox"
+              id="permanent"
+              checked={isPermanent}
+              onChange={(e) => setIsPermanent(e.target.checked)}
+              className="rounded border-discord-lighter bg-discord-darker"
             />
-            <select
-              value={duration.type}
-              onChange={(e) => setDuration({ ...duration, type: e.target.value as 'days' | 'months' | 'hours' })}
-              className="bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-sm text-white"
-            >
-              <option value="hours">Hours</option>
-              <option value="days">Days</option>
-              <option value="months">Months</option>
-            </select>
+            <label htmlFor="permanent" className="text-sm text-gray-300">Permanent</label>
           </div>
+          {!isPermanent && (
+            <div className="flex gap-2">
+              <input
+                type="number"
+                min="1"
+                value={duration.value}
+                onChange={(e) => setDuration({ ...duration, value: parseInt(e.target.value) || 1 })}
+                className="w-24 bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-sm text-white"
+              />
+              <select
+                value={duration.type}
+                onChange={(e) => setDuration({ ...duration, type: e.target.value as 'days' | 'months' | 'hours' })}
+                className="bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-sm text-white"
+              >
+                <option value="hours">Hours</option>
+                <option value="days">Days</option>
+                <option value="months">Months</option>
+              </select>
+            </div>
+          )}
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Note (optional)"
+            placeholder="Reason (optional)"
             rows={2}
             className="w-full bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 resize-none"
           />
@@ -351,7 +435,167 @@ function ExtendModal({
               disabled={extendMutation.isPending}
               className="bg-discord-blurple hover:bg-discord-blurple/80 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
             >
-              {extendMutation.isPending ? 'Extending...' : 'Extend'}
+              {extendMutation.isPending ? 'Adding...' : 'Add Whitelist'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// Edit Modal Component
+function EditModal({
+  entry,
+  onClose,
+  onSuccess,
+}: {
+  entry: WhitelistEntry
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const editMutation = useEditWhitelistEntry()
+  const [reason, setReason] = useState(entry.reason || '')
+  const [duration, setDuration] = useState<{ value: number; type: 'days' | 'months' | 'hours' }>({
+    value: entry.duration_value || 1,
+    type: entry.duration_type || 'months'
+  })
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const request: EditWhitelistRequest = {
+      reason,
+      duration_value: duration.value,
+      duration_type: duration.type,
+    }
+    try {
+      await editMutation.mutateAsync({ id: entry.id, request })
+      onSuccess()
+    } catch {
+      // Error handled by mutation state
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-discord-light rounded-lg w-full max-w-md mx-4 p-4">
+        <h3 className="text-lg font-semibold text-white mb-4">Edit Whitelist Entry</h3>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Reason</label>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Reason"
+              rows={2}
+              className="w-full bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 resize-none"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Duration</label>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                min="1"
+                value={duration.value}
+                onChange={(e) => setDuration({ ...duration, value: parseInt(e.target.value) || 1 })}
+                className="w-24 bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-sm text-white"
+              />
+              <select
+                value={duration.type}
+                onChange={(e) => setDuration({ ...duration, type: e.target.value as 'days' | 'months' | 'hours' })}
+                className="bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-sm text-white"
+              >
+                <option value="hours">Hours</option>
+                <option value="days">Days</option>
+                <option value="months">Months</option>
+              </select>
+            </div>
+          </div>
+          {editMutation.error && (
+            <p className="text-sm text-red-400">
+              {(editMutation.error as { response?: { data?: { error?: string } } }).response?.data?.error
+                || (editMutation.error as Error).message}
+            </p>
+          )}
+          <div className="flex justify-end gap-3">
+            <button type="button" onClick={onClose} className="text-gray-400 hover:text-white">
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={editMutation.isPending}
+              className="bg-discord-blurple hover:bg-discord-blurple/80 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
+            >
+              {editMutation.isPending ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// Revoke Entry Modal Component
+function RevokeEntryModal({
+  entry,
+  onClose,
+  onSuccess,
+}: {
+  entry: WhitelistEntry
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const revokeMutation = useRevokeWhitelistEntry()
+  const [reason, setReason] = useState('')
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      await revokeMutation.mutateAsync({ id: entry.id, reason: reason || undefined })
+      onSuccess()
+    } catch {
+      // Error handled by mutation state
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-discord-light rounded-lg w-full max-w-md mx-4 p-4">
+        <h3 className="text-lg font-semibold text-white mb-4">Revoke Whitelist Entry</h3>
+        <p className="text-sm text-gray-400 mb-4">
+          Are you sure you want to revoke this whitelist entry?
+        </p>
+        <div className="bg-discord-darker rounded p-3 mb-4 text-sm">
+          <p className="text-gray-300">{entry.reason || 'No reason specified'}</p>
+          <p className="text-gray-500 text-xs mt-1">
+            {entry.duration_value ? `${entry.duration_value} ${entry.duration_type}` : 'Permanent'} - Granted {formatDateTime(entry.granted_at)}
+          </p>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Reason for revocation (optional)"
+            rows={2}
+            className="w-full bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 resize-none"
+          />
+          {revokeMutation.error && (
+            <p className="text-sm text-red-400">
+              {(revokeMutation.error as { response?: { data?: { error?: string } } }).response?.data?.error
+                || (revokeMutation.error as Error).message}
+            </p>
+          )}
+          <div className="flex justify-end gap-3">
+            <button type="button" onClick={onClose} className="text-gray-400 hover:text-white">
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={revokeMutation.isPending}
+              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
+            >
+              {revokeMutation.isPending ? 'Revoking...' : 'Revoke Entry'}
             </button>
           </div>
         </form>
@@ -389,7 +633,7 @@ function RevokeModal({
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-discord-light rounded-lg w-full max-w-md mx-4 p-4">
-        <h3 className="text-lg font-semibold text-white mb-4">Revoke Whitelist</h3>
+        <h3 className="text-lg font-semibold text-white mb-4">Revoke All Whitelist</h3>
         <p className="text-sm text-gray-400 mb-4">
           This will revoke all non-role-based whitelist entries for this user.
         </p>
@@ -417,7 +661,7 @@ function RevokeModal({
               disabled={revokeMutation.isPending || !reason.trim()}
               className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
             >
-              {revokeMutation.isPending ? 'Revoking...' : 'Revoke'}
+              {revokeMutation.isPending ? 'Revoking...' : 'Revoke All'}
             </button>
           </div>
         </form>

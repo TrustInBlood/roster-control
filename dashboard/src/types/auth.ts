@@ -6,6 +6,7 @@ export interface User {
   avatarUrl: string
   roles: string[]
   displayName: string
+  isStaff: boolean
 }
 
 export interface AuthContextType {

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const passport = require('passport');
 const { createServiceLogger } = require('../../utils/logger');
+const { DASHBOARD_ACCESS_ROLES } = require('../middleware/auth');
 
 const logger = createServiceLogger('DashboardAuth');
 
@@ -31,6 +32,8 @@ router.get('/me', (req, res) => {
   }
 
   const { id, username, discriminator, avatar, roles, guildMember } = req.user;
+  const userRoles = roles || [];
+  const isStaff = userRoles.some(roleId => DASHBOARD_ACCESS_ROLES.includes(roleId));
 
   res.json({
     id,
@@ -40,8 +43,9 @@ router.get('/me', (req, res) => {
     avatarUrl: avatar
       ? `https://cdn.discordapp.com/avatars/${id}/${avatar}.png`
       : `https://cdn.discordapp.com/embed/avatars/${parseInt(discriminator || '0') % 5}.png`,
-    roles: roles || [],
-    displayName: guildMember?.displayName || username
+    roles: userRoles,
+    displayName: guildMember?.displayName || username,
+    isStaff
   });
 });
 

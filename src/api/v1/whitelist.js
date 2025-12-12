@@ -542,6 +542,159 @@ router.put('/:id/extend', requireAuth, requirePermission('GRANT_WHITELIST'), asy
   }
 });
 
+// POST /api/v1/whitelist/entry/:id/revoke - Revoke a single whitelist entry
+router.post('/entry/:id/revoke', requireAuth, requirePermission('REVOKE_WHITELIST'), async (req, res) => {
+  try {
+    const { Whitelist } = require('../../database/models');
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    const entry = await Whitelist.findByPk(id);
+
+    if (!entry) {
+      return res.status(404).json({ error: 'Whitelist entry not found' });
+    }
+
+    // Don't allow revoking role-based entries
+    if (entry.source === 'role') {
+      return res.status(400).json({ error: 'Cannot revoke role-based whitelist entries' });
+    }
+
+    // Don't allow revoking already revoked entries
+    if (entry.revoked) {
+      return res.status(400).json({ error: 'Entry is already revoked' });
+    }
+
+    const revoked_by = `${req.user.username} (${req.user.id})`;
+
+    // Store entry data for audit before update
+    const beforeState = entry.toJSON();
+
+    // Revoke the entry
+    await entry.update({
+      revoked: true,
+      revoked_at: new Date(),
+      revoked_by: revoked_by,
+      revoked_reason: reason || null
+    });
+
+    // Log to audit
+    await AuditLog.logAction({
+      actionType: 'whitelist_revoke',
+      actorType: 'dashboard_user',
+      actorId: req.user.id,
+      actorName: req.user.username,
+      targetType: 'player',
+      targetId: entry.steamid64,
+      targetName: entry.username || entry.steamid64,
+      description: `Revoked whitelist entry via dashboard${reason ? `: ${reason}` : ''}`,
+      beforeState: beforeState,
+      afterState: entry.toJSON(),
+      metadata: { source: 'dashboard', reason: reason || null }
+    });
+
+    logger.info('Whitelist entry revoked via dashboard', {
+      entryId: id,
+      steamid64: entry.steamid64,
+      revokedBy: revoked_by
+    });
+
+    res.json({
+      success: true,
+      message: 'Whitelist entry revoked successfully',
+      entry: entry.toJSON()
+    });
+  } catch (error) {
+    logger.error('Error revoking whitelist entry', { error: error.message });
+    res.status(500).json({ error: 'Failed to revoke whitelist entry' });
+  }
+});
+
+// PUT /api/v1/whitelist/entry/:id - Edit a whitelist entry
+router.put('/entry/:id', requireAuth, requirePermission('GRANT_WHITELIST'), async (req, res) => {
+  try {
+    const { Whitelist } = require('../../database/models');
+    const { id } = req.params;
+    const { reason, duration_value, duration_type, note } = req.body;
+
+    const entry = await Whitelist.findByPk(id);
+
+    if (!entry) {
+      return res.status(404).json({ error: 'Whitelist entry not found' });
+    }
+
+    // Don't allow editing role-based entries
+    if (entry.source === 'role') {
+      return res.status(400).json({ error: 'Cannot edit role-based whitelist entries' });
+    }
+
+    // Validate duration if provided
+    if (duration_value !== undefined && duration_value !== null) {
+      if (!['days', 'months', 'hours'].includes(duration_type)) {
+        return res.status(400).json({ error: 'Invalid duration type. Must be days, months, or hours' });
+      }
+      if (typeof duration_value !== 'number' || duration_value < 0) {
+        return res.status(400).json({ error: 'Duration value must be a non-negative number' });
+      }
+    }
+
+    const edited_by = `${req.user.username} (${req.user.id})`;
+    const beforeState = entry.toJSON();
+
+    // Build update object
+    const updates = {};
+    if (reason !== undefined) updates.reason = reason;
+    if (duration_value !== undefined) {
+      updates.duration_value = duration_value === 0 ? null : duration_value;
+      updates.duration_type = duration_value === 0 ? null : duration_type;
+    }
+    if (note !== undefined) {
+      // Append note to metadata
+      const metadata = entry.metadata || {};
+      metadata.edit_note = note;
+      metadata.edited_by = edited_by;
+      metadata.edited_at = new Date().toISOString();
+      updates.metadata = metadata;
+    }
+
+    await entry.update(updates);
+    await entry.reload();
+
+    // Log to audit
+    await AuditLog.logAction({
+      actionType: 'whitelist_edit',
+      actorType: 'dashboard_user',
+      actorId: req.user.id,
+      actorName: req.user.username,
+      targetType: 'player',
+      targetId: entry.steamid64,
+      targetName: entry.username || entry.steamid64,
+      description: `Edited whitelist entry via dashboard`,
+      beforeState,
+      afterState: entry.toJSON(),
+      metadata: { source: 'dashboard', note: note || null }
+    });
+
+    logger.info('Whitelist entry edited via dashboard', {
+      entryId: id,
+      steamid64: entry.steamid64,
+      editedBy: edited_by
+    });
+
+    res.json({
+      success: true,
+      entry: {
+        ...entry.toJSON(),
+        status: getEntryStatus(entry),
+        calculatedExpiration: calculateExpiration(entry)
+      }
+    });
+  } catch (error) {
+    logger.error('Error editing whitelist entry', { error: error.message });
+    res.status(500).json({ error: 'Failed to edit whitelist entry' });
+  }
+});
+
 // POST /api/v1/whitelist/:steamid64/revoke - Revoke whitelist entries
 router.post('/:steamid64/revoke', requireAuth, requirePermission('REVOKE_WHITELIST'), async (req, res) => {
   try {

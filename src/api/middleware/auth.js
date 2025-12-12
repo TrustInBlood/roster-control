@@ -70,6 +70,12 @@ const PERMISSIONS = {
   ]
 };
 
+// All staff roles that can access the dashboard
+const DASHBOARD_ACCESS_ROLES = [
+  ...getAllStaffRoles(),
+  DISCORD_ROLES.SUPER_ADMIN
+];
+
 /**
  * Middleware to require authentication
  */
@@ -80,6 +86,37 @@ function requireAuth(req, res, next) {
       code: 'AUTH_REQUIRED'
     });
   }
+  next();
+}
+
+/**
+ * Middleware to require staff role (basic dashboard access)
+ * Users without a staff role cannot access any dashboard functionality
+ */
+function requireStaff(req, res, next) {
+  if (!req.isAuthenticated || !req.isAuthenticated()) {
+    return res.status(401).json({
+      error: 'Authentication required',
+      code: 'AUTH_REQUIRED'
+    });
+  }
+
+  const userRoles = req.user.roles || [];
+  const hasStaffRole = userRoles.some(roleId => DASHBOARD_ACCESS_ROLES.includes(roleId));
+
+  if (!hasStaffRole) {
+    logger.warn('Dashboard access denied - not staff', {
+      userId: req.user.id,
+      username: req.user.username,
+      userRoles
+    });
+
+    return res.status(403).json({
+      error: 'You must be a staff member to access the dashboard',
+      code: 'NOT_STAFF'
+    });
+  }
+
   next();
 }
 
@@ -169,8 +206,10 @@ function getUserPermissions(user) {
 
 module.exports = {
   requireAuth,
+  requireStaff,
   requirePermission,
   hasPermission,
   getUserPermissions,
-  PERMISSIONS
+  PERMISSIONS,
+  DASHBOARD_ACCESS_ROLES
 };

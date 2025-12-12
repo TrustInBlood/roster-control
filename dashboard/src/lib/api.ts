@@ -8,6 +8,7 @@ import type {
   GrantWhitelistRequest,
   ExtendWhitelistRequest,
   RevokeWhitelistRequest,
+  EditWhitelistRequest,
   WhitelistEntry,
 } from '../types/whitelist'
 
@@ -64,6 +65,16 @@ export const whitelistApi = {
 
   revoke: async (steamid64: string, request: RevokeWhitelistRequest): Promise<{ success: boolean; revokedCount: number; message: string }> => {
     const { data } = await api.post<{ success: boolean; revokedCount: number; message: string }>(`/whitelist/${steamid64}/revoke`, request)
+    return data
+  },
+
+  revokeEntry: async (id: number, reason?: string): Promise<{ success: boolean; message: string; entry: WhitelistEntry }> => {
+    const { data } = await api.post<{ success: boolean; message: string; entry: WhitelistEntry }>(`/whitelist/entry/${id}/revoke`, { reason })
+    return data
+  },
+
+  editEntry: async (id: number, request: EditWhitelistRequest): Promise<{ success: boolean; entry: WhitelistEntry }> => {
+    const { data } = await api.put<{ success: boolean; entry: WhitelistEntry }>(`/whitelist/entry/${id}`, request)
     return data
   },
 }

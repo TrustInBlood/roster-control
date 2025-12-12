@@ -5,6 +5,7 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Whitelist from './pages/Whitelist'
 import WhitelistDetail from './pages/WhitelistDetail'
+import AccessDenied from './pages/AccessDenied'
 
 function ProtectedRoute() {
   const { user, isLoading } = useAuth()
@@ -19,6 +20,11 @@ function ProtectedRoute() {
 
   if (!user) {
     return <Navigate to="/login" replace />
+  }
+
+  // Check if user has staff role
+  if (!user.isStaff) {
+    return <AccessDenied />
   }
 
   // Render the child routes only after auth is confirmed

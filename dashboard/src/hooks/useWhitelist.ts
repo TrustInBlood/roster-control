@@ -6,6 +6,7 @@ import type {
   GrantWhitelistRequest,
   ExtendWhitelistRequest,
   RevokeWhitelistRequest,
+  EditWhitelistRequest,
 } from '../types/whitelist'
 
 export function useWhitelistList(filters: WhitelistFilters = {}) {
@@ -64,6 +65,30 @@ export function useRevokeWhitelist() {
   return useMutation({
     mutationFn: ({ steamid64, request }: { steamid64: string; request: RevokeWhitelistRequest }) =>
       whitelistApi.revoke(steamid64, request),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['whitelist'] })
+    },
+  })
+}
+
+export function useRevokeWhitelistEntry() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason?: string }) =>
+      whitelistApi.revokeEntry(id, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['whitelist'] })
+    },
+  })
+}
+
+export function useEditWhitelistEntry() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, request }: { id: number; request: EditWhitelistRequest }) =>
+      whitelistApi.editEntry(id, request),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['whitelist'] })
     },

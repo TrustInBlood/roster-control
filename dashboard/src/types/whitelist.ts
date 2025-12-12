@@ -125,3 +125,10 @@ export interface ExtendWhitelistRequest {
 export interface RevokeWhitelistRequest {
   reason: string
 }
+
+export interface EditWhitelistRequest {
+  reason?: string
+  duration_value?: number | null
+  duration_type?: 'days' | 'months' | 'hours' | null
+  note?: string
+}
