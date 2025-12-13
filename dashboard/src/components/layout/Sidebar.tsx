@@ -5,7 +5,7 @@ import { cn } from '../../lib/utils'
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Whitelist', href: '/whitelist', icon: List },
-  { name: 'Members', href: '/members', icon: Users, disabled: true },
+  { name: 'Members', href: '/members', icon: Users },
   { name: 'Duty Stats', href: '/duty', icon: Clock, disabled: true },
   { name: 'Audit Logs', href: '/audit', icon: Shield },
   { name: 'Unlinked Staff', href: '/security/unlinked-staff', icon: UserX },

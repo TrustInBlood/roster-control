@@ -10,10 +10,10 @@ Build a web dashboard for roster-control that replaces awkward Discord slash com
 
 ## Phase Priority
 
-1. **Phase 1**: Whitelist Management - CRUD operations (MVP)
-2. **Phase 2**: Member Onboarding - `/addmember` replacement
+1. **Phase 1**: Whitelist Management - CRUD operations (MVP) ✅ COMPLETE
+2. **Phase 2**: Member Onboarding - `/addmember` replacement ✅ COMPLETE
 3. **Phase 3**: Duty Statistics - charts/analytics (after auto-tracking implemented)
-4. **Phase 4**: Security Auditing - audit log viewer, unlinked staff (lower priority)
+4. **Phase 4**: Security Auditing - audit log viewer, unlinked staff ✅ COMPLETE
 
 ---
 
@@ -114,23 +114,57 @@ Build a web dashboard for roster-control that replaces awkward Discord slash com
 
 ## Phase 2: Member Onboarding
 
-### Features
-- Multi-step wizard replacing `/addmember` command
-- Discord user selection with autocomplete
-- Steam ID validation (manual entry or BattleMetrics lookup)
-- Role assignment preview
-- Whitelist grant in same flow
-- **Bulk Import**: CSV upload with validation and progress indicator
+### Status: COMPLETE
+
+### Completed Features
+
+#### Add Member Wizard
+- [x] Multi-step wizard replacing `/addmember` Discord command
+- [x] **Step 1**: Discord user search with autocomplete (uses MemberCacheService, 1hr TTL)
+- [x] **Step 2**: Steam ID input with live BattleMetrics lookup (shows player name, profile URL)
+- [x] **Step 3**: Review details and edit nickname before confirming
+- [x] **Step 4**: Success/failure results with detailed status for each operation
+- [x] **Keyboard navigation**: Arrow keys + Enter to navigate search results, Enter to advance steps
+- [x] Auto-advance to next step after user selection
+- [x] Core operations (link + role) determine success; nickname/BM flag failures are warnings
+
+#### Members List Page
+- [x] Paginated table of all members (users with Member role)
+- [x] **Columns**: User (avatar, username), Nickname, Steam ID, Link confidence, BM link, Joined date
+- [x] **Search**: Filter by username, nickname, Steam ID, or Discord ID
+- [x] **Sorting**: By username, nickname, joined date
+- [x] Copy Steam ID button (with click propagation stopped)
+- [x] BattleMetrics external link icon for quick lookup
+- [x] Clickable rows navigate to member detail page
+- [x] Sidebar navigation link
+
+#### Member Detail Page
+- [x] Header with avatar, display name, username, member badge
+- [x] BattleMetrics profile button (if player found)
+- [x] **Steam Account Link section**: Steam64 ID, EOS ID, confidence score, link source, linked date
+- [x] **BattleMetrics section**: Player name, player ID, profile link
+- [x] **Discord Roles section**: Color-coded role badges sorted by position
+- [x] **Account Information**: Discord ID, global name, joined server date, account created date
+- [x] Copy buttons for Steam ID, EOS ID, Discord ID, BM player ID
+
+#### Member Addition Process
+- [x] Creates/updates PlayerDiscordLink (confidence 1.0, source 'manual')
+- [x] Assigns Member Discord role
+- [x] Sets Discord nickname
+- [x] Adds BattleMetrics "Member" flag (if player found)
+- [x] Triggers role sync (auto-handles whitelist via RoleWhitelistSyncService)
+- [x] Creates AuditLog entry
+- [x] Sends Discord notifications (log channel + welcome message)
 
 ### API Endpoints
 
-```
-GET    /api/v1/members                  - List members
-POST   /api/v1/members                  - Add new member
-POST   /api/v1/members/bulk             - Bulk import
-GET    /api/v1/discord/members          - Guild member autocomplete
-GET    /api/v1/battlemetrics/search     - Search BM players by name
-```
+| Endpoint | Status | Description |
+|----------|--------|-------------|
+| `GET /api/v1/members` | ✅ | List members with pagination, search, sorting |
+| `GET /api/v1/members/:discordId` | ✅ | Member detail with BattleMetrics lookup |
+| `POST /api/v1/members` | ✅ | Add new member (full onboarding flow) |
+| `GET /api/v1/discord/members?search=` | ✅ | Guild member autocomplete search |
+| `GET /api/v1/battlemetrics/player/:steamid` | ✅ | BattleMetrics player lookup by Steam ID |
 
 ---
 
@@ -212,40 +246,46 @@ VIEW_AUDIT:       ['ADMIN', 'HEAD_ADMIN', 'SUPER_ADMIN']
 ```
 roster-control/
 ├── src/
-│   ├── api/                          # NEW: Dashboard API
+│   ├── api/                          # Dashboard API
 │   │   ├── v1/
 │   │   │   ├── index.js              # Router setup
 │   │   │   ├── auth.js               # Discord OAuth routes
 │   │   │   ├── whitelist.js          # Whitelist CRUD
-│   │   │   ├── members.js            # Member management
-│   │   │   ├── duty.js               # Duty statistics
+│   │   │   ├── members.js            # Member add & list
+│   │   │   ├── discord.js            # Discord member search
+│   │   │   ├── battlemetrics.js      # BattleMetrics player lookup
+│   │   │   ├── duty.js               # Duty statistics (planned)
 │   │   │   ├── audit.js              # Audit logs
-│   │   │   └── discord.js            # Discord data proxy
+│   │   │   └── security.js           # Unlinked staff
 │   │   └── middleware/
-│   │       ├── auth.js               # Session validation
-│   │       └── permissions.js        # Role-based access
+│   │       └── auth.js               # Session validation + permissions
 │   └── ...existing code
 │
-├── dashboard/                        # NEW: React frontend
+├── dashboard/                        # React frontend
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── ui/                   # shadcn/ui components
+│   │   │   ├── ui/                   # Reusable UI components
 │   │   │   ├── layout/               # Header, Sidebar, Layout
-│   │   │   └── whitelist/            # WhitelistTable, GrantForm, etc.
+│   │   │   ├── whitelist/            # WhitelistTable, GrantModal, etc.
+│   │   │   └── members/              # AddMemberWizard
 │   │   ├── pages/
 │   │   │   ├── Dashboard.tsx
 │   │   │   ├── Whitelist.tsx
 │   │   │   ├── WhitelistDetail.tsx
-│   │   │   └── Login.tsx
-│   │   ├── hooks/                    # useAuth, useWhitelist, etc.
-│   │   ├── lib/api.ts                # API client
+│   │   │   ├── Members.tsx
+│   │   │   ├── AuditLogs.tsx
+│   │   │   ├── UnlinkedStaff.tsx
+│   │   │   ├── Login.tsx
+│   │   │   └── AccessDenied.tsx
+│   │   ├── hooks/                    # useAuth, useWhitelist, useMembers, etc.
+│   │   ├── lib/api.ts                # API client with error handling
 │   │   └── types/                    # TypeScript types
 │   ├── package.json
 │   ├── vite.config.ts
 │   └── tailwind.config.js
 │
 └── config/
-    └── dashboard.js                  # NEW: Dashboard config
+    └── dashboard.js                  # Dashboard config
 ```
 
 ---

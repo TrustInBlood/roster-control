@@ -18,6 +18,16 @@ import type {
   AuditLogDetailResponse,
   UnlinkedStaffResponse,
 } from '../types/audit'
+import type {
+  DiscordMembersSearchResponse,
+  DiscordMemberDetail,
+  BattleMetricsPlayer,
+  AddMemberRequest,
+  AddMemberResponse,
+  MembersListResponse,
+  MemberFilters,
+  MemberDetail,
+} from '../types/members'
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -158,6 +168,49 @@ export const auditApi = {
 export const securityApi = {
   getUnlinkedStaff: async (): Promise<UnlinkedStaffResponse> => {
     const { data } = await api.get<UnlinkedStaffResponse>('/security/unlinked-staff')
+    return data
+  },
+}
+
+// Discord API
+export const discordApi = {
+  searchMembers: async (search: string): Promise<DiscordMembersSearchResponse> => {
+    const { data } = await api.get<DiscordMembersSearchResponse>('/discord/members', {
+      params: { search },
+    })
+    return data
+  },
+
+  getMember: async (userId: string): Promise<{ member: DiscordMemberDetail }> => {
+    const { data } = await api.get<{ member: DiscordMemberDetail }>(`/discord/member/${userId}`)
+    return data
+  },
+}
+
+// BattleMetrics API
+export const battlemetricsApi = {
+  lookupPlayer: async (steamid: string): Promise<BattleMetricsPlayer> => {
+    const { data } = await api.get<BattleMetricsPlayer>(`/battlemetrics/player/${steamid}`)
+    return data
+  },
+}
+
+// Members API
+export const membersApi = {
+  list: async (filters: MemberFilters = {}): Promise<MembersListResponse> => {
+    const { data } = await api.get<MembersListResponse>('/members', {
+      params: filters,
+    })
+    return data
+  },
+
+  getDetail: async (discordId: string): Promise<MemberDetail> => {
+    const { data } = await api.get<MemberDetail>(`/members/${discordId}`)
+    return data
+  },
+
+  add: async (request: AddMemberRequest): Promise<AddMemberResponse> => {
+    const { data } = await api.post<AddMemberResponse>('/members', request)
     return data
   },
 }
