@@ -14,6 +14,7 @@ Build a web dashboard for roster-control that replaces awkward Discord slash com
 2. **Phase 2**: Member Onboarding - `/addmember` replacement ✅ COMPLETE
 3. **Phase 3**: Duty Statistics - charts/analytics (after auto-tracking implemented)
 4. **Phase 4**: Security Auditing - audit log viewer, unlinked staff ✅ COMPLETE
+5. **Phase 5**: Permission Management - configurable role permissions with GUI ✅ COMPLETE
 
 ---
 
@@ -479,3 +480,154 @@ Features considered but deferred for future implementation:
 
 ### Phase 4 - Security Enhancements
 - [ ] **Bulk notification**: Send DM notifications to unlinked staff members from the dashboard
+
+---
+
+## Phase 5: Permission Management
+
+### Status: COMPLETE
+
+### Goal
+Create a database-driven, configurable permissions management system with a dashboard GUI. Super Admins can dynamically manage which Discord roles have access to which dashboard permissions without code changes or server restarts.
+
+### User Requirements
+- **Storage**: Database (dynamic, editable at runtime with 5-min caching)
+- **Granularity**: Per Discord Role (not per-user overrides)
+- **Admin Access**: Super Admin only can view/edit the permissions page
+
+### Database Schema
+
+#### New Table: `role_permissions`
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | INT (PK, AI) | Primary key |
+| permission_name | VARCHAR(50) | Permission identifier (e.g., VIEW_WHITELIST) |
+| role_id | VARCHAR(20) | Discord role ID |
+| role_name | VARCHAR(100) | Cached role name for display |
+| granted_by | VARCHAR(20) | Admin who made the change |
+| granted_at | DATETIME | When permission was granted |
+
+**Indexes**: `permission_name`, `role_id`, unique(`permission_name`, `role_id`)
+
+### Permission Definitions
+
+| Permission | Description | Critical |
+|------------|-------------|----------|
+| VIEW_WHITELIST | View whitelist entries | No |
+| GRANT_WHITELIST | Grant new whitelist entries | No |
+| REVOKE_WHITELIST | Revoke whitelist entries | No |
+| VIEW_MEMBERS | View member list | No |
+| ADD_MEMBER | Add new members | No |
+| BULK_IMPORT | Bulk import operations | No |
+| VIEW_DUTY | View duty statistics | No |
+| VIEW_AUDIT | View audit logs | No |
+| VIEW_SECURITY | View security reports | No |
+| MANAGE_SESSIONS | Manage user sessions | **Yes** |
+| EXPORT_DATA | Export data | No |
+| MANAGE_PERMISSIONS | Manage role permissions | **Yes** |
+
+### Features
+
+#### Permissions Page (`/admin/permissions`)
+- [x] Header: "Permission Management" with refresh button
+- [x] Table showing each permission with assigned roles as colored badges
+- [x] Critical badge for protected permissions (MANAGE_PERMISSIONS, MANAGE_SESSIONS)
+- [x] Click row to edit
+
+#### Permission Edit Modal
+- [x] Permission name and description (read-only)
+- [x] Warning banner for critical permissions
+- [x] Searchable multi-select for Discord roles
+- [x] Role colors matching Discord
+- [x] Validation: Can't remove all roles from critical permissions
+- [x] Save/Cancel buttons
+
+#### PermissionService
+- [x] 5-minute TTL cache to avoid DB hits on every request
+- [x] Default seeding: if table empty on startup, seed with current hardcoded PERMISSIONS
+- [x] Cache invalidation when permissions are updated
+- [x] Critical permission protection
+
+#### Safety Features
+- [x] Critical permissions cannot have all roles removed
+- [x] Fallback to hardcoded PERMISSIONS if database returns empty
+- [x] All permission changes logged to AuditLog
+- [x] Super Admin only access to permissions page
+
+### API Endpoints
+
+| Endpoint | Permission | Description |
+|----------|------------|-------------|
+| `GET /api/v1/permissions` | MANAGE_PERMISSIONS | List all permissions with assigned roles |
+| `GET /api/v1/permissions/roles` | MANAGE_PERMISSIONS | Get available Discord roles for assignment |
+| `PUT /api/v1/permissions/:name` | MANAGE_PERMISSIONS | Update roles assigned to a permission |
+
+### Files to Create
+
+#### Backend
+| File | Purpose |
+|------|---------|
+| `migrations/034-create-role-permissions-table.js` | Database migration |
+| `src/database/models/RolePermission.js` | Sequelize model |
+| `src/services/PermissionService.js` | Permission caching, seeding, CRUD |
+| `src/api/v1/permissions.js` | API endpoints for permission management |
+
+#### Frontend
+| File | Purpose |
+|------|---------|
+| `dashboard/src/types/permissions.ts` | TypeScript types |
+| `dashboard/src/hooks/usePermissions.ts` | React Query hooks |
+| `dashboard/src/components/permissions/PermissionsTable.tsx` | Table component |
+| `dashboard/src/components/permissions/PermissionEditModal.tsx` | Edit modal |
+| `dashboard/src/pages/Permissions.tsx` | Main page |
+
+### Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/database/models/index.js` | Export RolePermission model |
+| `src/api/middleware/auth.js` | Use PermissionService instead of hardcoded PERMISSIONS |
+| `src/api/v1/index.js` | Mount permissions routes |
+| `dashboard/src/lib/api.ts` | Add permissionsApi |
+| `dashboard/src/types/auth.ts` | Add MANAGE_PERMISSIONS permission type |
+| `dashboard/src/components/layout/Sidebar.tsx` | Add conditional nav item for Super Admin |
+| `dashboard/src/App.tsx` | Add `/admin/permissions` route |
+
+### Implementation Order
+
+#### Step 1: Database Layer
+- [x] Create migration `migrations/034-create-role-permissions-table.js`
+- [x] Create model `src/database/models/RolePermission.js`
+- [x] Update `src/database/models/index.js`
+- [x] Run migration
+
+#### Step 2: Permission Service
+- [x] Create `src/services/PermissionService.js`
+- [x] Implement caching with 5-min TTL
+- [x] Implement default seeding logic
+- [x] Implement critical permission protection
+
+#### Step 3: Modify Auth Middleware
+- [x] Update `src/api/middleware/auth.js` to use PermissionService
+- [x] Add MANAGE_PERMISSIONS to permission definitions
+- [x] Keep hardcoded PERMISSIONS as fallback
+
+#### Step 4: API Endpoints
+- [x] Create `src/api/v1/permissions.js`
+- [x] Implement GET /permissions (list)
+- [x] Implement GET /permissions/roles (Discord roles)
+- [x] Implement PUT /permissions/:name (update)
+- [x] Add audit logging for changes
+- [x] Mount in `src/api/v1/index.js`
+
+#### Step 5: Frontend
+- [x] Create `dashboard/src/types/permissions.ts`
+- [x] Add `permissionsApi` to `dashboard/src/lib/api.ts`
+- [x] Create `dashboard/src/hooks/usePermissions.ts`
+- [x] Create `dashboard/src/components/permissions/PermissionsTable.tsx`
+- [x] Create `dashboard/src/components/permissions/PermissionEditModal.tsx`
+- [x] Create `dashboard/src/pages/Permissions.tsx`
+- [x] Update Sidebar with conditional Super Admin nav item
+- [x] Add route to App.tsx
+- [x] Build frontend

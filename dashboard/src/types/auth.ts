@@ -5,6 +5,7 @@ export interface User {
   avatar: string | null
   avatarUrl: string
   roles: string[]
+  permissions: Permission[]
   displayName: string
   isStaff: boolean
 }
@@ -29,3 +30,4 @@ export type Permission =
   | 'VIEW_SECURITY'
   | 'MANAGE_SESSIONS'
   | 'EXPORT_DATA'
+  | 'MANAGE_PERMISSIONS'

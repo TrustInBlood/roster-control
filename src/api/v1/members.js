@@ -287,7 +287,7 @@ router.post('/', requirePermission('ADD_MEMBER'), async (req, res) => {
 
       if (memberChat) {
         const welcomeMessage = `**Let's welcome our new member!!!** <@${discord_user_id}>\n\n` +
-          `Make sure to change your tag to -B&B- in game (DO NOT PUT "=B&B=" as those are admin tags)\n` +
+          'Make sure to change your tag to -B&B- in game (DO NOT PUT "=B&B=" as those are admin tags)\n' +
           `And read all the rules in <#${memberRulesId}>`;
 
         await memberChat.send(welcomeMessage);

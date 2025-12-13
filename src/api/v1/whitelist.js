@@ -755,7 +755,7 @@ router.put('/entry/:id', requireAuth, requirePermission('GRANT_WHITELIST'), asyn
       targetType: 'player',
       targetId: entry.steamid64,
       targetName: entry.username || entry.steamid64,
-      description: `Edited whitelist entry via dashboard`,
+      description: 'Edited whitelist entry via dashboard',
       beforeState,
       afterState: entry.toJSON(),
       metadata: { source: 'dashboard', note: note || null }

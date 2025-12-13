@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
-import { UserPlus, Search, RefreshCw, Users, Link2, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react'
+import { UserPlus, Search, Users, Link2, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react'
 import { useMembersList } from '../hooks/useMembers'
+import { useAuth } from '../hooks/useAuth'
 import AddMemberWizard from '../components/members/AddMemberWizard'
 import CopyButton from '../components/ui/CopyButton'
 import type { MemberFilters, Member } from '../types/members'
@@ -9,6 +10,8 @@ import { formatRelativeTime } from '../lib/utils'
 
 export default function Members() {
   const navigate = useNavigate()
+  const { hasPermission } = useAuth()
+  const canAddMember = hasPermission('ADD_MEMBER')
   const [searchParams, setSearchParams] = useSearchParams()
   const [showAddWizard, setShowAddWizard] = useState(false)
   const [searchInput, setSearchInput] = useState(searchParams.get('search') || '')
@@ -21,7 +24,7 @@ export default function Members() {
     sortOrder: (searchParams.get('sortOrder') as 'ASC' | 'DESC') || 'ASC',
   }
 
-  const { data, isLoading, refetch, isFetching } = useMembersList(filters)
+  const { data, isLoading } = useMembersList(filters)
 
   const updateFilter = (key: string, value: string | undefined) => {
     const newParams = new URLSearchParams(searchParams)
@@ -161,15 +164,7 @@ export default function Members() {
             {data?.pagination.total ?? 0} members with member role
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => refetch()}
-            disabled={isFetching}
-            className="bg-discord-lighter hover:bg-discord-light text-white px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2"
-          >
-            <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
+        {canAddMember && (
           <button
             onClick={() => setShowAddWizard(true)}
             className="bg-discord-blurple hover:bg-discord-blurple/80 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2"
@@ -177,7 +172,7 @@ export default function Members() {
             <UserPlus className="w-4 h-4" />
             Add Member
           </button>
-        </div>
+        )}
       </div>
 
       {/* Search */}
@@ -281,7 +276,7 @@ export default function Members() {
       </div>
 
       {/* Add Member Wizard */}
-      {showAddWizard && (
+      {showAddWizard && canAddMember && (
         <AddMemberWizard onClose={() => setShowAddWizard(false)} />
       )}
     </div>

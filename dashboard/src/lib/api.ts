@@ -28,6 +28,14 @@ import type {
   MemberFilters,
   MemberDetail,
 } from '../types/members'
+import type {
+  PermissionsListResponse,
+  DiscordRolesResponse,
+  PermissionDefinitionsResponse,
+  UpdatePermissionRequest,
+  UpdatePermissionResponse,
+  ResetPermissionsResponse,
+} from '../types/permissions'
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -211,6 +219,36 @@ export const membersApi = {
 
   add: async (request: AddMemberRequest): Promise<AddMemberResponse> => {
     const { data } = await api.post<AddMemberResponse>('/members', request)
+    return data
+  },
+}
+
+// Permissions API
+export const permissionsApi = {
+  list: async (): Promise<PermissionsListResponse> => {
+    const { data } = await api.get<PermissionsListResponse>('/permissions')
+    return data
+  },
+
+  getRoles: async (): Promise<DiscordRolesResponse> => {
+    const { data } = await api.get<DiscordRolesResponse>('/permissions/roles')
+    return data
+  },
+
+  getDefinitions: async (): Promise<PermissionDefinitionsResponse> => {
+    const { data } = await api.get<PermissionDefinitionsResponse>('/permissions/definitions')
+    return data
+  },
+
+  update: async (permissionName: string, request: UpdatePermissionRequest): Promise<UpdatePermissionResponse> => {
+    const { data } = await api.put<UpdatePermissionResponse>(`/permissions/${permissionName}`, request)
+    return data
+  },
+
+  reset: async (): Promise<ResetPermissionsResponse> => {
+    const { data } = await api.post<ResetPermissionsResponse>('/permissions/seed', {
+      confirm: 'RESET_ALL_PERMISSIONS',
+    })
     return data
   },
 }

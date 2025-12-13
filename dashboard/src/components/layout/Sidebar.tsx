@@ -1,17 +1,38 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, List, Users, Clock, Shield, UserX } from 'lucide-react'
+import { LayoutDashboard, List, Users, Clock, Shield, UserX, Key } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { useAuth } from '../../hooks/useAuth'
+import type { Permission } from '../../types/auth'
 
-const navigation = [
+interface NavItem {
+  name: string
+  href: string
+  icon: React.ElementType
+  disabled?: boolean
+  permission?: Permission
+}
+
+const navigation: NavItem[] = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Whitelist', href: '/whitelist', icon: List },
-  { name: 'Members', href: '/members', icon: Users },
-  { name: 'Duty Stats', href: '/duty', icon: Clock, disabled: true },
-  { name: 'Audit Logs', href: '/audit', icon: Shield },
-  { name: 'Unlinked Staff', href: '/security/unlinked-staff', icon: UserX },
+  { name: 'Whitelist', href: '/whitelist', icon: List, permission: 'VIEW_WHITELIST' },
+  { name: 'Members', href: '/members', icon: Users, permission: 'VIEW_MEMBERS' },
+  { name: 'Duty Stats', href: '/duty', icon: Clock, disabled: true, permission: 'VIEW_DUTY' },
+  { name: 'Audit Logs', href: '/audit', icon: Shield, permission: 'VIEW_AUDIT' },
+  { name: 'Unlinked Staff', href: '/security/unlinked-staff', icon: UserX, permission: 'VIEW_SECURITY' },
+  { name: 'Permissions', href: '/admin/permissions', icon: Key, permission: 'MANAGE_PERMISSIONS' },
 ]
 
 export default function Sidebar() {
+  const { hasPermission } = useAuth()
+
+  // Filter navigation items based on permissions
+  const visibleNavigation = navigation.filter(item => {
+    if (item.permission) {
+      return hasPermission(item.permission)
+    }
+    return true
+  })
+
   return (
     <div className="w-64 bg-discord-darker flex flex-col">
       {/* Logo */}
@@ -21,7 +42,7 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {navigation.map((item) => (
+        {visibleNavigation.map((item) => (
           <NavLink
             key={item.name}
             to={item.disabled ? '#' : item.href}

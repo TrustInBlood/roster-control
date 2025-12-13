@@ -1,75 +1,18 @@
 const { createServiceLogger } = require('../../utils/logger');
 const { loadConfig } = require('../../utils/environment');
 const { getMemberCacheService } = require('../../services/MemberCacheService');
+const { permissionService, getDefaultPermissions } = require('../../services/PermissionService');
 
 // Load environment-specific Discord roles
 const {
   DISCORD_ROLES,
-  getAllAdminRoles,
   getAllStaffRoles
 } = loadConfig('discordRoles');
 
 const logger = createServiceLogger('DashboardAuthMiddleware');
 
-// Permission definitions mapping permission names to required roles
-const PERMISSIONS = {
-  // Whitelist permissions
-  VIEW_WHITELIST: [
-    ...getAllStaffRoles(),
-    DISCORD_ROLES.SUPER_ADMIN
-  ],
-  GRANT_WHITELIST: [
-    ...getAllStaffRoles(),
-    DISCORD_ROLES.SUPER_ADMIN
-  ],
-  REVOKE_WHITELIST: [
-    ...getAllAdminRoles(),
-    DISCORD_ROLES.SUPER_ADMIN
-  ],
-
-  // Member permissions
-  VIEW_MEMBERS: [
-    DISCORD_ROLES.APPLICATIONS,
-    ...getAllAdminRoles(),
-    DISCORD_ROLES.SUPER_ADMIN
-  ],
-  ADD_MEMBER: [
-    DISCORD_ROLES.APPLICATIONS,
-    ...getAllAdminRoles(),
-    DISCORD_ROLES.SUPER_ADMIN
-  ],
-  BULK_IMPORT: [
-    ...getAllAdminRoles(),
-    DISCORD_ROLES.SUPER_ADMIN
-  ],
-
-  // Duty permissions
-  VIEW_DUTY: [
-    ...getAllAdminRoles(),
-    DISCORD_ROLES.SUPER_ADMIN
-  ],
-
-  // Audit permissions
-  VIEW_AUDIT: [
-    ...getAllAdminRoles(),
-    DISCORD_ROLES.SUPER_ADMIN
-  ],
-
-  // Security permissions
-  VIEW_SECURITY: [
-    ...getAllAdminRoles(),
-    DISCORD_ROLES.SUPER_ADMIN
-  ],
-
-  // Admin-only permissions
-  MANAGE_SESSIONS: [
-    DISCORD_ROLES.SUPER_ADMIN
-  ],
-  EXPORT_DATA: [
-    ...getAllAdminRoles(),
-    DISCORD_ROLES.SUPER_ADMIN
-  ]
-};
+// Fallback permissions (used if database unavailable)
+const PERMISSIONS = getDefaultPermissions();
 
 // All staff roles that can access the dashboard
 const DASHBOARD_ACCESS_ROLES = [
@@ -123,10 +66,11 @@ function requireStaff(req, res, next) {
 
 /**
  * Middleware to require specific permission
+ * Uses database-backed PermissionService with caching
  * @param {string} permission - The permission name to check
  */
 function requirePermission(permission) {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     if (!req.isAuthenticated || !req.isAuthenticated()) {
       return res.status(401).json({
         error: 'Authentication required',
@@ -135,49 +79,84 @@ function requirePermission(permission) {
     }
 
     const userRoles = req.user.roles || [];
-    const requiredRoles = PERMISSIONS[permission];
 
-    if (!requiredRoles) {
-      logger.error('Unknown permission requested', { permission });
-      return res.status(500).json({
-        error: 'Invalid permission configuration',
-        code: 'INVALID_PERMISSION'
-      });
-    }
+    try {
+      // Use PermissionService for database-backed permissions
+      const hasPermissionResult = await permissionService.hasPermission(userRoles, permission);
 
-    // Check if user has any of the required roles
-    const hasPermission = userRoles.some(roleId => requiredRoles.includes(roleId));
-
-    logger.debug('Permission check', {
-      user: req.user.username,
-      permission,
-      granted: hasPermission
-    });
-
-    if (!hasPermission) {
-      logger.warn('Permission denied', {
+      logger.debug('Permission check', {
         user: req.user.username,
-        permission
+        permission,
+        granted: hasPermissionResult
       });
 
-      return res.status(403).json({
-        error: 'You do not have permission to perform this action',
-        code: 'PERMISSION_DENIED',
-        required: permission
-      });
+      if (!hasPermissionResult) {
+        logger.warn('Permission denied', {
+          user: req.user.username,
+          permission
+        });
+
+        return res.status(403).json({
+          error: 'You do not have permission to perform this action',
+          code: 'PERMISSION_DENIED',
+          required: permission
+        });
+      }
+
+      next();
+    } catch (error) {
+      logger.error('Permission check failed, using fallback', { error: error.message, permission });
+
+      // Fallback to hardcoded permissions if service fails
+      const requiredRoles = PERMISSIONS[permission];
+      if (!requiredRoles) {
+        return res.status(500).json({
+          error: 'Invalid permission configuration',
+          code: 'INVALID_PERMISSION'
+        });
+      }
+
+      const hasFallbackPermission = userRoles.some(roleId => requiredRoles.includes(roleId));
+      if (!hasFallbackPermission) {
+        return res.status(403).json({
+          error: 'You do not have permission to perform this action',
+          code: 'PERMISSION_DENIED',
+          required: permission
+        });
+      }
+
+      next();
     }
-
-    next();
   };
 }
 
 /**
  * Check if a user has a specific permission (utility function)
+ * Uses PermissionService with fallback to hardcoded permissions
+ * @param {object} user - The user object with roles array
+ * @param {string} permission - The permission name to check
+ * @returns {Promise<boolean>}
+ */
+async function hasPermission(user, permission) {
+  if (!user || !user.roles) return false;
+
+  try {
+    return await permissionService.hasPermission(user.roles, permission);
+  } catch (error) {
+    // Fallback to hardcoded permissions
+    const requiredRoles = PERMISSIONS[permission];
+    if (!requiredRoles) return false;
+    return user.roles.some(roleId => requiredRoles.includes(roleId));
+  }
+}
+
+/**
+ * Synchronous permission check (uses fallback only, for non-async contexts)
  * @param {object} user - The user object with roles array
  * @param {string} permission - The permission name to check
  * @returns {boolean}
  */
-function hasPermission(user, permission) {
+function hasPermissionSync(user, permission) {
   if (!user || !user.roles) return false;
 
   const requiredRoles = PERMISSIONS[permission];
@@ -188,15 +167,21 @@ function hasPermission(user, permission) {
 
 /**
  * Get all permissions a user has
+ * Uses PermissionService with fallback to hardcoded permissions
  * @param {object} user - The user object with roles array
- * @returns {string[]} Array of permission names
+ * @returns {Promise<string[]>} Array of permission names
  */
-function getUserPermissions(user) {
+async function getUserPermissions(user) {
   if (!user || !user.roles) return [];
 
-  return Object.keys(PERMISSIONS).filter(permission =>
-    user.roles.some(roleId => PERMISSIONS[permission].includes(roleId))
-  );
+  try {
+    return await permissionService.getUserPermissions(user.roles);
+  } catch (error) {
+    // Fallback to hardcoded permissions
+    return Object.keys(PERMISSIONS).filter(permission =>
+      user.roles.some(roleId => PERMISSIONS[permission].includes(roleId))
+    );
+  }
 }
 
 /**
@@ -268,8 +253,10 @@ module.exports = {
   requireStaff,
   requirePermission,
   hasPermission,
+  hasPermissionSync,
   getUserPermissions,
   refreshUserRoles,
+  permissionService,
   PERMISSIONS,
   DASHBOARD_ACCESS_ROLES
 };

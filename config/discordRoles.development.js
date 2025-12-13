@@ -13,7 +13,7 @@ const DISCORD_ROLES_DEV = {
   HEAD_ADMIN: null,                           // CREATE: "Test Head Admin"
   SENIOR_ADMIN: null,                         // CREATE: "Test Senior Admin"
   OG_ADMIN: null,                            // CREATE: "Test OG Admin"
-  SQUAD_ADMIN: null,                         // CREATE: "Test Squad Admin"
+  SQUAD_ADMIN: '1449526271162712295',        // CREATE: "Test Squad Admin"
   MODERATOR: null,                           // CREATE: "Test Moderator"
   STAFF: '1420297163166191627',                               // CREATE: "Test Staff"
   TICKET_SUPPORT: null,                      // CREATE: "Test Ticket Support"

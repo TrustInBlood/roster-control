@@ -16,6 +16,7 @@ const VerificationCodeFactory = require('./VerificationCode');
 const UnlinkHistoryFactory = require('./UnlinkHistory');
 const RoleArchiveFactory = require('./RoleArchive');
 const InteractivePostFactory = require('./InteractivePost');
+const RolePermissionFactory = require('./RolePermission');
 
 const Group = GroupFactory(sequelize);
 const Whitelist = WhitelistFactory(sequelize);
@@ -24,6 +25,7 @@ const VerificationCode = VerificationCodeFactory(sequelize);
 const UnlinkHistory = UnlinkHistoryFactory(sequelize);
 const RoleArchive = RoleArchiveFactory(sequelize);
 const InteractivePost = InteractivePostFactory(sequelize);
+const RolePermission = RolePermissionFactory(sequelize);
 
 // Define associations
 PlayerSession.belongsTo(Player, { foreignKey: 'player_id', as: 'player' });
@@ -43,5 +45,6 @@ module.exports = {
   UnlinkHistory,
   PlayerSession,
   RoleArchive,
-  InteractivePost
+  InteractivePost,
+  RolePermission
 };

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const passport = require('passport');
 const { createServiceLogger } = require('../../utils/logger');
-const { DASHBOARD_ACCESS_ROLES, refreshUserRoles } = require('../middleware/auth');
+const { DASHBOARD_ACCESS_ROLES, refreshUserRoles, getUserPermissions } = require('../middleware/auth');
 
 const logger = createServiceLogger('DashboardAuth');
 
@@ -27,7 +27,7 @@ router.get('/callback',
 
 // GET /api/v1/auth/me - Get current user info
 // refreshUserRoles ensures we return fresh roles from Discord
-router.get('/me', refreshUserRoles, (req, res) => {
+router.get('/me', refreshUserRoles, async (req, res) => {
   if (!req.isAuthenticated()) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
@@ -35,6 +35,9 @@ router.get('/me', refreshUserRoles, (req, res) => {
   const { id, username, discriminator, avatar, roles, guildMember } = req.user;
   const userRoles = roles || [];
   const isStaff = userRoles.some(roleId => DASHBOARD_ACCESS_ROLES.includes(roleId));
+
+  // Get user's permissions from PermissionService
+  const permissions = await getUserPermissions(req.user);
 
   res.json({
     id,
@@ -45,6 +48,7 @@ router.get('/me', refreshUserRoles, (req, res) => {
       ? `https://cdn.discordapp.com/avatars/${id}/${avatar}.png`
       : `https://cdn.discordapp.com/embed/avatars/${parseInt(discriminator || '0') % 5}.png`,
     roles: userRoles,
+    permissions,
     displayName: guildMember?.displayName || username,
     isStaff
   });

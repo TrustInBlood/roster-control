@@ -9,6 +9,7 @@ import Members from './pages/Members'
 import MemberDetail from './pages/MemberDetail'
 import AuditLogs from './pages/AuditLogs'
 import UnlinkedStaff from './pages/UnlinkedStaff'
+import Permissions from './pages/Permissions'
 import AccessDenied from './pages/AccessDenied'
 
 function ProtectedRoute() {
@@ -50,6 +51,7 @@ function App() {
           <Route path="members/:discordId" element={<MemberDetail />} />
           <Route path="audit" element={<AuditLogs />} />
           <Route path="security/unlinked-staff" element={<UnlinkedStaff />} />
+          <Route path="admin/permissions" element={<Permissions />} />
         </Route>
       </Route>
     </Routes>
