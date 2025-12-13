@@ -298,6 +298,85 @@ router.get('/action-types', requireAuth, requirePermission('VIEW_AUDIT'), async 
   }
 });
 
+// GET /api/v1/audit/actors - Get list of distinct actors
+router.get('/actors', requireAuth, requirePermission('VIEW_AUDIT'), async (req, res) => {
+  try {
+    const actors = await AuditLog.findAll({
+      attributes: [
+        [require('sequelize').fn('DISTINCT', require('sequelize').col('actorId')), 'actorId'],
+        'actorName'
+      ],
+      where: {
+        actorId: { [Op.ne]: null }
+      },
+      order: [['actorName', 'ASC']],
+      raw: true
+    });
+
+    // Get unique actors (there might be duplicates if same actor has different names over time)
+    const actorMap = new Map();
+    for (const actor of actors) {
+      if (actor.actorId && !actorMap.has(actor.actorId)) {
+        actorMap.set(actor.actorId, actor.actorName || actor.actorId);
+      }
+    }
+
+    // Enrich with current Discord names
+    const discordClient = global.discordClient;
+    const guildId = process.env.DISCORD_GUILD_ID;
+    const enrichedActors = [];
+
+    if (discordClient) {
+      const guild = await discordClient.guilds.fetch(guildId).catch(() => null);
+      const cacheService = getMemberCacheService();
+
+      for (const [actorId, actorName] of actorMap) {
+        let displayName = actorName;
+
+        // Check cache first
+        const cached = getCachedDisplayName(actorId);
+        if (cached) {
+          displayName = cached;
+        } else if (guild && isDiscordId(actorId)) {
+          try {
+            const member = await cacheService.getMember(guild, actorId);
+            if (member) {
+              const memberDisplayName = member.displayName || member.user.username;
+              const username = member.user.username;
+              displayName = memberDisplayName !== username
+                ? `${memberDisplayName} (${username})`
+                : memberDisplayName;
+              setCachedDisplayName(actorId, displayName);
+            }
+          } catch {
+            // Member not found
+          }
+        }
+
+        enrichedActors.push({
+          actorId,
+          displayName
+        });
+      }
+    } else {
+      for (const [actorId, actorName] of actorMap) {
+        enrichedActors.push({
+          actorId,
+          displayName: actorName
+        });
+      }
+    }
+
+    // Sort by display name
+    enrichedActors.sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+    res.json({ actors: enrichedActors });
+  } catch (error) {
+    logger.error('Error fetching actors', { error: error.message });
+    res.status(500).json({ error: 'Failed to fetch actors' });
+  }
+});
+
 // GET /api/v1/audit/:actionId - Get single audit log with full details
 router.get('/:actionId', requireAuth, requirePermission('VIEW_AUDIT'), async (req, res) => {
   try {

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Search, RefreshCw, Filter, Calendar } from 'lucide-react'
-import { useAuditLogs, useAuditActionTypes } from '../hooks/useAudit'
+import { useAuditLogs, useAuditActionTypes, useAuditActors } from '../hooks/useAudit'
 import AuditLogTable from '../components/audit/AuditLogTable'
 import AuditDetailModal from '../components/audit/AuditDetailModal'
 import type { AuditLogFilters, AuditLogEntry } from '../types/audit'
@@ -14,8 +14,9 @@ export default function AuditLogs() {
 
   const filters: AuditLogFilters = {
     page: parseInt(searchParams.get('page') || '1'),
-    limit: parseInt(searchParams.get('limit') || '25'),
+    limit: parseInt(searchParams.get('limit') || '100'),
     actionType: searchParams.get('actionType') || undefined,
+    actorId: searchParams.get('actorId') || undefined,
     severity: searchParams.get('severity') || undefined,
     success: searchParams.get('success') || undefined,
     search: searchParams.get('search') || undefined,
@@ -27,6 +28,7 @@ export default function AuditLogs() {
 
   const { data, isLoading, refetch, isFetching } = useAuditLogs(filters)
   const { data: actionTypesData } = useAuditActionTypes()
+  const { data: actorsData } = useAuditActors()
 
   const updateFilter = (key: string, value: string | undefined) => {
     const newParams = new URLSearchParams(searchParams)
@@ -51,7 +53,7 @@ export default function AuditLogs() {
     setSearchParams({})
   }
 
-  const hasActiveFilters = filters.actionType || filters.severity || filters.success || filters.search || filters.startDate || filters.endDate
+  const hasActiveFilters = filters.actionType || filters.actorId || filters.severity || filters.success || filters.search || filters.startDate || filters.endDate
 
   return (
     <div className="space-y-6">
@@ -122,6 +124,20 @@ export default function AuditLogs() {
               {actionTypesData?.actionTypes.map((type) => (
                 <option key={type} value={type}>
                   {type.replace(/_/g, ' ')}
+                </option>
+              ))}
+            </select>
+
+            {/* Actor */}
+            <select
+              value={filters.actorId || ''}
+              onChange={(e) => updateFilter('actorId', e.target.value || undefined)}
+              className="bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-discord-blurple"
+            >
+              <option value="">All Actors</option>
+              {actorsData?.actors.map((actor) => (
+                <option key={actor.actorId} value={actor.actorId}>
+                  {actor.displayName}
                 </option>
               ))}
             </select>

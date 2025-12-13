@@ -143,6 +143,11 @@ export const auditApi = {
     return data
   },
 
+  getActors: async (): Promise<{ actors: { actorId: string; displayName: string }[] }> => {
+    const { data } = await api.get<{ actors: { actorId: string; displayName: string }[] }>('/audit/actors')
+    return data
+  },
+
   getDetail: async (actionId: string): Promise<AuditLogDetailResponse> => {
     const { data } = await api.get<AuditLogDetailResponse>(`/audit/${actionId}`)
     return data

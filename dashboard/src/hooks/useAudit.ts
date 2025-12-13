@@ -31,6 +31,16 @@ export function useAuditActionTypes() {
   })
 }
 
+export function useAuditActors() {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['audit', 'actors'],
+    queryFn: () => auditApi.getActors(),
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  })
+}
+
 export function useAuditDetail(actionId: string | null) {
   const { user } = useAuth()
   return useQuery({
