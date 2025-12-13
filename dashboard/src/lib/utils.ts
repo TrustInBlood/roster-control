@@ -59,8 +59,33 @@ export function truncateSteamId(steamid64: string): string {
   return `${steamid64.slice(0, 6)}...${steamid64.slice(-4)}`
 }
 
-export function copyToClipboard(text: string): Promise<void> {
-  return navigator.clipboard.writeText(text)
+export async function copyToClipboard(text: string): Promise<boolean> {
+  // Try modern clipboard API first
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text)
+      return true
+    } catch {
+      // Fall through to fallback
+    }
+  }
+
+  // Fallback for non-secure contexts (HTTP)
+  try {
+    const textArea = document.createElement('textarea')
+    textArea.value = text
+    textArea.style.position = 'fixed'
+    textArea.style.left = '-999999px'
+    textArea.style.top = '-999999px'
+    document.body.appendChild(textArea)
+    textArea.focus()
+    textArea.select()
+    const success = document.execCommand('copy')
+    document.body.removeChild(textArea)
+    return success
+  } catch {
+    return false
+  }
 }
 
 export function getSeverityColor(severity: string): string {

@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom'
-import { ChevronUp, ChevronDown, Copy, ExternalLink } from 'lucide-react'
+import { ChevronUp, ChevronDown, ExternalLink } from 'lucide-react'
 import type { WhitelistPlayer } from '../../types/whitelist'
-import { cn, formatRelativeTime, getStatusColor, getSourceColor, copyToClipboard } from '../../lib/utils'
+import { cn, formatRelativeTime, getStatusColor, getSourceColor } from '../../lib/utils'
+import CopyButton from '../ui/CopyButton'
 
 interface WhitelistTableProps {
   players: WhitelistPlayer[]
@@ -45,10 +46,6 @@ export default function WhitelistTable({
     } else {
       onSort(key, 'DESC')
     }
-  }
-
-  const handleCopy = async (text: string) => {
-    await copyToClipboard(text)
   }
 
   if (isLoading) {
@@ -108,13 +105,7 @@ export default function WhitelistTable({
                     <code className="text-sm text-blue-400 font-mono">
                       {player.steamid64}
                     </code>
-                    <button
-                      onClick={() => handleCopy(player.steamid64)}
-                      className="text-gray-500 hover:text-white transition-colors"
-                      title="Copy Steam ID"
-                    >
-                      <Copy className="w-3 h-3" />
-                    </button>
+                    <CopyButton text={player.steamid64} size={3} />
                   </div>
                 </td>
                 <td className="px-4 py-3">

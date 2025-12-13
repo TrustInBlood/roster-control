@@ -173,7 +173,6 @@ WS     /api/v1/duty/stream              - WebSocket for live updates
 - [x] Shows Discord avatar, username, user tag
 - [x] Stats: unlinked count, total staff, linked rate percentage
 - [x] "All linked" success message when no unlinked staff
-- [ ] Bulk notification - *deferred (list only for now)*
 
 ### API Endpoints
 
@@ -418,24 +417,25 @@ DASHBOARD_ENABLED=true
 
 ---
 
-## Deferred Phase 1 Enhancements
-
-These features were considered for Phase 1 but deferred for a future pass:
-
-### Whitelist Detail View
-- [ ] **Stacked duration visualization**: Visual timeline/bar chart showing how multiple whitelist entries accumulate
-- [ ] **Countdown timer**: Live countdown showing time remaining until whitelist expires
-
-### Grant Whitelist Form
-- [ ] **Discord user autocomplete**: Search guild members by username when granting whitelist
-- [ ] **Steam ID link warning**: Show warning if Steam ID is already linked to a different Discord user
-- [ ] **Existing status preview**: Display current whitelist status (active entries, time remaining) before granting
-
----
-
 ## Notes
 
 - Existing Whitelist model methods handle duration stacking logic - reuse them
 - Express server already running on port 3001 with middleware configured
 - AuditLog already captures all actions - dashboard actions should use same pattern
 - Permission system in `config/discordRoles.js` has helper functions ready to use
+
+---
+
+## Deferred Features
+
+Features considered but deferred for future implementation:
+
+### Phase 1 - Whitelist Enhancements
+- [ ] **Stacked duration visualization**: Visual timeline/bar chart showing how multiple whitelist entries accumulate
+- [ ] **Countdown timer**: Live countdown showing time remaining until whitelist expires
+- [ ] **Discord user autocomplete**: Search guild members by username when granting whitelist
+- [ ] **Steam ID link warning**: Show warning if Steam ID is already linked to a different Discord user
+- [ ] **Existing status preview**: Display current whitelist status (active entries, time remaining) before granting
+
+### Phase 4 - Security Enhancements
+- [ ] **Bulk notification**: Send DM notifications to unlinked staff members from the dashboard

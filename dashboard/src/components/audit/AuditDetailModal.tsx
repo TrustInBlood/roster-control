@@ -1,6 +1,7 @@
-import { X, CheckCircle, XCircle, Copy } from 'lucide-react'
+import { X, CheckCircle, XCircle } from 'lucide-react'
 import type { AuditLogEntry } from '../../types/audit'
-import { cn, formatDateTime, getSeverityColor, formatActionType, copyToClipboard } from '../../lib/utils'
+import { cn, formatDateTime, getSeverityColor, formatActionType } from '../../lib/utils'
+import CopyButton from '../ui/CopyButton'
 
 interface AuditDetailModalProps {
   entry: AuditLogEntry
@@ -8,10 +9,6 @@ interface AuditDetailModalProps {
 }
 
 export default function AuditDetailModal({ entry, onClose }: AuditDetailModalProps) {
-  const handleCopy = async (text: string) => {
-    await copyToClipboard(text)
-  }
-
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-discord-dark rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
@@ -68,12 +65,7 @@ export default function AuditDetailModal({ entry, onClose }: AuditDetailModalPro
               {entry.actorId && (
                 <p className="text-xs text-gray-500 flex items-center gap-1">
                   {entry.actorId}
-                  <button
-                    onClick={() => handleCopy(entry.actorId)}
-                    className="hover:text-white transition-colors"
-                  >
-                    <Copy className="w-3 h-3" />
-                  </button>
+                  <CopyButton text={entry.actorId} size={3} />
                 </p>
               )}
               {entry.actorType && (
@@ -88,12 +80,7 @@ export default function AuditDetailModal({ entry, onClose }: AuditDetailModalPro
               {entry.targetId && (
                 <p className="text-xs text-gray-500 flex items-center gap-1">
                   {entry.targetId}
-                  <button
-                    onClick={() => handleCopy(entry.targetId)}
-                    className="hover:text-white transition-colors"
-                  >
-                    <Copy className="w-3 h-3" />
-                  </button>
+                  <CopyButton text={entry.targetId} size={3} />
                 </p>
               )}
               {entry.targetType && (
@@ -157,12 +144,7 @@ export default function AuditDetailModal({ entry, onClose }: AuditDetailModalPro
             <label className="text-xs text-gray-400 uppercase">Action ID</label>
             <p className="text-xs text-gray-500 font-mono flex items-center gap-1">
               {entry.actionId}
-              <button
-                onClick={() => handleCopy(entry.actionId)}
-                className="hover:text-white transition-colors"
-              >
-                <Copy className="w-3 h-3" />
-              </button>
+              <CopyButton text={entry.actionId} size={3} />
             </p>
           </div>
         </div>
