@@ -112,13 +112,15 @@ export default function AuditLogTable({
                 </td>
                 <td className="px-4 py-3">
                   <span className="text-sm text-gray-300">
-                    {entry.actorName || entry.actorId || '-'}
+                    {entry.actorDisplayName || entry.actorName || entry.actorId || '-'}
                   </span>
                 </td>
                 <td className="px-4 py-3">
                   <div className="text-sm">
-                    {/* Show targetName if it exists and isn't just the ID */}
-                    {entry.targetName && entry.targetName !== entry.targetId ? (
+                    {/* Prefer enriched display name, then stored name, then ID */}
+                    {entry.targetDisplayName ? (
+                      <span className="text-white">{entry.targetDisplayName}</span>
+                    ) : entry.targetName && entry.targetName !== entry.targetId ? (
                       <>
                         <span className="text-white">{entry.targetName}</span>
                         {entry.targetId && (

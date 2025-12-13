@@ -14,7 +14,7 @@ export default function AuditLogs() {
 
   const filters: AuditLogFilters = {
     page: parseInt(searchParams.get('page') || '1'),
-    limit: parseInt(searchParams.get('limit') || '50'),
+    limit: parseInt(searchParams.get('limit') || '25'),
     actionType: searchParams.get('actionType') || undefined,
     severity: searchParams.get('severity') || undefined,
     success: searchParams.get('success') || undefined,

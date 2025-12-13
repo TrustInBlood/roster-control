@@ -62,7 +62,9 @@ export default function AuditDetailModal({ entry, onClose }: AuditDetailModalPro
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-xs text-gray-400 uppercase">Actor</label>
-              <p className="text-sm text-white">{entry.actorName || '-'}</p>
+              <p className="text-sm text-white">
+                {entry.actorDisplayName || entry.actorName || '-'}
+              </p>
               {entry.actorId && (
                 <p className="text-xs text-gray-500 flex items-center gap-1">
                   {entry.actorId}
@@ -80,7 +82,9 @@ export default function AuditDetailModal({ entry, onClose }: AuditDetailModalPro
             </div>
             <div>
               <label className="text-xs text-gray-400 uppercase">Target</label>
-              <p className="text-sm text-white">{entry.targetName || '-'}</p>
+              <p className="text-sm text-white">
+                {entry.targetDisplayName || entry.targetName || '-'}
+              </p>
               {entry.targetId && (
                 <p className="text-xs text-gray-500 flex items-center gap-1">
                   {entry.targetId}

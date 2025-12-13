@@ -5,9 +5,11 @@ export interface AuditLogEntry {
   actorType: string
   actorId: string
   actorName: string
+  actorDisplayName?: string // Enriched from Discord - current nickname (username)
   targetType: string
   targetId: string
   targetName: string
+  targetDisplayName?: string // Enriched from Discord - current nickname (username)
   description: string
   beforeState: Record<string, unknown> | null
   afterState: Record<string, unknown> | null

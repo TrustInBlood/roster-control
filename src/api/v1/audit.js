@@ -4,8 +4,107 @@ const { Op } = require('sequelize');
 const { createServiceLogger } = require('../../utils/logger');
 const { requireAuth, requirePermission } = require('../middleware/auth');
 const { AuditLog } = require('../../database/models');
+const { getMemberCacheService } = require('../../services/MemberCacheService');
 
 const logger = createServiceLogger('AuditAPI');
+
+// Helper to check if a string looks like a Discord snowflake ID
+function isDiscordId(str) {
+  return str && /^\d{17,19}$/.test(str);
+}
+
+// In-memory cache for Discord display names (5 minute TTL)
+const displayNameCache = new Map();
+const CACHE_TTL = 5 * 60 * 1000;
+
+function getCachedDisplayName(id) {
+  const cached = displayNameCache.get(id);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.name;
+  }
+  return null;
+}
+
+function setCachedDisplayName(id, name) {
+  displayNameCache.set(id, { name, timestamp: Date.now() });
+}
+
+// Helper to enrich audit entries with current Discord member names
+async function enrichEntriesWithDiscordNames(entries) {
+  const discordClient = global.discordClient;
+  if (!discordClient) return entries.map(e => e.toJSON ? e.toJSON() : { ...e });
+
+  const guildId = process.env.DISCORD_GUILD_ID;
+  const guild = await discordClient.guilds.fetch(guildId).catch(() => null);
+  if (!guild) return entries.map(e => e.toJSON ? e.toJSON() : { ...e });
+
+  const cacheService = getMemberCacheService();
+
+  // Collect all unique Discord IDs that aren't already cached
+  const discordIds = new Set();
+  const memberMap = new Map();
+
+  for (const entry of entries) {
+    if (isDiscordId(entry.actorId)) {
+      const cached = getCachedDisplayName(entry.actorId);
+      if (cached) {
+        memberMap.set(entry.actorId, cached);
+      } else {
+        discordIds.add(entry.actorId);
+      }
+    }
+    if (isDiscordId(entry.targetId)) {
+      const cached = getCachedDisplayName(entry.targetId);
+      if (cached) {
+        memberMap.set(entry.targetId, cached);
+      } else {
+        discordIds.add(entry.targetId);
+      }
+    }
+  }
+
+  // Fetch uncached members in parallel (limit concurrency to avoid rate limits)
+  if (discordIds.size > 0) {
+    const idsArray = Array.from(discordIds);
+    const BATCH_SIZE = 10;
+
+    for (let i = 0; i < idsArray.length; i += BATCH_SIZE) {
+      const batch = idsArray.slice(i, i + BATCH_SIZE);
+      const fetchPromises = batch.map(async (id) => {
+        try {
+          const member = await cacheService.getMember(guild, id);
+          if (member) {
+            const displayName = member.displayName || member.user.username;
+            const username = member.user.username;
+            const formatted = displayName !== username
+              ? `${displayName} (${username})`
+              : displayName;
+            memberMap.set(id, formatted);
+            setCachedDisplayName(id, formatted);
+          }
+        } catch {
+          // Member not found or left guild - skip
+        }
+      });
+      await Promise.all(fetchPromises);
+    }
+  }
+
+  // Enrich entries with resolved names
+  return entries.map(entry => {
+    const enriched = entry.toJSON ? entry.toJSON() : { ...entry };
+
+    if (isDiscordId(enriched.actorId) && memberMap.has(enriched.actorId)) {
+      enriched.actorDisplayName = memberMap.get(enriched.actorId);
+    }
+
+    if (isDiscordId(enriched.targetId) && memberMap.has(enriched.targetId)) {
+      enriched.targetDisplayName = memberMap.get(enriched.targetId);
+    }
+
+    return enriched;
+  });
+}
 
 // GET /api/v1/audit - List audit logs with filters and pagination
 router.get('/', requireAuth, requirePermission('VIEW_AUDIT'), async (req, res) => {
@@ -87,8 +186,11 @@ router.get('/', requireAuth, requirePermission('VIEW_AUDIT'), async (req, res) =
       ]
     });
 
+    // Enrich entries with current Discord member names
+    const enrichedEntries = await enrichEntriesWithDiscordNames(rows);
+
     res.json({
-      entries: rows,
+      entries: enrichedEntries,
       pagination: {
         page: pageNum,
         limit: limitNum,
