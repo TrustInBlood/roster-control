@@ -20,7 +20,6 @@ export default function Whitelist() {
     search: searchParams.get('search') || undefined,
     sortBy: searchParams.get('sortBy') || 'granted_at',
     sortOrder: (searchParams.get('sortOrder') as 'ASC' | 'DESC') || 'DESC',
-    showExpired: searchParams.get('showExpired') === 'true',
     expiringWithin: searchParams.get('expiringWithin') ? parseInt(searchParams.get('expiringWithin')!) : undefined,
   }
 
