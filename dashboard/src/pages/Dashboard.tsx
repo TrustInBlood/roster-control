@@ -1,12 +1,44 @@
-import { Link } from 'react-router-dom'
-import { Users } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { Users, AlertTriangle } from 'lucide-react'
 import { useWhitelistStats } from '../hooks/useWhitelist'
 
 export default function Dashboard() {
   const { data: stats, isLoading } = useWhitelistStats()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [showPermissionError, setShowPermissionError] = useState(false)
+
+  // Check for permission denied error in URL
+  useEffect(() => {
+    if (searchParams.get('error') === 'permission_denied') {
+      setShowPermissionError(true)
+      // Clear the error from URL
+      searchParams.delete('error')
+      setSearchParams(searchParams, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
 
   return (
     <div className="space-y-6">
+      {/* Permission Denied Alert */}
+      {showPermissionError && (
+        <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <h3 className="text-red-400 font-medium">Permission Denied</h3>
+            <p className="text-gray-300 text-sm mt-1">
+              You no longer have permission to access that resource. Your roles may have changed.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowPermissionError(false)}
+            className="text-gray-400 hover:text-white"
+          >
+            &times;
+          </button>
+        </div>
+      )}
+
       <div>
         <h1 className="text-2xl font-bold text-white">Dashboard</h1>
         <p className="text-gray-400 mt-1">Overview of your roster management system</p>

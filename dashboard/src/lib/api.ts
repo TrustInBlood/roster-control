@@ -20,6 +20,42 @@ const api = axios.create({
   },
 })
 
+// Response interceptor to handle auth errors globally
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error.response?.status
+    const errorCode = error.response?.data?.code
+
+    // Handle 401 (not authenticated) - redirect to login
+    if (status === 401) {
+      // Only redirect if not already on auth endpoints
+      if (!window.location.pathname.startsWith('/login')) {
+        window.location.href = '/api/v1/auth/login'
+      }
+      return Promise.reject(error)
+    }
+
+    // Handle 403 (permission denied)
+    if (status === 403) {
+      // NOT_STAFF means they lost their staff role entirely
+      if (errorCode === 'NOT_STAFF') {
+        window.location.href = '/access-denied'
+        return Promise.reject(error)
+      }
+
+      // Any other 403 (PERMISSION_DENIED or unknown) - redirect to dashboard
+      // This handles role changes where user is still logged in but lost permissions
+      if (!window.location.pathname.startsWith('/dashboard')) {
+        window.location.href = '/dashboard?error=permission_denied'
+      }
+      return Promise.reject(error)
+    }
+
+    return Promise.reject(error)
+  }
+)
+
 // Auth API
 export const authApi = {
   getMe: async (): Promise<User> => {

@@ -35,9 +35,11 @@ function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/access-denied" element={<AccessDenied />} />
       <Route element={<ProtectedRoute />}>
         <Route path="/" element={<Layout />}>
-          <Route index element={<Dashboard />} />
+          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route path="dashboard" element={<Dashboard />} />
           <Route path="whitelist" element={<Whitelist />} />
           <Route path="whitelist/:steamid64" element={<WhitelistDetail />} />
         </Route>
