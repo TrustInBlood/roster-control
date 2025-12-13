@@ -3,13 +3,14 @@ const router = express.Router();
 
 const authRoutes = require('./auth');
 const whitelistRoutes = require('./whitelist');
-const { requireStaff } = require('../middleware/auth');
+const { requireStaff, refreshUserRoles } = require('../middleware/auth');
 
 // Mount routes
 router.use('/auth', authRoutes);
 
 // All routes below require staff role
-router.use('/whitelist', requireStaff, whitelistRoutes);
+// refreshUserRoles updates cached roles from Discord (uses MemberCacheService with 1hr TTL)
+router.use('/whitelist', refreshUserRoles, requireStaff, whitelistRoutes);
 
 // Health check endpoint (public)
 router.get('/health', (req, res) => {

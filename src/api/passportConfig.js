@@ -34,7 +34,7 @@ function configurePassport(app, sequelize, discordClient) {
     db: sequelize,
     tableName: 'dashboard_sessions',
     checkExpirationInterval: 15 * 60 * 1000, // Clean up every 15 minutes
-    expiration: 24 * 60 * 60 * 1000 // Sessions expire after 24 hours
+    expiration: 14 * 24 * 60 * 60 * 1000 // Sessions expire after 2 weeks
   });
 
   // Session middleware
@@ -46,7 +46,7 @@ function configurePassport(app, sequelize, discordClient) {
     cookie: {
       secure: false, // Set to true if using HTTPS
       httpOnly: true,
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      maxAge: 14 * 24 * 60 * 60 * 1000, // 2 weeks
       sameSite: 'lax'
     },
     name: 'roster.sid'

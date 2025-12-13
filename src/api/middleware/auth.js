@@ -1,5 +1,6 @@
 const { createServiceLogger } = require('../../utils/logger');
 const { loadConfig } = require('../../utils/environment');
+const { getMemberCacheService } = require('../../services/MemberCacheService');
 
 // Load environment-specific Discord roles
 const {
@@ -198,12 +199,77 @@ function getUserPermissions(user) {
   );
 }
 
+/**
+ * Middleware to refresh user roles from Discord
+ * Uses MemberCacheService which has 1-hour TTL caching to avoid API spam
+ */
+async function refreshUserRoles(req, res, next) {
+  // Skip if not authenticated
+  if (!req.isAuthenticated || !req.isAuthenticated()) {
+    return next();
+  }
+
+  // Skip if Discord client not available
+  const discordClient = global.discordClient;
+  if (!discordClient) {
+    return next();
+  }
+
+  try {
+    const guildId = process.env.DISCORD_GUILD_ID;
+    const guild = await discordClient.guilds.fetch(guildId).catch(() => null);
+
+    if (!guild) {
+      return next();
+    }
+
+    const cacheService = getMemberCacheService();
+    const member = await cacheService.getMember(guild, req.user.id);
+
+    if (member) {
+      // Get fresh roles, filtering out @everyone
+      const freshRoles = member.roles.cache
+        .filter(role => role.id !== guild.id)
+        .map(role => role.id);
+
+      // Check if roles changed
+      const oldRoles = req.user.roles || [];
+      const rolesChanged = JSON.stringify(freshRoles.sort()) !== JSON.stringify(oldRoles.sort());
+
+      if (rolesChanged) {
+        logger.info('User roles updated from Discord', {
+          user: req.user.username,
+          oldCount: oldRoles.length,
+          newCount: freshRoles.length
+        });
+
+        // Update request user object for this request
+        req.user.roles = freshRoles;
+
+        // Update session so changes persist
+        if (req.session?.passport?.user) {
+          req.session.passport.user.roles = freshRoles;
+        }
+      }
+    }
+  } catch (error) {
+    // Log but don't fail - use cached roles
+    logger.debug('Failed to refresh roles, using cached', {
+      userId: req.user.id,
+      error: error.message
+    });
+  }
+
+  next();
+}
+
 module.exports = {
   requireAuth,
   requireStaff,
   requirePermission,
   hasPermission,
   getUserPermissions,
+  refreshUserRoles,
   PERMISSIONS,
   DASHBOARD_ACCESS_ROLES
 };

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const passport = require('passport');
 const { createServiceLogger } = require('../../utils/logger');
-const { DASHBOARD_ACCESS_ROLES } = require('../middleware/auth');
+const { DASHBOARD_ACCESS_ROLES, refreshUserRoles } = require('../middleware/auth');
 
 const logger = createServiceLogger('DashboardAuth');
 
@@ -26,7 +26,8 @@ router.get('/callback',
 );
 
 // GET /api/v1/auth/me - Get current user info
-router.get('/me', (req, res) => {
+// refreshUserRoles ensures we return fresh roles from Discord
+router.get('/me', refreshUserRoles, (req, res) => {
   if (!req.isAuthenticated()) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
