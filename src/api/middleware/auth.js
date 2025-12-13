@@ -147,22 +147,16 @@ function requirePermission(permission) {
     // Check if user has any of the required roles
     const hasPermission = userRoles.some(roleId => requiredRoles.includes(roleId));
 
-    // Debug logging
-    logger.info('Permission check', {
-      userId: req.user.id,
+    logger.debug('Permission check', {
+      user: req.user.username,
       permission,
-      userRoles,
-      requiredRoles,
-      hasPermission
+      granted: hasPermission
     });
 
     if (!hasPermission) {
       logger.warn('Permission denied', {
-        userId: req.user.id,
-        username: req.user.username,
-        permission,
-        userRoles,
-        requiredRoles
+        user: req.user.username,
+        permission
       });
 
       return res.status(403).json({
