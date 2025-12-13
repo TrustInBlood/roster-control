@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom'
-import { ChevronUp, ChevronDown, ExternalLink } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { ChevronUp, ChevronDown } from 'lucide-react'
 import type { WhitelistPlayer } from '../../types/whitelist'
 import { cn, formatRelativeTime, getStatusColor, getSourceColor } from '../../lib/utils'
 import CopyButton from '../ui/CopyButton'
@@ -29,7 +29,6 @@ const columns = [
   { key: 'status', label: 'Status', sortable: true },
   { key: 'expiration', label: 'Expires', sortable: true },
   { key: 'entryCount', label: 'Entries', sortable: true },
-  { key: 'actions', label: '', sortable: false },
 ]
 
 export default function WhitelistTable({
@@ -40,6 +39,8 @@ export default function WhitelistTable({
   onSort,
   currentSort,
 }: WhitelistTableProps) {
+  const navigate = useNavigate()
+
   const handleSort = (key: string) => {
     if (currentSort.sortBy === key) {
       onSort(key, currentSort.sortOrder === 'ASC' ? 'DESC' : 'ASC')
@@ -98,14 +99,17 @@ export default function WhitelistTable({
             {players.map((player) => (
               <tr
                 key={player.steamid64}
-                className="hover:bg-discord-lighter/50 transition-colors"
+                className="hover:bg-discord-lighter/50 transition-colors cursor-pointer"
+                onClick={() => navigate(`/whitelist/${player.steamid64}`)}
               >
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <code className="text-sm text-blue-400 font-mono">
                       {player.steamid64}
                     </code>
-                    <CopyButton text={player.steamid64} size={3} />
+                    <span onClick={(e) => e.stopPropagation()}>
+                      <CopyButton text={player.steamid64} size={3} />
+                    </span>
                   </div>
                 </td>
                 <td className="px-4 py-3">
@@ -151,15 +155,6 @@ export default function WhitelistTable({
                   <span className="text-sm text-gray-400">
                     {player.entryCount}
                   </span>
-                </td>
-                <td className="px-4 py-3">
-                  <Link
-                    to={`/whitelist/${player.steamid64}`}
-                    className="text-discord-blurple hover:text-discord-blurple/80 transition-colors"
-                    title="View details"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                  </Link>
                 </td>
               </tr>
             ))}

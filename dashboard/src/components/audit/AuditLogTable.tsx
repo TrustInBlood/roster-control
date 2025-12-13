@@ -1,4 +1,4 @@
-import { ChevronUp, ChevronDown, CheckCircle, XCircle, Eye } from 'lucide-react'
+import { ChevronUp, ChevronDown, CheckCircle, XCircle } from 'lucide-react'
 import type { AuditLogEntry } from '../../types/audit'
 import { cn, formatDateTime, getSeverityColor, formatActionType } from '../../lib/utils'
 
@@ -27,7 +27,6 @@ const columns = [
   { key: 'targetName', label: 'Target', sortable: true },
   { key: 'severity', label: 'Severity', sortable: true },
   { key: 'success', label: 'Result', sortable: false },
-  { key: 'actions', label: '', sortable: false },
 ]
 
 export default function AuditLogTable({
@@ -150,18 +149,6 @@ export default function AuditLogTable({
                   ) : (
                     <XCircle className="w-5 h-5 text-red-400" />
                   )}
-                </td>
-                <td className="px-4 py-3">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onRowClick(entry)
-                    }}
-                    className="text-discord-blurple hover:text-discord-blurple/80 transition-colors"
-                    title="View details"
-                  >
-                    <Eye className="w-4 h-4" />
-                  </button>
                 </td>
               </tr>
             ))}
