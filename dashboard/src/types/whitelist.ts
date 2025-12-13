@@ -97,10 +97,12 @@ export interface WhitelistFilters {
   page?: number
   limit?: number
   source?: 'role' | 'manual' | 'donation' | 'import'
+  status?: 'active' | 'permanent' | 'expired' | 'revoked'
   search?: string
   sortBy?: string
   sortOrder?: 'ASC' | 'DESC'
   showExpired?: boolean
+  expiringWithin?: number // Days until expiration filter
 }
 
 export interface GrantWhitelistRequest {

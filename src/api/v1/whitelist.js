@@ -200,11 +200,32 @@ router.get('/', requireAuth, requirePermission('VIEW_WHITELIST'), async (req, re
       });
     }
 
-    // Filter by status - by default only show active (active + permanent)
-    // If showExpired is true, show all statuses
-    const showExpired = req.query.showExpired === 'true';
-    if (!showExpired) {
-      players = players.filter(p => p.status === 'active' || p.status === 'permanent');
+    // Filter by specific status if provided
+    const statusFilter = req.query.status;
+    if (statusFilter) {
+      players = players.filter(p => p.status === statusFilter);
+    } else {
+      // Default behavior: only show active (active + permanent) unless showExpired is true
+      const showExpired = req.query.showExpired === 'true';
+      if (!showExpired) {
+        players = players.filter(p => p.status === 'active' || p.status === 'permanent');
+      }
+    }
+
+    // Filter by expiring within X days
+    const expiringWithin = req.query.expiringWithin ? parseInt(req.query.expiringWithin) : null;
+    if (expiringWithin !== null && expiringWithin > 0) {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() + expiringWithin);
+
+      players = players.filter(p => {
+        // Exclude permanent entries (they never expire)
+        if (p.status === 'permanent' || !p.expiration) return false;
+        // Include only active entries expiring before the cutoff
+        if (p.status !== 'active') return false;
+        const expDate = new Date(p.expiration);
+        return expDate <= cutoffDate;
+      });
     }
 
     // Sort players
