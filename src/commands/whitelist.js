@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, ModalBuilder, TextInputBuilder, TextInputStyle, StringSelectMenuBuilder, MessageFlags } = require('discord.js');
 const { permissionMiddleware } = require('../handlers/permissionHandler');
 const { withLoadingMessage, createResponseEmbed, sendSuccess, sendError } = require('../utils/messageHandler');
-const { Whitelist } = require('../database/models');
+const { Whitelist, AuditLog } = require('../database/models');
 const { WHITELIST_AWARD_ROLES } = require('../../config/discord');
 const { getHighestPriorityGroup } = require('../utils/environment');
 const {
@@ -1543,6 +1543,29 @@ async function processWhitelistGrant(interaction, grantData) {
       steamIdOnly: isSteamIdOnly || false // Flag for audit
     });
 
+    // Log to AuditLog table for dashboard visibility
+    await AuditLog.logAction({
+      actionType: 'whitelist_grant',
+      actorType: 'discord_user',
+      actorId: grantData.originalUser.id,
+      actorName: grantData.originalUser.username || grantData.originalUser.tag,
+      targetType: 'player',
+      targetId: userInfo.steamid64,
+      targetName: userInfo.username || userInfo.steamid64,
+      description: `Granted ${reason.replace('-', ' ')} whitelist via Discord command`,
+      afterState: {
+        duration_value: durationValue,
+        duration_type: durationType,
+        reason: reason,
+        expiration: whitelistEntry.expiration?.toISOString() || null
+      },
+      metadata: {
+        source: 'discord_command',
+        isSteamIdOnly: isSteamIdOnly || false,
+        discord_user_id: discordUser?.id || null
+      }
+    });
+
     // Assign Discord role based on whitelist reason
     let roleAssigned = false;
     const roleId = getRoleForReason(reason);
@@ -2034,6 +2057,26 @@ async function handleRevoke(interaction) {
     if (revokedCount === 0) {
       throw new Error('No active whitelist entries found for this user.');
     }
+
+    // Log to AuditLog table for dashboard visibility
+    await AuditLog.logAction({
+      actionType: 'whitelist_revoke',
+      actorType: 'discord_user',
+      actorId: interaction.user.id,
+      actorName: interaction.user.username || interaction.user.tag,
+      targetType: 'player',
+      targetId: resolvedSteamId,
+      targetName: resolvedDiscordUser?.username || resolvedSteamId,
+      description: `Revoked ${revokedCount} whitelist entries via Discord command`,
+      afterState: {
+        reason: reason,
+        entries_revoked: revokedCount
+      },
+      metadata: {
+        source: 'discord_command',
+        discord_user_id: resolvedDiscordUser?.id || null
+      }
+    });
 
     // Remove Discord roles based on revoked whitelist entries
     let rolesRemoved = [];
