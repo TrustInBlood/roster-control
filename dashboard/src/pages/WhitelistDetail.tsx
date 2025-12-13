@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Copy, Plus, Trash2, Clock, User, Shield, History, Pencil } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Clock, User, Shield, History, Pencil } from 'lucide-react'
 import { useWhitelistDetail, useExtendWhitelist, useRevokeWhitelist, useRevokeWhitelistEntry, useEditWhitelistEntry } from '../hooks/useWhitelist'
-import { cn, formatDateTime, formatRelativeTime, getStatusColor, getSourceColor, copyToClipboard } from '../lib/utils'
+import { cn, formatDateTime, formatRelativeTime, getStatusColor, getSourceColor } from '../lib/utils'
+import CopyButton from '../components/ui/CopyButton'
 import type { ExtendWhitelistRequest, RevokeWhitelistRequest, EditWhitelistRequest, WhitelistEntry } from '../types/whitelist'
 
 export default function WhitelistDetail() {
@@ -14,10 +15,6 @@ export default function WhitelistDetail() {
   const [showRevokeEntryModal, setShowRevokeEntryModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [selectedEntry, setSelectedEntry] = useState<WhitelistEntry | null>(null)
-
-  const handleCopy = async (text: string) => {
-    await copyToClipboard(text)
-  }
 
   if (isLoading) {
     return (
@@ -54,12 +51,7 @@ export default function WhitelistDetail() {
           <h1 className="text-2xl font-bold text-white">Whitelist Details</h1>
           <p className="text-gray-400 flex items-center gap-2">
             <code className="text-blue-400 font-mono">{steamid64}</code>
-            <button
-              onClick={() => handleCopy(steamid64!)}
-              className="text-gray-500 hover:text-white transition-colors"
-            >
-              <Copy className="w-4 h-4" />
-            </button>
+            <CopyButton text={steamid64!} size={4} className="text-gray-500" />
           </p>
         </div>
         <div className="flex gap-2">
