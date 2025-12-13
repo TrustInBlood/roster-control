@@ -11,6 +11,13 @@ import type {
   EditWhitelistRequest,
   WhitelistEntry,
 } from '../types/whitelist'
+import type {
+  AuditLogListResponse,
+  AuditLogFilters,
+  AuditLogStats,
+  AuditLogDetailResponse,
+  UnlinkedStaffResponse,
+} from '../types/audit'
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -111,6 +118,41 @@ export const whitelistApi = {
 
   editEntry: async (id: number, request: EditWhitelistRequest): Promise<{ success: boolean; entry: WhitelistEntry }> => {
     const { data } = await api.put<{ success: boolean; entry: WhitelistEntry }>(`/whitelist/entry/${id}`, request)
+    return data
+  },
+}
+
+// Audit API
+export const auditApi = {
+  list: async (filters: AuditLogFilters = {}): Promise<AuditLogListResponse> => {
+    const { data } = await api.get<AuditLogListResponse>('/audit', {
+      params: filters,
+    })
+    return data
+  },
+
+  getStats: async (hours?: number): Promise<AuditLogStats> => {
+    const { data } = await api.get<AuditLogStats>('/audit/stats', {
+      params: hours ? { hours } : undefined,
+    })
+    return data
+  },
+
+  getActionTypes: async (): Promise<{ actionTypes: string[] }> => {
+    const { data } = await api.get<{ actionTypes: string[] }>('/audit/action-types')
+    return data
+  },
+
+  getDetail: async (actionId: string): Promise<AuditLogDetailResponse> => {
+    const { data } = await api.get<AuditLogDetailResponse>(`/audit/${actionId}`)
+    return data
+  },
+}
+
+// Security API
+export const securityApi = {
+  getUnlinkedStaff: async (): Promise<UnlinkedStaffResponse> => {
+    const { data } = await api.get<UnlinkedStaffResponse>('/security/unlinked-staff')
     return data
   },
 }

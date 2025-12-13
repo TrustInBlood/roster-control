@@ -5,6 +5,8 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Whitelist from './pages/Whitelist'
 import WhitelistDetail from './pages/WhitelistDetail'
+import AuditLogs from './pages/AuditLogs'
+import UnlinkedStaff from './pages/UnlinkedStaff'
 import AccessDenied from './pages/AccessDenied'
 
 function ProtectedRoute() {
@@ -42,6 +44,8 @@ function App() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="whitelist" element={<Whitelist />} />
           <Route path="whitelist/:steamid64" element={<WhitelistDetail />} />
+          <Route path="audit" element={<AuditLogs />} />
+          <Route path="security/unlinked-staff" element={<UnlinkedStaff />} />
         </Route>
       </Route>
     </Routes>

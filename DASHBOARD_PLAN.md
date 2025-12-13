@@ -155,17 +155,35 @@ WS     /api/v1/duty/stream              - WebSocket for live updates
 
 ## Phase 4: Security Auditing
 
-### Features
-- Audit log viewer with filters (action type, actor, target, date range)
-- Unlinked staff management with bulk notification
-- Security issue tracking
+### Status: COMPLETE
+
+### Completed Features
+
+#### Audit Log Viewer
+- [x] Paginated table of all audit log entries
+- [x] **Filters**: Action type, severity, success/failure, date range, search
+- [x] **Columns**: Time, Action, Actor, Target, Severity, Result
+- [x] **Sorting**: By time, action type, actor name, target name, severity
+- [x] Click row to view full details (before/after state, metadata)
+- [x] Permission: VIEW_AUDIT (admin roles only)
+
+#### Unlinked Staff Page
+- [x] List staff members without high-confidence Steam links
+- [x] Grouped by role/group
+- [x] Shows Discord avatar, username, user tag
+- [x] Stats: unlinked count, total staff, linked rate percentage
+- [x] "All linked" success message when no unlinked staff
+- [ ] Bulk notification - *deferred (list only for now)*
 
 ### API Endpoints
 
-```
-GET    /api/v1/audit                    - List audit logs
-GET    /api/v1/security/unlinked-staff  - Staff without Steam links
-```
+| Endpoint | Status | Description |
+|----------|--------|-------------|
+| `GET /api/v1/audit` | ✅ | List audit logs (pagination, filters) |
+| `GET /api/v1/audit/stats` | ✅ | Audit statistics by action type, severity |
+| `GET /api/v1/audit/action-types` | ✅ | Get distinct action types for filters |
+| `GET /api/v1/audit/:actionId` | ✅ | Single audit log with full details |
+| `GET /api/v1/security/unlinked-staff` | ✅ | Staff without high-confidence Steam links |
 
 ---
 

@@ -62,3 +62,22 @@ export function truncateSteamId(steamid64: string): string {
 export function copyToClipboard(text: string): Promise<void> {
   return navigator.clipboard.writeText(text)
 }
+
+export function getSeverityColor(severity: string): string {
+  switch (severity) {
+    case 'info':
+      return 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+    case 'warn':
+      return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+    case 'error':
+      return 'bg-red-500/20 text-red-400 border-red-500/30'
+    case 'critical':
+      return 'bg-red-700/30 text-red-300 border-red-600/40'
+    default:
+      return 'bg-gray-500/20 text-gray-400 border-gray-500/30'
+  }
+}
+
+export function formatActionType(actionType: string): string {
+  return actionType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+}

@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, List, Users, Clock, Shield } from 'lucide-react'
+import { LayoutDashboard, List, Users, Clock, Shield, UserX } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 const navigation = [
@@ -7,7 +7,8 @@ const navigation = [
   { name: 'Whitelist', href: '/whitelist', icon: List },
   { name: 'Members', href: '/members', icon: Users, disabled: true },
   { name: 'Duty Stats', href: '/duty', icon: Clock, disabled: true },
-  { name: 'Audit Log', href: '/audit', icon: Shield, disabled: true },
+  { name: 'Audit Logs', href: '/audit', icon: Shield },
+  { name: 'Unlinked Staff', href: '/security/unlinked-staff', icon: UserX },
 ]
 
 export default function Sidebar() {
