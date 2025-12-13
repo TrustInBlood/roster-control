@@ -363,13 +363,32 @@ router.get('/:steamid64', requireAuth, requirePermission('VIEW_WHITELIST'), asyn
     // Get the most recent entry for user info
     const latestEntry = history[0];
 
+    // Try to enrich user info from Discord if we have a linked account
+    let discordUsername = latestEntry.discord_username;
+    let discordUserId = latestEntry.discord_user_id || accountLink?.discord_user_id;
+
+    if (!discordUsername && discordUserId && global.discordClient) {
+      try {
+        const guildId = process.env.DISCORD_GUILD_ID;
+        const guild = await global.discordClient.guilds.fetch(guildId);
+        const member = await guild.members.fetch(discordUserId).catch(() => null);
+        if (member) {
+          discordUsername = member.displayName !== member.user.username
+            ? `${member.displayName} (${member.user.username})`
+            : member.user.username;
+        }
+      } catch {
+        // Failed to fetch Discord member, use fallback
+      }
+    }
+
     res.json({
       user: {
         steamid64,
         eosID: latestEntry.eosID,
         username: latestEntry.username,
-        discord_username: latestEntry.discord_username,
-        discord_user_id: latestEntry.discord_user_id
+        discord_username: discordUsername,
+        discord_user_id: discordUserId
       },
       currentStatus: currentStatus?.hasWhitelist ? {
         isActive: true,
