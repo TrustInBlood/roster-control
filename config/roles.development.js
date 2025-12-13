@@ -31,7 +31,8 @@ const COMMAND_PERMISSIONS = {
   'ping': [],  // Everyone can use
   'help': [],  // Everyone can use
   'linkid': [], // Everyone can use - self-service account linking
-  'unlink': [] // Everyone can use - self-service account unlinking
+  'unlink': [], // Everyone can use - self-service account unlinking
+  'stats': []  // Everyone can use - view player statistics
 };
 
 // Both duty commands use the same permission list
