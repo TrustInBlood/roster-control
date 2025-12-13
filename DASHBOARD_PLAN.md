@@ -36,46 +36,79 @@ Build a web dashboard for roster-control that replaces awkward Discord slash com
 
 ## Phase 1: Whitelist Management MVP
 
-### Features
+### Status: COMPLETE
 
-#### 1.1 Whitelist List View
-- Paginated table of all whitelist entries
-- **Filters**: Status (active/expired/revoked), Source (role/manual/donation/import), Search by Steam ID/username
-- **Columns**: Steam ID, Discord User, Username, Source, Status, Expiration, Granted By, Actions
-- **Sorting**: By expiration, grant date, username
+### Completed Features
 
-#### 1.2 Whitelist Detail View
-- User info (Steam ID, Discord user, in-game name)
-- Current status with countdown timer
-- Stacked duration visualization (shows how multiple entries accumulate)
-- Entry history timeline
-- Account link confidence score
+#### Authentication & Session Management
+- [x] Discord OAuth2 login flow (`/api/v1/auth/login`, `/callback`, `/me`, `/logout`)
+- [x] Session storage in MariaDB via `connect-session-sequelize`
+- [x] 2-week session duration (extended from 24 hours)
+- [x] Role-based access control with permission middleware
+- [x] **Live role refresh**: `refreshUserRoles` middleware fetches fresh Discord roles on each API request using `MemberCacheService` (1-hour TTL cache)
+- [x] Automatic redirect to `/access-denied` when user loses staff role (403 handling)
+- [x] Automatic redirect to `/dashboard?error=permission_denied` for permission denied errors
 
-#### 1.3 Grant Whitelist
-- Form: Steam ID, Discord user (optional autocomplete), Duration (presets + custom), Reason, Note
-- Validates Steam ID format
-- Shows warning if Steam ID linked to different Discord user
-- Shows existing whitelist status before granting
+#### Auth Middleware (`src/api/middleware/auth.js`)
+- `requireAuth` - Validates session exists
+- `requireStaff` - Validates user has any staff role
+- `requirePermission(permission)` - Validates specific permission (VIEW_WHITELIST, GRANT_WHITELIST, etc.)
+- `refreshUserRoles` - Fetches fresh roles from Discord via `MemberCacheService`, updates session if roles changed
 
-#### 1.4 Extend Whitelist
-- Duration selector (same as grant)
-- Creates new stacking entry
+#### Frontend Error Handling (`dashboard/src/lib/api.ts`)
+- Axios interceptor catches 401/403 errors globally
+- 401 → Redirect to Discord login
+- 403 `NOT_STAFF` → Redirect to `/access-denied`
+- 403 `PERMISSION_DENIED` → Redirect to `/dashboard?error=permission_denied`
 
-#### 1.5 Revoke Whitelist
-- Reason input (required)
-- Revokes all non-role-based entries for user
-- Logs to AuditLog
+### UI Features
 
-### API Endpoints
+#### 1.1 Whitelist List View - COMPLETE
+- [x] Paginated table of all whitelist entries
+- [x] **Filters**: Status (active/expired/revoked), Source (role/manual/donation/import), Search by Steam ID/username
+- [x] **Columns**: Steam ID, Discord User, Username, Source, Status, Expiration, Granted By, Actions
+- [x] **Sorting**: By expiration, grant date, username
+- [x] Show expired entries toggle
+- [x] Click row to view details
 
-```
-GET    /api/v1/whitelist                - List entries (pagination, filters)
-GET    /api/v1/whitelist/:steamid64     - User whitelist details + history
-POST   /api/v1/whitelist                - Grant new whitelist
-PUT    /api/v1/whitelist/:id/extend     - Extend existing entry
-DELETE /api/v1/whitelist/:steamid64     - Revoke entries
-GET    /api/v1/whitelist/stats          - Dashboard statistics
-```
+#### 1.2 Whitelist Detail View - COMPLETE
+- [x] User info (Steam ID, Discord user, in-game name)
+- [x] Current status display
+- [x] Entry history timeline with status badges
+- [x] Account link confidence score display
+- [x] Edit entry (reason, duration)
+- [x] Revoke individual entry with reason
+
+#### 1.3 Grant Whitelist - COMPLETE
+- [x] Form: Steam ID, Duration (presets + custom), Reason
+- [x] Validates Steam ID format
+
+#### 1.4 Extend Whitelist - COMPLETE
+- [x] Duration selector (hours/days/months)
+- [x] Permanent option
+- [x] Creates new stacking entry
+
+#### 1.5 Revoke Whitelist - COMPLETE
+- [x] Revoke individual entry with optional reason
+- [x] Revoke all non-role-based entries with required reason
+- [x] Logs to AuditLog
+
+### API Endpoints - ALL COMPLETE
+
+| Endpoint | Status | Description |
+|----------|--------|-------------|
+| `GET /api/v1/auth/login` | ✅ | Initiates Discord OAuth |
+| `GET /api/v1/auth/callback` | ✅ | Discord OAuth callback |
+| `GET /api/v1/auth/me` | ✅ | Returns current user + roles (with role refresh) |
+| `POST /api/v1/auth/logout` | ✅ | Destroys session |
+| `GET /api/v1/whitelist` | ✅ | List entries (pagination, filters) |
+| `GET /api/v1/whitelist/stats` | ✅ | Dashboard statistics |
+| `GET /api/v1/whitelist/:steamid64` | ✅ | User whitelist details + history |
+| `POST /api/v1/whitelist` | ✅ | Grant new whitelist |
+| `PUT /api/v1/whitelist/:id/extend` | ✅ | Extend existing entry |
+| `PUT /api/v1/whitelist/entry/:id` | ✅ | Edit entry (reason, duration) |
+| `POST /api/v1/whitelist/entry/:id/revoke` | ✅ | Revoke single entry |
+| `POST /api/v1/whitelist/:steamid64/revoke` | ✅ | Revoke all entries for user |
 
 ---
 
@@ -278,50 +311,58 @@ CREATE TABLE dashboard_sessions (
 
 ---
 
-## Implementation Steps (Phase 1 MVP)
+## Implementation Steps (Phase 1 MVP) - COMPLETE
 
-### Step 1: Backend Foundation
-1. Create `src/api/v1/` directory structure
-2. Add authentication dependencies to package.json
-3. Create session middleware with connect-session-sequelize
-4. Create migration for dashboard_sessions table
+### Step 1: Backend Foundation ✅
+1. ✅ Create `src/api/v1/` directory structure
+2. ✅ Add authentication dependencies to package.json
+3. ✅ Create session middleware with connect-session-sequelize
+4. ✅ Session table auto-created by sequelize
 
-### Step 2: Discord OAuth
-1. Implement `/api/v1/auth/login` - generates state, redirects to Discord
-2. Implement `/api/v1/auth/callback` - validates, creates session
-3. Implement `/api/v1/auth/me` - returns user + roles
-4. Implement `/api/v1/auth/logout` - destroys session
-5. Create auth middleware for protected routes
+### Step 2: Discord OAuth ✅
+1. ✅ Implement `/api/v1/auth/login` - generates state, redirects to Discord
+2. ✅ Implement `/api/v1/auth/callback` - validates, creates session
+3. ✅ Implement `/api/v1/auth/me` - returns user + roles (with live role refresh)
+4. ✅ Implement `/api/v1/auth/logout` - destroys session
+5. ✅ Create auth middleware for protected routes (`requireAuth`, `requireStaff`, `requirePermission`, `refreshUserRoles`)
 
-### Step 3: Whitelist API
-1. `GET /api/v1/whitelist` - list with pagination/filters (reuse `Whitelist.getActiveEntries`)
-2. `GET /api/v1/whitelist/:steamid64` - detail view (reuse `Whitelist.getActiveWhitelistForUser`, `getUserHistory`)
-3. `POST /api/v1/whitelist` - grant (reuse `Whitelist.grantWhitelist`)
-4. `PUT /api/v1/whitelist/:id/extend` - extend (reuse `Whitelist.extendWhitelist`)
-5. `DELETE /api/v1/whitelist/:steamid64` - revoke (reuse `Whitelist.revokeWhitelist`)
+### Step 3: Whitelist API ✅
+1. ✅ `GET /api/v1/whitelist` - list with pagination/filters
+2. ✅ `GET /api/v1/whitelist/:steamid64` - detail view with history
+3. ✅ `POST /api/v1/whitelist` - grant new whitelist
+4. ✅ `PUT /api/v1/whitelist/:id/extend` - extend existing entry
+5. ✅ `PUT /api/v1/whitelist/entry/:id` - edit entry
+6. ✅ `POST /api/v1/whitelist/entry/:id/revoke` - revoke single entry
+7. ✅ `POST /api/v1/whitelist/:steamid64/revoke` - revoke all entries
 
-### Step 4: React Setup
-1. Initialize Vite + React + TypeScript in `/dashboard`
-2. Configure TailwindCSS + shadcn/ui
-3. Setup Vite proxy to backend
-4. Create API client with axios
+### Step 4: React Setup ✅
+1. ✅ Initialize Vite + React + TypeScript in `/dashboard`
+2. ✅ Configure TailwindCSS (custom Discord theme)
+3. ✅ Setup Vite proxy to backend
+4. ✅ Create API client with axios (includes error interceptor for 401/403)
 
-### Step 5: Core UI Components
-1. Layout (Header with user menu, Sidebar with navigation)
-2. Login page with Discord OAuth button
-3. Auth context for user state
+### Step 5: Core UI Components ✅
+1. ✅ Layout (Header with user menu, Sidebar with navigation)
+2. ✅ Login page with Discord OAuth button
+3. ✅ Auth context for user state (`useAuth` hook)
+4. ✅ AccessDenied page for unauthorized users
+5. ✅ Permission denied alert on Dashboard
 
-### Step 6: Whitelist UI
-1. WhitelistTable with TanStack Table (server-side pagination)
-2. Filter controls (status, source, search)
-3. GrantForm modal
-4. WhitelistDetail page with history timeline
-5. ExtendModal and RevokeModal
+### Step 6: Whitelist UI ✅
+1. ✅ WhitelistTable with TanStack Query (server-side pagination)
+2. ✅ Filter controls (status, source, search, show expired toggle)
+3. ✅ GrantModal for new whitelist entries
+4. ✅ WhitelistDetail page with history timeline
+5. ✅ ExtendModal (Add Whitelist) with permanent option
+6. ✅ EditModal for modifying entries
+7. ✅ RevokeEntryModal for single entry revocation
+8. ✅ RevokeModal for revoking all entries
 
-### Step 7: Integration
-1. Add npm scripts for dashboard build
-2. Configure Express to serve React build in production
-3. Test full flow: login -> view -> grant -> revoke
+### Step 7: Integration ✅
+1. ✅ Add npm scripts for dashboard build
+2. ✅ Configure Express to serve React build in production
+3. ✅ Test full flow: login -> view -> grant -> extend -> edit -> revoke
+4. ✅ SPA fallback routing for React Router
 
 ---
 
@@ -356,6 +397,21 @@ DASHBOARD_ENABLED=true
 - **SquadJS Plugin**: Auto-sync player events directly to dashboard
 - **BattleMetrics Webhooks**: Real-time ban notifications
 - **Discord Bot Commands**: `/dashboard` command to get direct link
+
+---
+
+## Deferred Phase 1 Enhancements
+
+These features were considered for Phase 1 but deferred for a future pass:
+
+### Whitelist Detail View
+- [ ] **Stacked duration visualization**: Visual timeline/bar chart showing how multiple whitelist entries accumulate
+- [ ] **Countdown timer**: Live countdown showing time remaining until whitelist expires
+
+### Grant Whitelist Form
+- [ ] **Discord user autocomplete**: Search guild members by username when granting whitelist
+- [ ] **Steam ID link warning**: Show warning if Steam ID is already linked to a different Discord user
+- [ ] **Existing status preview**: Display current whitelist status (active entries, time remaining) before granting
 
 ---
 
