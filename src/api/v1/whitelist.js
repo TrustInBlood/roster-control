@@ -52,7 +52,7 @@ function normalizeStatus(status) {
 // GET /api/v1/whitelist - List whitelisted players (grouped by Steam ID)
 router.get('/', requireAuth, requirePermission('VIEW_WHITELIST'), async (req, res) => {
   try {
-    const { Whitelist } = require('../../database/models');
+    const { Whitelist, PlayerDiscordLink } = require('../../database/models');
     const sequelize = require('sequelize');
 
     const {
@@ -199,6 +199,26 @@ router.get('/', requireAuth, requirePermission('VIEW_WHITELIST'), async (req, re
         groupName: latestEntry.group?.group_name || null
       });
     }
+
+    // Enrich with PlayerDiscordLink data (more accurate/current info)
+    const steamIds = players.map(p => p.steamid64);
+    const links = await PlayerDiscordLink.findAll({
+      where: { steamid64: { [Op.in]: steamIds }, is_primary: true }
+    });
+    const linkMap = new Map(links.map(l => [l.steamid64, l]));
+
+    players = players.map(p => {
+      const link = linkMap.get(p.steamid64);
+      if (link) {
+        return {
+          ...p,
+          username: link.username || p.username,
+          eosID: link.eosID || p.eosID,
+          discord_user_id: link.discord_user_id || p.discord_user_id
+        };
+      }
+      return p;
+    });
 
     // Filter by specific status if provided
     const statusFilter = req.query.status;
@@ -406,8 +426,8 @@ router.get('/:steamid64', requireAuth, requirePermission('VIEW_WHITELIST'), asyn
     res.json({
       user: {
         steamid64,
-        eosID: latestEntry.eosID,
-        username: latestEntry.username,
+        eosID: accountLink?.eosID || latestEntry.eosID,
+        username: accountLink?.username || latestEntry.username,
         discord_username: discordUsername,
         discord_user_id: discordUserId
       },
