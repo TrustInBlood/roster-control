@@ -7,6 +7,7 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { looksLikeSteamId, isValidSteamId } = require('../utils/steamId');
 const { PlayerDiscordLink } = require('../database/models');
+const { Op } = require('sequelize');
 const { channels } = require('../utils/environment');
 const { TICKET_CONFIG } = channels;
 const { logAccountLink } = require('../utils/discordLogger');
@@ -408,6 +409,29 @@ async function findTicketCreator(message) {
  */
 async function processTicketSteamId(message, steamId, targetUser) {
   try {
+    // Never soft-link to someone who already has a verified (1.0) account link
+    // These are likely admins posting Steam IDs for others
+    const existingVerifiedLink = await PlayerDiscordLink.findOne({
+      where: {
+        discord_user_id: targetUser.id,
+        confidence_score: { [Op.gte]: 1.0 }
+      }
+    });
+
+    if (existingVerifiedLink) {
+      loggerConsole.log('Skipping soft-link for user with verified account:', {
+        targetUser: targetUser.id,
+        targetUsername: targetUser.username,
+        steamIdInMessage: steamId,
+        existingLinkedSteamId: existingVerifiedLink.steamid64
+      });
+      // Still post BattleMetrics profile for reference, but skip the soft-link creation
+      if (TICKET_CONFIG.BATTLEMETRICS_LOOKUP_ENABLED) {
+        await postBattleMetricsProfile(message, steamId, targetUser);
+      }
+      return;
+    }
+
     const ticketInfo = {
       channelId: message.channel.id,
       channelName: message.channel.name,
@@ -484,15 +508,30 @@ async function postBattleMetricsProfile(message, steamId, targetUser) {
       }
     });
 
+    // Check if target user has ANY verified (1.0) link - if so, never show Link button
+    const hasVerifiedLink = await PlayerDiscordLink.findOne({
+      where: {
+        discord_user_id: targetUser.id,
+        confidence_score: { [Op.gte]: 1.0 }
+      }
+    });
+
     const isLinked = !!existingLink;
     const linkConfidence = existingLink ? parseFloat(existingLink.confidence_score) : 0;
+    const userHasVerifiedAccount = !!hasVerifiedLink;
 
     // Build link status field
     let linkStatusValue;
     let linkStatusEmoji;
-    if (isLinked && linkConfidence >= 1.0) {
-      linkStatusEmoji = '✅';
-      linkStatusValue = `Linked to <@${targetUser.id}> (${(linkConfidence * 100).toFixed(0)}% confidence)`;
+    if (userHasVerifiedAccount) {
+      // User already has a verified account - show that info
+      if (hasVerifiedLink.steamid64 === steamId) {
+        linkStatusEmoji = '✅';
+        linkStatusValue = `Linked to <@${targetUser.id}> (verified)`;
+      } else {
+        linkStatusEmoji = '⚠️';
+        linkStatusValue = `<@${targetUser.id}> already has a verified account linked (different Steam ID)`;
+      }
     } else if (isLinked) {
       linkStatusEmoji = '⚠️';
       linkStatusValue = `Soft-linked to <@${targetUser.id}> (${(linkConfidence * 100).toFixed(0)}% confidence - needs verification)`;
@@ -515,9 +554,9 @@ async function postBattleMetricsProfile(message, steamId, targetUser) {
         .setTimestamp()
         .setFooter({ text: 'BattleMetrics Profile Lookup' });
 
-      // Create components array (Link button if not linked at 1.0 confidence)
+      // Create components array (Link button only if user doesn't have any verified link)
       const components = [];
-      if (!isLinked || linkConfidence < 1.0) {
+      if (!userHasVerifiedAccount) {
         const buttonLabel = isLinked ? 'Verify Link' : 'Link Account';
         const linkButton = new ButtonBuilder()
           .setCustomId(`${TICKET_LINK_BUTTON_PREFIX}${targetUser.id}_${steamId}`)
@@ -536,7 +575,8 @@ async function postBattleMetricsProfile(message, steamId, targetUser) {
         steamId,
         playerName: result.playerData.name,
         isLinked,
-        linkConfidence
+        linkConfidence,
+        userHasVerifiedAccount
       });
     } else if (!result.found && !result.error) {
       // Player not found in BattleMetrics - post notification
@@ -555,9 +595,9 @@ async function postBattleMetricsProfile(message, steamId, targetUser) {
         .setTimestamp()
         .setFooter({ text: 'BattleMetrics Profile Lookup' });
 
-      // Create components array (Link button if not linked at 1.0 confidence)
+      // Create components array (Link button only if user doesn't have any verified link)
       const components = [];
-      if (!isLinked || linkConfidence < 1.0) {
+      if (!userHasVerifiedAccount) {
         const buttonLabel = isLinked ? 'Verify Link' : 'Link Account';
         const linkButton = new ButtonBuilder()
           .setCustomId(`${TICKET_LINK_BUTTON_PREFIX}${targetUser.id}_${steamId}`)
@@ -575,7 +615,8 @@ async function postBattleMetricsProfile(message, steamId, targetUser) {
         channelId: message.channel.id,
         steamId,
         isLinked,
-        linkConfidence
+        linkConfidence,
+        userHasVerifiedAccount
       });
     } else if (result.error) {
       // Log errors but don't spam the channel with error messages
