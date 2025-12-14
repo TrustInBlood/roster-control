@@ -21,6 +21,8 @@ const CHANNELS = {
   DONATION_ADMIN_LOGS: '1310841642928050186',
   // Channel for persistent whitelist management post
   WHITELIST_POST: '1232593940587479041', // Whitelist channel
+  // Channel where /stats command can be used
+  STATS_COMMAND: '1366492682934948010', // Replace with stats channel ID
 };
 
 /**
