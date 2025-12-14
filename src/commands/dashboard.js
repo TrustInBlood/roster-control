@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { sendSuccess, sendError } = require('../utils/messageHandler');
+const { sendError } = require('../utils/messageHandler');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -22,6 +22,6 @@ module.exports = {
       .setTimestamp()
       .setFooter({ text: 'Roster Control Dashboard' });
 
-    await sendSuccess(interaction, null, embed, { ephemeral: true });
+    await interaction.reply({ embeds: [embed], ephemeral: true });
   },
 };
