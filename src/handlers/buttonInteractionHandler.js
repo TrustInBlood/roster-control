@@ -1179,39 +1179,58 @@ async function disableTicketLinkButton(message, buttonId) {
  * Handle the "View My Stats" button click
  */
 async function handleStatsButton(interaction) {
+  const { resolveSteamIdFromDiscord } = require('../utils/accountLinking');
+  const { checkCooldown, fetchStats, buildStatsEmbed, buildStatsButtonRow, buildNoLinkResponse, setCooldown } = require('../services/StatsService');
+
   try {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const userId = interaction.user.id;
 
-    const result = await getStatsForUser(interaction.user.id);
-
-    // Handle cooldown
-    if (result.cooldown) {
-      return await interaction.editReply({ content: result.message });
-    }
-
-    // Handle errors
-    if (result.error) {
-      return await interaction.editReply({ content: result.message });
-    }
-
-    // Handle no linked account
-    if (result.noLink) {
-      return await interaction.editReply({
-        embeds: [result.embed],
-        components: result.components
+    // Check cooldown first (ephemeral, no defer needed)
+    const cooldownStatus = checkCooldown(userId);
+    if (cooldownStatus.onCooldown) {
+      return await interaction.reply({
+        content: `This command is on cooldown. Please wait **${cooldownStatus.displayText}** before using it again.`,
+        flags: MessageFlags.Ephemeral
       });
     }
 
-    // Send successful stats response
+    // Quick check for Steam link before deferring
+    const steamId = await resolveSteamIdFromDiscord(userId);
+
+    // No link - reply ephemeral immediately (no defer needed)
+    if (!steamId) {
+      const noLinkResponse = buildNoLinkResponse();
+      return await interaction.reply({
+        embeds: [noLinkResponse.embed],
+        components: noLinkResponse.components,
+        flags: MessageFlags.Ephemeral
+      });
+    }
+
+    // Has link - defer public, then fetch stats
+    await interaction.deferReply();
+
+    // Set cooldown now that we know they're linked
+    setCooldown(userId);
+
+    // Fetch stats (potentially slow API call)
+    const result = await fetchStats(steamId);
+
+    if (!result.success) {
+      return await interaction.editReply({ content: result.error });
+    }
+
+    // Send successful stats response (public)
+    const embed = buildStatsEmbed(result.stats);
     await interaction.editReply({
-      embeds: [result.embed],
-      components: result.components
+      embeds: [embed],
+      components: [buildStatsButtonRow()]
     });
 
   } catch (error) {
     serviceLogger.error('Error handling stats button:', error);
 
-    const replyMethod = interaction.deferred || interaction.replied ? 'editReply' : 'reply';
+    const replyMethod = interaction.deferred ? 'editReply' : 'reply';
     await interaction[replyMethod]({
       content: 'Failed to retrieve stats. Please try again later.',
       flags: replyMethod === 'reply' ? MessageFlags.Ephemeral : undefined
