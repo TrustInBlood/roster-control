@@ -35,12 +35,12 @@ module.exports = {
       });
     }
 
-    // Handle no linked account
+    // Handle no linked account (ephemeral so only they see it)
     if (result.noLink) {
       return await interaction.reply({
         embeds: [result.embed],
         components: result.components,
-        ephemeral: false
+        flags: MessageFlags.Ephemeral
       });
     }
 
