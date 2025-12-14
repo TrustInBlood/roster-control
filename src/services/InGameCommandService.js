@@ -1,9 +1,13 @@
 const { Whitelist } = require('../database/models');
 const { createServiceLogger } = require('../utils/logger');
+const { fetchStats } = require('./StatsService');
+const { isDevelopment } = require('../utils/environment');
 
 /**
  * Service for handling in-game chat commands via SquadJS
- * Listens to CHAT_MESSAGE events and responds to commands like !mywhitelist, !whitelist, !wl
+ * Listens to CHAT_MESSAGE events and responds to commands:
+ * - !mywhitelist, !whitelist, !wl - Show player's whitelist status
+ * - !stats, !mystats - Show player's K/D ratio with Discord invite
  */
 class InGameCommandService {
   constructor(connectionManager, config) {
@@ -21,6 +25,12 @@ class InGameCommandService {
    * Initialize the service and register event handlers
    */
   initialize() {
+    // Skip initialization in development environment
+    if (isDevelopment) {
+      this.logger.info('Skipping in-game command service initialization (development environment)');
+      return;
+    }
+
     this.logger.info('Initializing in-game command service...');
 
     // Register handler for CHAT_MESSAGE events
@@ -85,11 +95,45 @@ class InGameCommandService {
 
         // Process command
         await this.handleMyWhitelistCommand(player, server);
+      } else if (message === '!stats' || message === '!mystats') {
+        // Check rate limit
+        if (this.isOnCooldown(player.steamID)) {
+          const remainingSeconds = this.getRemainingCooldown(player.steamID);
+          const remainingMinutes = Math.floor(remainingSeconds / 60);
+          const remainingSecondsOnly = remainingSeconds % 60;
+
+          let timeMessage;
+          if (remainingMinutes > 0) {
+            timeMessage = `${remainingMinutes} minute${remainingMinutes !== 1 ? 's' : ''}`;
+            if (remainingSecondsOnly > 0) {
+              timeMessage += ` and ${remainingSecondsOnly} second${remainingSecondsOnly !== 1 ? 's' : ''}`;
+            }
+          } else {
+            timeMessage = `${remainingSeconds} second${remainingSeconds !== 1 ? 's' : ''}`;
+          }
+
+          this.logger.info('Player on cooldown for stats command', {
+            serverId: server.id,
+            playerName: player.name,
+            steamID: player.steamID,
+            command: message,
+            remainingSeconds
+          });
+
+          this.connectionManager.sendRCONWarn(
+            server.id,
+            player.steamID,
+            `Please wait ${timeMessage} before using this command again.`
+          );
+          return;
+        }
+
+        // Update cooldown
+        this.updateCooldown(player.steamID);
+
+        // Process command
+        await this.handleStatsCommand(player, server);
       }
-      // Add more commands here as needed
-      // else if (message === '!help') {
-      //   await this.handleHelpCommand(player, server);
-      // }
 
     } catch (error) {
       this.logger.error('Error handling chat message:', {
@@ -169,34 +213,17 @@ class InGameCommandService {
       }
 
       // Send targeted response to player via RCON warn
-      const warnSent = this.connectionManager.sendRCONWarn(
+      this.connectionManager.sendRCONWarn(
         server.id,
         player.steamID,
         responseMessage
       );
 
-      if (!warnSent) {
-        this.logger.warn('Failed to send RCON warn to player', {
-          serverId: server.id,
-          playerName: player.name,
-          steamID: player.steamID,
-          message: responseMessage
-        });
-      }
-
       // Broadcast message to all players
-      const broadcastSent = this.connectionManager.sendRCONBroadcast(
+      this.connectionManager.sendRCONBroadcast(
         server.id,
         broadcastMessage
       );
-
-      if (!broadcastSent) {
-        this.logger.warn('Failed to send RCON broadcast', {
-          serverId: server.id,
-          playerName: player.name,
-          message: broadcastMessage
-        });
-      }
 
     } catch (error) {
       this.logger.error('Error processing whitelist status command:', {
@@ -214,6 +241,90 @@ class InGameCommandService {
         server.id,
         player.steamID,
         'Error checking whitelist status. Please try again later.'
+      );
+    }
+  }
+
+  /**
+   * Handle stats command (!stats, !mystats) - Show player's K/D ratio
+   * @param {Object} player - Player object from SquadJS
+   * @param {Object} server - Server configuration
+   */
+  async handleStatsCommand(player, server) {
+    try {
+      this.logger.info('Processing stats command', {
+        serverId: server.id,
+        serverName: server.name,
+        playerId: player.id,
+        playerName: player.name,
+        steamID: player.steamID
+      });
+
+      // Fetch stats from the API
+      const result = await fetchStats(player.steamID);
+
+      let responseMessage;
+      let broadcastMessage;
+
+      if (!result.success) {
+        // No stats found or error
+        responseMessage = 'No stats found. Visit discord.gg/bbucket for more info.';
+        broadcastMessage = `${player.name} has no recorded stats yet.`;
+
+        this.logger.info('No stats found for player', {
+          serverId: server.id,
+          playerName: player.name,
+          steamID: player.steamID,
+          error: result.error
+        });
+      } else {
+        const stats = result.stats;
+        const kd = stats.kdRatio?.toFixed(2) || '0.00';
+        const kills = stats.kills || 0;
+        const deaths = stats.deaths || 0;
+
+        responseMessage = `K/D: ${kd} (${kills}/${deaths}) - More stats at discord.gg/bbucket`;
+        broadcastMessage = `${player.name}'s K/D: ${kd} (${kills} kills, ${deaths} deaths)`;
+
+        this.logger.info('Player stats retrieved', {
+          serverId: server.id,
+          playerName: player.name,
+          steamID: player.steamID,
+          kd,
+          kills,
+          deaths
+        });
+      }
+
+      // Send targeted response to player via RCON warn
+      this.connectionManager.sendRCONWarn(
+        server.id,
+        player.steamID,
+        responseMessage
+      );
+
+      // Broadcast message to all players
+      this.connectionManager.sendRCONBroadcast(
+        server.id,
+        broadcastMessage
+      );
+
+    } catch (error) {
+      this.logger.error('Error processing stats command:', {
+        serverId: server.id,
+        serverName: server.name,
+        playerId: player.id,
+        playerName: player.name,
+        steamID: player.steamID,
+        error: error.message,
+        stack: error.stack
+      });
+
+      // Send error message to player
+      this.connectionManager.sendRCONWarn(
+        server.id,
+        player.steamID,
+        'Error checking stats. Please try again later.'
       );
     }
   }

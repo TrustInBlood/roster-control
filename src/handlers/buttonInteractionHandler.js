@@ -27,6 +27,10 @@ const {
   extractLinkSource,
   formatSourceForDisplay
 } = require('../utils/linkButton');
+const {
+  STATS_BUTTON_ID,
+  getStatsForUser
+} = require('../services/StatsService');
 const { Op } = require('sequelize');
 
 const serviceLogger = createServiceLogger('ButtonInteractionHandler');
@@ -99,6 +103,9 @@ async function handleButtonInteraction(interaction) {
       break;
     case BUTTON_IDS.UNLINK:
       await handleUnlinkButton(interaction);
+      break;
+    case STATS_BUTTON_ID:
+      await handleStatsButton(interaction);
       break;
     // Return early for unhandled buttons (not ours)
     default:
@@ -1165,6 +1172,50 @@ async function disableTicketLinkButton(message, buttonId) {
   } catch (error) {
     serviceLogger.warn('Failed to disable ticket link button:', error.message);
     // Non-blocking - button still works, just won't be visually disabled
+  }
+}
+
+/**
+ * Handle the "View My Stats" button click
+ */
+async function handleStatsButton(interaction) {
+  try {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+    const result = await getStatsForUser(interaction.user.id);
+
+    // Handle cooldown
+    if (result.cooldown) {
+      return await interaction.editReply({ content: result.message });
+    }
+
+    // Handle errors
+    if (result.error) {
+      return await interaction.editReply({ content: result.message });
+    }
+
+    // Handle no linked account
+    if (result.noLink) {
+      return await interaction.editReply({
+        embeds: [result.embed],
+        components: result.components
+      });
+    }
+
+    // Send successful stats response
+    await interaction.editReply({
+      embeds: [result.embed],
+      components: result.components
+    });
+
+  } catch (error) {
+    serviceLogger.error('Error handling stats button:', error);
+
+    const replyMethod = interaction.deferred || interaction.replied ? 'editReply' : 'reply';
+    await interaction[replyMethod]({
+      content: 'Failed to retrieve stats. Please try again later.',
+      flags: replyMethod === 'reply' ? MessageFlags.Ephemeral : undefined
+    });
   }
 }
 
