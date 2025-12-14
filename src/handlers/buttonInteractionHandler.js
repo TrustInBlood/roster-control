@@ -1217,9 +1217,10 @@ async function handleStatsButton(interaction) {
       return await interaction.editReply({ content: result.error });
     }
 
-    // Send successful stats response (public)
+    // Send successful stats response (public) with user mention
     const embed = buildStatsEmbed(result.stats);
     await interaction.editReply({
+      content: `<@${userId}>`,
       embeds: [embed],
       components: [buildStatsButtonRow()]
     });

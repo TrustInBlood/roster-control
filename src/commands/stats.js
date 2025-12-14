@@ -44,8 +44,9 @@ module.exports = {
       });
     }
 
-    // Send successful stats response
+    // Send successful stats response with user mention
     await interaction.reply({
+      content: `<@${interaction.user.id}>`,
       embeds: [result.embed],
       components: result.components
     });
