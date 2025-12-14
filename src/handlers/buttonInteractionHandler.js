@@ -27,10 +27,7 @@ const {
   extractLinkSource,
   formatSourceForDisplay
 } = require('../utils/linkButton');
-const {
-  STATS_BUTTON_ID,
-  getStatsForUser
-} = require('../services/StatsService');
+const { STATS_BUTTON_ID } = require('../services/StatsService');
 const { Op } = require('sequelize');
 
 const serviceLogger = createServiceLogger('ButtonInteractionHandler');
@@ -1210,8 +1207,8 @@ async function handleStatsButton(interaction) {
     // Has link - defer public, then fetch stats
     await interaction.deferReply();
 
-    // Set cooldown now that we know they're linked
-    setCooldown(userId);
+    // Set cooldown now that we know they're linked (pass member for admin check)
+    setCooldown(userId, interaction.member);
 
     // Fetch stats (potentially slow API call)
     const result = await fetchStats(steamId);

@@ -16,8 +16,8 @@ module.exports = {
       });
     }
 
-    // Get stats for the user
-    const result = await getStatsForUser(interaction.user.id);
+    // Get stats for the user (pass member for admin cooldown check)
+    const result = await getStatsForUser(interaction.user.id, interaction.member);
 
     // Handle cooldown
     if (result.cooldown) {

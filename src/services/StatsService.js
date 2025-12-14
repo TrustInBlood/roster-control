@@ -3,16 +3,29 @@ const { createResponseEmbed } = require('../utils/messageHandler');
 const { console: loggerConsole } = require('../utils/logger');
 const { resolveSteamIdFromDiscord } = require('../utils/accountLinking');
 const { createLinkButtonRow, LINK_SOURCES } = require('../utils/linkButton');
+const { getAllAdminRoles } = require('../../config/discordRoles');
 
 // API endpoint for player stats - configurable via environment variable
 const STATS_API_URL = process.env.STATS_API_URL || 'http://216.114.75.101:12000/stats';
 
 // Cooldown settings
-const COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+const COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes for regular users
+const ADMIN_COOLDOWN_MS = 15 * 1000; // 15 seconds for admins
 const cooldowns = new Map();
 
 // Button ID for viewing stats
 const STATS_BUTTON_ID = 'view_my_stats';
+
+/**
+ * Check if a guild member has admin roles
+ * @param {GuildMember} member - Discord guild member
+ * @returns {boolean} True if member has admin roles
+ */
+function isAdmin(member) {
+  if (!member || !member.roles) return false;
+  const adminRoles = getAllAdminRoles();
+  return member.roles.cache.some(role => adminRoles.includes(role.id));
+}
 
 /**
  * Check if a user is on cooldown
@@ -39,9 +52,11 @@ function checkCooldown(userId) {
 /**
  * Set cooldown for a user
  * @param {string} userId - Discord user ID
+ * @param {GuildMember} [member] - Optional guild member to check for admin role
  */
-function setCooldown(userId) {
-  cooldowns.set(userId, Date.now() + COOLDOWN_MS);
+function setCooldown(userId, member = null) {
+  const cooldownDuration = member && isAdmin(member) ? ADMIN_COOLDOWN_MS : COOLDOWN_MS;
+  cooldowns.set(userId, Date.now() + cooldownDuration);
 }
 
 /**
@@ -135,9 +150,10 @@ function buildNoLinkResponse() {
 /**
  * Get stats for a user (main entry point)
  * @param {string} discordUserId - Discord user ID
+ * @param {GuildMember} [member] - Optional guild member for admin cooldown check
  * @returns {Promise<Object>} Result with embed, components, and status
  */
-async function getStatsForUser(discordUserId) {
+async function getStatsForUser(discordUserId, member = null) {
   // Resolve Steam ID from the user's linked account first
   const steamId = await resolveSteamIdFromDiscord(discordUserId);
 
@@ -163,7 +179,8 @@ async function getStatsForUser(discordUserId) {
   }
 
   // Set cooldown (only after confirming they have a linked account)
-  setCooldown(discordUserId);
+  // Admins get a shorter cooldown
+  setCooldown(discordUserId, member);
 
   // Fetch stats
   const result = await fetchStats(steamId);
@@ -190,6 +207,8 @@ async function getStatsForUser(discordUserId) {
 module.exports = {
   STATS_BUTTON_ID,
   COOLDOWN_MS,
+  ADMIN_COOLDOWN_MS,
+  isAdmin,
   checkCooldown,
   setCooldown,
   fetchStats,
