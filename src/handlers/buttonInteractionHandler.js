@@ -21,11 +21,17 @@ const {
   buildCancelledEmbed,
   performUnlink
 } = require('../utils/unlinkFlow');
+const {
+  LINK_BUTTON_PREFIX,
+  LINK_SOURCES,
+  extractLinkSource,
+  formatSourceForDisplay
+} = require('../utils/linkButton');
 const { Op } = require('sequelize');
 
 const serviceLogger = createServiceLogger('ButtonInteractionHandler');
 
-// Button custom IDs for the whitelist post
+// Button custom IDs for the whitelist post (legacy, kept for backwards compatibility)
 const BUTTON_IDS = {
   LINK: 'whitelist_post_link',
   STATUS: 'whitelist_post_status',
@@ -42,8 +48,8 @@ const UNLINK_CANCEL_PREFIX = 'unlink_cancel_';
 // Prefix for ticket link buttons
 const TICKET_LINK_BUTTON_PREFIX = 'ticket_link_';
 
-// Modal custom ID prefix (will be suffixed with user ID for uniqueness)
-const MODAL_ID_PREFIX = 'whitelist_post_link_modal_';
+// Modal custom ID prefix (will be suffixed with source_userId for uniqueness)
+const MODAL_ID_PREFIX = 'link_modal_';
 
 /**
  * Handle button interactions from persistent posts
@@ -76,9 +82,17 @@ async function handleButtonInteraction(interaction) {
       return;
     }
 
+    // Check for dynamic link buttons (link_button_{source})
+    if (customId.startsWith(LINK_BUTTON_PREFIX)) {
+      const source = extractLinkSource(customId);
+      await handleLinkButton(interaction, source);
+      return;
+    }
+
     switch (customId) {
     case BUTTON_IDS.LINK:
-      await handleLinkButton(interaction);
+      // Legacy whitelist post link button
+      await handleLinkButton(interaction, LINK_SOURCES.WHITELIST_POST);
       break;
     case BUTTON_IDS.STATUS:
       await handleStatusButton(interaction);
@@ -103,8 +117,10 @@ async function handleButtonInteraction(interaction) {
 /**
  * Handle the "Link Steam ID" button click
  * Shows modal if user isn't linked, or informs them if already linked
+ * @param {import('discord.js').Interaction} interaction
+ * @param {string} source - Source context for tracking (e.g., 'whitelist_post', 'stats')
  */
-async function handleLinkButton(interaction) {
+async function handleLinkButton(interaction, source = LINK_SOURCES.COMMAND) {
   try {
     const discordUserId = interaction.user.id;
 
@@ -117,7 +133,7 @@ async function handleLinkButton(interaction) {
       order: [['confidence_score', 'DESC'], ['created_at', 'DESC']]
     });
 
-    // If user is already linked at 1.0 confidence, inform them with unlink option
+    // If user is already linked at 1.0 confidence, inform them with unlink option (goes through warning flow)
     if (existingLink && existingLink.confidence_score >= 1.0) {
       const alreadyLinkedEmbed = {
         color: 0x00ff00,
@@ -139,14 +155,11 @@ async function handleLinkButton(interaction) {
         footer: { text: 'Roster Control System' }
       };
 
-      // Generate unique ID for unlink button
-      const uniqueId = `${discordUserId}_${Date.now()}`;
-      const confirmId = `${UNLINK_CONFIRM_PREFIX}${uniqueId}`;
-
+      // Use the standard unlink button which goes through handleUnlinkButton -> warning flow
       const unlinkRow = new ActionRowBuilder()
         .addComponents(
           new ButtonBuilder()
-            .setCustomId(confirmId)
+            .setCustomId(BUTTON_IDS.UNLINK)
             .setLabel('Unlink Steam ID')
             .setStyle(ButtonStyle.Danger)
         );
@@ -159,8 +172,8 @@ async function handleLinkButton(interaction) {
       return;
     }
 
-    // Show modal for Steam ID entry (unique ID per user to prevent cross-wiring)
-    const modalId = `${MODAL_ID_PREFIX}${interaction.user.id}`;
+    // Show modal for Steam ID entry (unique ID per user and source to prevent cross-wiring)
+    const modalId = `${MODAL_ID_PREFIX}${source}_${interaction.user.id}`;
     const modal = new ModalBuilder()
       .setCustomId(modalId)
       .setTitle('Link Steam ID');
@@ -200,6 +213,14 @@ async function handleLinkModalSubmit(interaction) {
 
     const discordUserId = interaction.user.id;
     const steamId = interaction.fields.getTextInputValue('steam_id_input').trim();
+
+    // Extract source from modal ID (format: link_modal_{source}_{userId})
+    // Source may contain underscores (e.g., 'whitelist_post'), so we join all parts except the last (userId)
+    const modalId = interaction.customId;
+    const modalParts = modalId.replace(MODAL_ID_PREFIX, '').split('_');
+    // Last part is always the userId, everything before is the source
+    const source = modalParts.length > 1 ? modalParts.slice(0, -1).join('_') : LINK_SOURCES.COMMAND;
+    const sourceDisplay = formatSourceForDisplay(source);
 
     // Validate Steam ID format
     if (!isValidSteamId(steamId)) {
@@ -305,14 +326,11 @@ async function handleLinkModalSubmit(interaction) {
           footer: { text: 'Roster Control System' }
         };
 
-        // Generate unique ID for unlink button
-        const uniqueId = `${interaction.user.id}_${Date.now()}`;
-        const confirmId = `${UNLINK_CONFIRM_PREFIX}${uniqueId}`;
-
+        // Use the standard unlink button which goes through handleUnlinkButton -> warning flow
         const unlinkRow = new ActionRowBuilder()
           .addComponents(
             new ButtonBuilder()
-              .setCustomId(confirmId)
+              .setCustomId(BUTTON_IDS.UNLINK)
               .setLabel('Unlink Steam ID')
               .setStyle(ButtonStyle.Danger)
           );
@@ -331,7 +349,7 @@ async function handleLinkModalSubmit(interaction) {
             upgraded_by: discordUserId,
             upgraded_at: new Date().toISOString(),
             previous_confidence: existingLink.confidence_score,
-            upgrade_method: 'whitelist_post_button'
+            upgrade_method: `link_button_${source}`
           }
         }
       });
@@ -353,7 +371,7 @@ async function handleLinkModalSubmit(interaction) {
 
       // Trigger role sync and restore archived roles
       await triggerUserRoleSync(interaction.client, discordUserId, {
-        source: 'whitelist_post_upgrade',
+        source: `link_button_${source}_upgrade`,
         skipNotification: true
       });
 
@@ -362,7 +380,7 @@ async function handleLinkModalSubmit(interaction) {
       // Send notification for confidence upgrade
       await notificationService.sendAccountLinkNotification({
         success: true,
-        description: `<@${discordUserId}> upgraded their Steam link confidence via whitelist post`,
+        description: `<@${discordUserId}> upgraded their Steam link confidence via ${sourceDisplay}`,
         fields: [
           { name: 'Discord User', value: `<@${discordUserId}>`, inline: true },
           { name: 'Steam ID', value: `\`${steamId}\``, inline: true },
@@ -370,7 +388,7 @@ async function handleLinkModalSubmit(interaction) {
         ]
       });
 
-      serviceLogger.info('User upgraded link confidence via whitelist post', {
+      serviceLogger.info(`User upgraded link confidence via ${sourceDisplay}`, {
         discordUserId,
         steamId,
         previousConfidence: existingLink.confidence_score
@@ -414,7 +432,7 @@ async function handleLinkModalSubmit(interaction) {
         isPrimary: true,
         metadata: {
           direct_link: true,
-          created_by: 'whitelist_post_button',
+          created_by: `link_button_${source}`,
           created_at: new Date().toISOString(),
           replaced_link: existingLink ? {
             previous_steamid: existingLink.steamid64,
@@ -454,7 +472,7 @@ async function handleLinkModalSubmit(interaction) {
 
     // Trigger role sync
     await triggerUserRoleSync(interaction.client, discordUserId, {
-      source: 'whitelist_post_link',
+      source: `link_button_${source}`,
       skipNotification: false
     });
 
@@ -478,11 +496,11 @@ async function handleLinkModalSubmit(interaction) {
 
     await notificationService.sendAccountLinkNotification({
       success: true,
-      description: `<@${discordUserId}> linked their Steam ID via whitelist post`,
+      description: `<@${discordUserId}> linked their Steam ID via ${sourceDisplay}`,
       fields: notificationFields
     });
 
-    serviceLogger.info('User linked Steam ID via whitelist post', {
+    serviceLogger.info(`User linked Steam ID via ${sourceDisplay}`, {
       discordUserId,
       steamId,
       created,

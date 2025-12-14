@@ -1,7 +1,8 @@
-const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { createResponseEmbed } = require('../utils/messageHandler');
 const { console: loggerConsole } = require('../utils/logger');
 const { resolveSteamIdFromDiscord } = require('../utils/accountLinking');
+const { createLinkButtonRow, LINK_SOURCES } = require('../utils/linkButton');
 
 // API endpoint for player stats - configurable via environment variable
 const STATS_API_URL = process.env.STATS_API_URL || 'http://216.114.75.101:12000/stats';
@@ -15,7 +16,7 @@ module.exports = {
     // Resolve Steam ID from the user's linked account
     const steamid = await resolveSteamIdFromDiscord(interaction.user.id);
 
-    // If no linked account, show a button to link (reuses whitelist post button handler)
+    // If no linked account, show a button to link
     if (!steamid) {
       const embed = createResponseEmbed({
         title: 'No Linked Account',
@@ -23,17 +24,9 @@ module.exports = {
         color: 0xffa500
       });
 
-      const row = new ActionRowBuilder()
-        .addComponents(
-          new ButtonBuilder()
-            .setCustomId('whitelist_post_link')
-            .setLabel('Link Steam ID')
-            .setStyle(ButtonStyle.Primary)
-        );
-
       return await interaction.reply({
         embeds: [embed],
-        components: [row],
+        components: [createLinkButtonRow({ source: LINK_SOURCES.STATS })],
         ephemeral: true
       });
     }
