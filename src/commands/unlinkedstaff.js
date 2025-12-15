@@ -2,8 +2,8 @@ const { SlashCommandBuilder } = require('discord.js');
 const { permissionMiddleware } = require('../handlers/permissionHandler');
 const { createResponseEmbed, sendError } = require('../utils/messageHandler');
 const { PlayerDiscordLink } = require('../database/models');
-const { getHighestPriorityGroup, squadGroups } = require('../utils/environment');
-const { SQUAD_GROUPS } = squadGroups;
+const { getHighestPriorityGroupAsync, getSquadGroupService, squadGroups } = require('../utils/environment');
+const { SQUAD_GROUPS } = squadGroups; // Fallback for sync access
 const { getMemberCacheService } = require('../services/MemberCacheService');
 const { console: loggerConsole } = require('../utils/logger');
 
@@ -21,11 +21,21 @@ module.exports = {
         const cacheService = getMemberCacheService();
 
         // Get all staff role IDs (excluding Member roles for efficiency)
-        const staffRoleIds = [];
-        for (const [groupName, groupData] of Object.entries(SQUAD_GROUPS)) {
-          // Skip Member group - we only care about staff
-          if (groupName === 'Member') continue;
-          staffRoleIds.push(...groupData.discordRoles);
+        let staffRoleIds = [];
+        try {
+          const squadGroupService = getSquadGroupService();
+          const roleConfigs = await squadGroupService.getAllRoleConfigs();
+          // Filter out Member group and collect role IDs
+          staffRoleIds = roleConfigs
+            .filter(config => config.groupName !== 'Member')
+            .map(config => config.roleId);
+        } catch (error) {
+          // Fallback to config file
+          loggerConsole.warn('Failed to get staff roles from service, using config fallback');
+          for (const [groupName, groupData] of Object.entries(SQUAD_GROUPS)) {
+            if (groupName === 'Member') continue;
+            staffRoleIds.push(...groupData.discordRoles);
+          }
         }
 
         // OPTIMIZATION: Fetch only members with staff roles instead of all 10,000+ members
@@ -40,7 +50,7 @@ module.exports = {
         for (const [memberId, member] of members) {
           if (member.user.bot) continue; // Skip bots
 
-          const userGroup = getHighestPriorityGroup(member.roles.cache);
+          const userGroup = await getHighestPriorityGroupAsync(member.roles.cache, member.guild);
 
           // Double-check it's a staff role (should always be true now, but safety check)
           if (!userGroup || userGroup === 'Member') continue;

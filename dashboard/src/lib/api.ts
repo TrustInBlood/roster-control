@@ -36,6 +36,17 @@ import type {
   UpdatePermissionResponse,
   ResetPermissionsResponse,
 } from '../types/permissions'
+import type {
+  SquadGroupsListResponse,
+  DiscordRolesForSquadResponse,
+  RoleConfigResponse,
+  AddRoleRequest,
+  AddRoleResponse,
+  UpdateRoleRequest,
+  UpdateRoleResponse,
+  RemoveRoleResponse,
+  ResetSquadGroupsResponse,
+} from '../types/squadgroups'
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -249,6 +260,51 @@ export const permissionsApi = {
     const { data } = await api.post<ResetPermissionsResponse>('/permissions/seed', {
       confirm: 'RESET_ALL_PERMISSIONS',
     })
+    return data
+  },
+}
+
+// Squad Groups API
+export const squadGroupsApi = {
+  list: async (): Promise<SquadGroupsListResponse> => {
+    const { data } = await api.get<SquadGroupsListResponse>('/squadgroups')
+    return data
+  },
+
+  getRoles: async (): Promise<DiscordRolesForSquadResponse> => {
+    const { data } = await api.get<DiscordRolesForSquadResponse>('/squadgroups/roles')
+    return data
+  },
+
+  getRole: async (roleId: string): Promise<RoleConfigResponse> => {
+    const { data } = await api.get<RoleConfigResponse>(`/squadgroups/${roleId}`)
+    return data
+  },
+
+  add: async (request: AddRoleRequest): Promise<AddRoleResponse> => {
+    const { data } = await api.post<AddRoleResponse>('/squadgroups', request)
+    return data
+  },
+
+  update: async (roleId: string, request: UpdateRoleRequest): Promise<UpdateRoleResponse> => {
+    const { data } = await api.put<UpdateRoleResponse>(`/squadgroups/${roleId}`, request)
+    return data
+  },
+
+  remove: async (roleId: string): Promise<RemoveRoleResponse> => {
+    const { data } = await api.delete<RemoveRoleResponse>(`/squadgroups/${roleId}`)
+    return data
+  },
+
+  reset: async (): Promise<ResetSquadGroupsResponse> => {
+    const { data } = await api.post<ResetSquadGroupsResponse>('/squadgroups/seed', {
+      confirm: 'RESET_ALL_SQUADGROUPS',
+    })
+    return data
+  },
+
+  sync: async (): Promise<{ success: boolean; synced: number; updated: number; errors: number; message: string }> => {
+    const { data } = await api.post<{ success: boolean; synced: number; updated: number; errors: number; message: string }>('/squadgroups/sync')
     return data
   },
 }

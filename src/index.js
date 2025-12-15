@@ -91,10 +91,16 @@ client.on('ready', async () => {
 
   // Initialize whitelist functionality first (includes role-based cache)
   const whitelistServices = await initializeWhitelist();
-    
+
   // Set up role change handler with new sync service
   const roleChangeHandler = setupRoleChangeHandler(client, logger);
   loggerConsole.log('Role change handler initialized with unified sync service');
+
+  // Link whitelistService to roleChangeHandler's roleWhitelistSync for cache invalidation
+  if (whitelistServices && whitelistServices.whitelistService) {
+    roleChangeHandler.roleWhitelistSync.whitelistService = whitelistServices.whitelistService;
+    loggerConsole.log('WhitelistService linked to roleChangeHandler for cache invalidation');
+  }
 
   // Start periodic staff role synchronization (runs every hour)
   roleChangeHandler.startStaffRolePeriodicSync(60);

@@ -2,8 +2,7 @@ const { ON_DUTY_ROLE_ID } = require('../../config/discord');
 const DutyStatusFactory = require('../services/DutyStatusFactory');
 const RoleWhitelistSyncService = require('../services/RoleWhitelistSyncService');
 const StaffRoleSyncService = require('../services/StaffRoleSyncService');
-const { squadGroups, discordRoles } = require('../utils/environment');
-const { getAllTrackedRoles, getHighestPriorityGroup } = squadGroups;
+const { discordRoles, getAllTrackedRolesAsync, getHighestPriorityGroupAsync } = require('../utils/environment');
 const { getAllStaffRoles } = discordRoles;
 const NotificationService = require('../services/NotificationService');
 const { AuditLog } = require('../database/models');
@@ -18,11 +17,24 @@ class RoleChangeHandler {
     this.processingUsers = new Set(); // Prevent duplicate processing
     this.roleWhitelistSync = new RoleWhitelistSyncService(logger, client); // New sync service
     this.staffRoleSync = new StaffRoleSyncService(client, logger, this.roleWhitelistSync); // Pass roleWhitelistSync for departed members cleanup
-    this.trackedRoles = getAllTrackedRoles(); // Get all staff/member roles
+    this.trackedRoles = null; // Will be loaded lazily via async
     this.staffRoles = getAllStaffRoles(); // Get all individual staff roles
 
     // Set up cross-reference
     this.dutyFactory.setRoleChangeHandler(this);
+  }
+
+  /**
+   * Get tracked roles (lazy async loading with caching)
+   * @returns {Promise<string[]>}
+   */
+  async getTrackedRoles() {
+    // Refresh from service if not cached or periodically
+    if (!this.trackedRoles || !this._trackedRolesTimestamp || Date.now() - this._trackedRolesTimestamp > 60000) {
+      this.trackedRoles = await getAllTrackedRolesAsync();
+      this._trackedRolesTimestamp = Date.now();
+    }
+    return this.trackedRoles;
   }
     
   addToProcessingSet(userId) {
@@ -77,9 +89,10 @@ class RoleChangeHandler {
       }
 
       // Handle staff/member whitelist role changes
-      if (this.trackedRoles.length > 0) {
-        const oldTrackedRoles = oldMember.roles.cache.filter(r => this.trackedRoles.includes(r.id));
-        const newTrackedRoles = newMember.roles.cache.filter(r => this.trackedRoles.includes(r.id));
+      const trackedRoles = await this.getTrackedRoles();
+      if (trackedRoles.length > 0) {
+        const oldTrackedRoles = oldMember.roles.cache.filter(r => trackedRoles.includes(r.id));
+        const newTrackedRoles = newMember.roles.cache.filter(r => trackedRoles.includes(r.id));
 
         // Check if any tracked roles changed
         const oldRoleIds = new Set(oldTrackedRoles.map(r => r.id));
@@ -89,8 +102,8 @@ class RoleChangeHandler {
                            ![...oldRoleIds].every(id => newRoleIds.has(id));
 
         if (rolesChanged) {
-          const oldGroup = getHighestPriorityGroup(oldMember.roles.cache);
-          const newGroup = getHighestPriorityGroup(newMember.roles.cache);
+          const oldGroup = await getHighestPriorityGroupAsync(oldMember.roles.cache, oldMember.guild);
+          const newGroup = await getHighestPriorityGroupAsync(newMember.roles.cache, newMember.guild);
 
           this.logger.info('Tracked role change detected', {
             userId: newMember.user.id,
@@ -221,7 +234,7 @@ class RoleChangeHandler {
       }
 
       // Get their current highest priority group
-      const currentGroup = getHighestPriorityGroup(member.roles.cache);
+      const currentGroup = await getHighestPriorityGroupAsync(member.roles.cache, member.guild);
 
       this.logger.info('Manual sync executing', {
         userTag: member.user.tag,

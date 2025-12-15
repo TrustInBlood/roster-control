@@ -1,7 +1,7 @@
 const { Whitelist, PlayerDiscordLink } = require('../database/models');
 const { Op } = require('sequelize');
 
-const { squadGroups } = require('../utils/environment');
+const { squadGroups, getSquadGroupService } = require('../utils/environment');
 const WhitelistAuthorityService = require('./WhitelistAuthorityService');
 
 class WhitelistService {
@@ -355,15 +355,47 @@ class WhitelistService {
       combinedContent += '// Generated: ' + new Date().toISOString() + '\n';
       combinedContent += '//////////////////////////////////\n\n';
 
-      // Group definitions (order by priority: highest to lowest)
+      // Group definitions (order by Discord role position: highest to lowest)
       combinedContent += '// Group Definitions\n';
 
-      // Sort groups by priority (highest to lowest) and generate definitions
-      const sortedGroups = Object.entries(squadGroups.SQUAD_GROUPS)
-        .sort(([, a], [, b]) => b.priority - a.priority);
+      // Try to get group definitions from database service
+      try {
+        const squadGroupService = getSquadGroupService();
+        const roleConfigs = await squadGroupService.getAllRoleConfigs();
 
-      for (const [groupName, groupData] of sortedGroups) {
-        combinedContent += `Group=${groupName}:${groupData.permissions}\n`;
+        // Enrich with Discord role position if client available
+        let enrichedConfigs = roleConfigs;
+        if (this.discordClient) {
+          const guildId = process.env.DISCORD_GUILD_ID;
+          const guild = await this.discordClient.guilds.fetch(guildId).catch(() => null);
+          if (guild) {
+            const guildRoles = await guild.roles.fetch();
+            enrichedConfigs = roleConfigs.map(config => {
+              const discordRole = guildRoles.get(config.roleId);
+              return {
+                ...config,
+                discordPosition: discordRole?.position ?? 0
+              };
+            });
+            // Sort by Discord position (highest first)
+            enrichedConfigs.sort((a, b) => b.discordPosition - a.discordPosition);
+          }
+        }
+
+        // Generate group definitions from database
+        for (const config of enrichedConfigs) {
+          const permString = Array.isArray(config.permissions) ? config.permissions.join(',') : config.permissions;
+          combinedContent += `Group=${config.groupName}:${permString}\n`;
+        }
+      } catch (error) {
+        // Fallback to config file if database unavailable
+        this.logger.warn('Failed to load groups from database, using config fallback', { error: error.message });
+        const sortedGroups = Object.entries(squadGroups.SQUAD_GROUPS)
+          .sort(([, a], [, b]) => b.priority - a.priority);
+
+        for (const [groupName, groupData] of sortedGroups) {
+          combinedContent += `Group=${groupName}:${groupData.permissions}\n`;
+        }
       }
       combinedContent += '\n';
 
@@ -375,8 +407,8 @@ class WhitelistService {
       }
       combinedContent += '\n';
 
-      // Members Section (role-based members)
-      combinedContent += '// Members (Role-based)\n';
+      // Role-based Whitelist Section (non-staff Discord roles with whitelist access)
+      combinedContent += '// Role-based Whitelist\n';
       if (membersContent && !membersContent.includes('No entries')) {
         combinedContent += membersContent;
         if (!membersContent.endsWith('\n')) combinedContent += '\n';

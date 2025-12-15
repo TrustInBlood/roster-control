@@ -4,8 +4,8 @@ const { Op } = require('sequelize');
 const { createServiceLogger } = require('../../utils/logger');
 const { requireAuth, requirePermission } = require('../middleware/auth');
 const { PlayerDiscordLink } = require('../../database/models');
-const { getHighestPriorityGroup, squadGroups } = require('../../utils/environment');
-const { SQUAD_GROUPS } = squadGroups;
+const { getHighestPriorityGroupAsync, getSquadGroupService, squadGroups } = require('../../utils/environment');
+const { SQUAD_GROUPS } = squadGroups; // Fallback
 const { getMemberCacheService } = require('../../services/MemberCacheService');
 
 const logger = createServiceLogger('SecurityAPI');
@@ -29,10 +29,20 @@ router.get('/unlinked-staff', requireAuth, requirePermission('VIEW_AUDIT'), asyn
     const cacheService = getMemberCacheService();
 
     // Get all staff role IDs (excluding Member roles)
-    const staffRoleIds = [];
-    for (const [groupName, groupData] of Object.entries(SQUAD_GROUPS)) {
-      if (groupName === 'Member') continue;
-      staffRoleIds.push(...groupData.discordRoles);
+    let staffRoleIds = [];
+    try {
+      const squadGroupService = getSquadGroupService();
+      const roleConfigs = await squadGroupService.getAllRoleConfigs();
+      staffRoleIds = roleConfigs
+        .filter(config => config.groupName !== 'Member')
+        .map(config => config.roleId);
+    } catch (error) {
+      // Fallback to config file
+      logger.warn('Failed to get staff roles from service, using config fallback');
+      for (const [groupName, groupData] of Object.entries(SQUAD_GROUPS)) {
+        if (groupName === 'Member') continue;
+        staffRoleIds.push(...groupData.discordRoles);
+      }
     }
 
     // Fetch only members with staff roles (optimized)
@@ -44,7 +54,7 @@ router.get('/unlinked-staff', requireAuth, requirePermission('VIEW_AUDIT'), asyn
     for (const [memberId, member] of members) {
       if (member.user.bot) continue;
 
-      const userGroup = getHighestPriorityGroup(member.roles.cache);
+      const userGroup = await getHighestPriorityGroupAsync(member.roles.cache, member.guild);
 
       // Verify it's a staff role
       if (!userGroup || userGroup === 'Member') continue;

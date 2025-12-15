@@ -1,5 +1,6 @@
 const WhitelistService = require('./WhitelistService');
 const RoleWhitelistSyncService = require('./RoleWhitelistSyncService');
+const { squadGroupService } = require('./SquadGroupService');
 const SquadJSConnectionManager = require('./SquadJSConnectionManager');
 const SquadJSLinkingService = require('./SquadJSLinkingService');
 const PlaytimeTrackingService = require('./PlaytimeTrackingService');
@@ -84,6 +85,9 @@ async function setupWhitelistRoutes(app, _sequelize, logger, discordClient) {
 
   // Link whitelistService to roleWhitelistSync for cache invalidation
   roleWhitelistSync.whitelistService = whitelistService;
+
+  // Link whitelistService to squadGroupService for cache invalidation when squad groups change
+  squadGroupService.setWhitelistService(whitelistService);
 
   whitelistService.setupRoutes(app);
 

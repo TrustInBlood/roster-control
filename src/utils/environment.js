@@ -58,6 +58,15 @@ const channels = loadConfig('channels');
 const discordRoles = loadConfig('discordRoles');
 let infoPosts = loadConfig('infoPosts');
 
+// Lazy-load SquadGroupService to avoid circular dependency
+let _squadGroupService = null;
+function getSquadGroupService() {
+  if (!_squadGroupService) {
+    _squadGroupService = require('../services/SquadGroupService').squadGroupService;
+  }
+  return _squadGroupService;
+}
+
 /**
  * Reload the infoPosts configuration from disk
  * Clears the require cache and re-loads the config
@@ -97,9 +106,29 @@ module.exports = {
   discordRoles,
   infoPosts,
 
-  // Commonly used destructured exports
+  // Commonly used destructured exports (sync - from config file)
   getHighestPriorityGroup: squadGroups.getHighestPriorityGroup,
+  getAllTrackedRoles: squadGroups.getAllTrackedRoles,
+  getGroupByRoleId: squadGroups.getGroupByRoleId,
+  isTrackedRole: squadGroups.isTrackedRole,
   CHANNELS: channels.CHANNELS,
   DISCORD_ROLES: discordRoles.DISCORD_ROLES,
-  INFO_POSTS: infoPosts.INFO_POSTS
+  INFO_POSTS: infoPosts.INFO_POSTS,
+
+  // SquadGroupService (database-backed, async)
+  getSquadGroupService,
+
+  // Async helper functions (use database with fallback to config)
+  getHighestPriorityGroupAsync: async (roleCache, guild) => {
+    return getSquadGroupService().getHighestPriorityGroup(roleCache, guild);
+  },
+  getAllTrackedRolesAsync: async () => {
+    return getSquadGroupService().getAllTrackedRoles();
+  },
+  getGroupByRoleIdAsync: async (roleId) => {
+    return getSquadGroupService().getGroupByRoleId(roleId);
+  },
+  isTrackedRoleAsync: async (roleId) => {
+    return getSquadGroupService().isTrackedRole(roleId);
+  }
 };

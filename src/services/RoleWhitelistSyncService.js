@@ -1,10 +1,34 @@
 const { Whitelist, PlayerDiscordLink, AuditLog } = require('../database/models');
 const { sequelize } = require('../../config/database');
 const { Sequelize } = require('sequelize');
-const { getHighestPriorityGroup, squadGroups } = require('../utils/environment');
-const { getAllTrackedRoles } = squadGroups;
+const { getHighestPriorityGroupAsync, getAllTrackedRolesAsync, getSquadGroupService } = require('../utils/environment');
 const notificationService = require('./NotificationService');
 const { getMemberCacheService } = require('./MemberCacheService');
+
+// Staff-level permissions (anything beyond just reserve slot)
+const STAFF_PERMISSIONS = ['cameraman', 'canseeadminchat', 'chat', 'forceteamchange', 'immune', 'teamchange', 'balance', 'ban', 'kick', 'changemap', 'startvote', 'manageserver', 'config'];
+
+/**
+ * Determine if a group should be 'staff' or 'whitelist' type based on permissions
+ * @param {string} groupName - The group name to check
+ * @returns {Promise<string>} 'staff' or 'whitelist'
+ */
+async function getGroupType(groupName) {
+  try {
+    const squadGroupService = getSquadGroupService();
+    const configs = await squadGroupService.getAllRoleConfigs();
+    const config = configs.find(c => c.groupName === groupName);
+
+    if (!config) return 'whitelist'; // Default to whitelist if not found
+
+    const perms = Array.isArray(config.permissions) ? config.permissions : config.permissions.split(',');
+    const hasStaffPerms = perms.some(p => STAFF_PERMISSIONS.includes(p.trim()));
+
+    return hasStaffPerms ? 'staff' : 'whitelist';
+  } catch {
+    return 'whitelist'; // Default to whitelist on error
+  }
+}
 
 /**
  * RoleWhitelistSyncService - Synchronizes Discord roles to database whitelist entries
@@ -23,12 +47,24 @@ class RoleWhitelistSyncService {
     this.logger = logger;
     this.discordClient = discordClient;
     this.whitelistService = whitelistService;
-    this.trackedRoles = getAllTrackedRoles();
+    this.trackedRoles = null; // Will be loaded lazily via async
+    this._trackedRolesTimestamp = null;
     // FIX 4.1: Removed Set-based deduplication - now using database transactions
 
-    this.logger.info('RoleWhitelistSyncService initialized', {
-      trackedRoles: this.trackedRoles.length
-    });
+    this.logger.info('RoleWhitelistSyncService initialized');
+  }
+
+  /**
+   * Get tracked roles (lazy async loading with caching)
+   * @returns {Promise<string[]>}
+   */
+  async getTrackedRoles() {
+    // Refresh from service if not cached or periodically (1 min cache)
+    if (!this.trackedRoles || !this._trackedRolesTimestamp || Date.now() - this._trackedRolesTimestamp > 60000) {
+      this.trackedRoles = await getAllTrackedRolesAsync();
+      this._trackedRolesTimestamp = Date.now();
+    }
+    return this.trackedRoles;
   }
 
   /**
@@ -228,8 +264,11 @@ class RoleWhitelistSyncService {
       transaction
     });
 
+    // Determine type based on group's actual permissions
+    const entryType = await getGroupType(groupName);
+
     const userData = {
-      type: groupName === 'Member' ? 'whitelist' : 'staff',
+      type: entryType,
       steamid64: steamId,
       discord_user_id: discordUserId,
       discord_username: memberData?.user?.tag || '',
@@ -285,11 +324,14 @@ class RoleWhitelistSyncService {
         }
       }
 
-      // Update existing entry if group changed
-      if (mostRecentEntry.role_name !== groupName) {
+      // Update existing entry if group changed OR type needs correction
+      const needsGroupUpdate = mostRecentEntry.role_name !== groupName;
+      const needsTypeUpdate = mostRecentEntry.type !== entryType;
+
+      if (needsGroupUpdate || needsTypeUpdate) {
         await mostRecentEntry.update({
           role_name: groupName,
-          type: userData.type,
+          type: entryType,
           reason: userData.reason,
           username: userData.username,
           discord_username: userData.discord_username,
@@ -298,15 +340,18 @@ class RoleWhitelistSyncService {
             ...mostRecentEntry.metadata,
             ...userData.metadata,
             updated: true,
-            previousRole: mostRecentEntry.role_name
+            previousRole: needsGroupUpdate ? mostRecentEntry.role_name : undefined,
+            previousType: needsTypeUpdate ? mostRecentEntry.type : undefined
           }
         }, { transaction });
 
         this.logger.info('Updated existing role-based whitelist entry', {
           discordUserId,
           steamId,
-          previousGroup: mostRecentEntry.role_name,
+          previousGroup: needsGroupUpdate ? mostRecentEntry.role_name : groupName,
           newGroup: groupName,
+          previousType: needsTypeUpdate ? mostRecentEntry.type : entryType,
+          newType: entryType,
           duplicatesRevoked: duplicates.length
         });
 
@@ -319,6 +364,7 @@ class RoleWhitelistSyncService {
           discordUserId,
           steamId,
           groupName,
+          type: entryType,
           duplicatesRevoked: duplicates.length
         });
       }
@@ -492,7 +538,7 @@ class RoleWhitelistSyncService {
           }
 
           // Check if user still has the required role
-          const currentGroup = getHighestPriorityGroup(member.roles.cache);
+          const currentGroup = await getHighestPriorityGroupAsync(member.roles.cache, member.guild);
 
           if (!currentGroup || currentGroup !== mostRecentEntry.role_name) {
             // User no longer has the required role - do not upgrade
@@ -717,13 +763,15 @@ class RoleWhitelistSyncService {
       const guild = await this.discordClient.guilds.fetch(guildId);
       const cacheService = getMemberCacheService();
 
+      const trackedRoles = await this.getTrackedRoles();
+
       this.logger.info('Fetching members with tracked roles for sync', {
         guildId,
         totalGuildMembers: guild.memberCount,
-        trackedRoles: this.trackedRoles.length
+        trackedRoles: trackedRoles.length
       });
 
-      const members = await cacheService.getMembersByRole(guild, this.trackedRoles);
+      const members = await cacheService.getMembersByRole(guild, trackedRoles);
 
       this.logger.info('Fetched members with tracked roles', {
         guildId,
@@ -735,7 +783,7 @@ class RoleWhitelistSyncService {
       for (const [memberId, member] of members) {
         if (member.user.bot) continue; // Skip bots
 
-        const userGroup = getHighestPriorityGroup(member.roles.cache);
+        const userGroup = await getHighestPriorityGroupAsync(member.roles.cache, member.guild);
         if (userGroup) {
           membersWithRoles.push({
             discordUserId: memberId,

@@ -15,7 +15,7 @@ module.exports = {
     const embed = new EmbedBuilder()
       .setColor(0x5865F2)
       .setTitle('Admin Dashboard')
-      .setDescription(`Access the admin dashboard to manage whitelist entries, view statistics, and more.`)
+      .setDescription('Access the admin dashboard to manage whitelist entries, view statistics, and more.')
       .addFields(
         { name: 'Dashboard Link', value: `[Click here to open](${dashboardUrl})`, inline: false }
       )
