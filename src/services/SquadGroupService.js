@@ -266,6 +266,26 @@ class SquadGroupService {
       throw new Error(`Invalid permissions: ${invalidPerms.join(', ')}`);
     }
 
+    // Check for conflicting group names with different permissions
+    if (data.groupName) {
+      const existingConfigs = await this.getAllRoleConfigs();
+      const conflicting = existingConfigs.find(c =>
+        c.roleId !== roleId &&
+        c.groupName === data.groupName
+      );
+
+      if (conflicting) {
+        const existingPerms = Array.isArray(conflicting.permissions)
+          ? conflicting.permissions.sort().join(',')
+          : conflicting.permissions.split(',').sort().join(',');
+        const newPerms = data.permissions.sort().join(',');
+
+        if (existingPerms !== newPerms) {
+          throw new Error(`Group name "${data.groupName}" is already used by role "${conflicting.roleName}" with different permissions. Use a unique group name or match the existing permissions.`);
+        }
+      }
+    }
+
     const result = await getSquadRolePermissionModel().setRolePermissions(roleId, data, updatedBy);
     this.invalidateCache();
 
