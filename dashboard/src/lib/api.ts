@@ -64,6 +64,8 @@ import type {
   UpdateRoleResponse as DiscordRoleUpdateResponse,
   DeleteRoleResponse,
   ResetDiscordRolesResponse,
+  BatchCreateRolesRequest,
+  BatchCreateRolesResponse,
 } from '../types/discordroles'
 
 const api = axios.create({
@@ -381,6 +383,11 @@ export const discordRolesApi = {
 
   getAvailable: async (): Promise<AvailableDiscordRolesResponse> => {
     const { data } = await api.get<AvailableDiscordRolesResponse>('/discordroles/available/list')
+    return data
+  },
+
+  batchCreate: async (request: BatchCreateRolesRequest): Promise<BatchCreateRolesResponse> => {
+    const { data } = await api.post<BatchCreateRolesResponse>('/discordroles/batch', request)
     return data
   },
 

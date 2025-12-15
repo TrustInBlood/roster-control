@@ -1,26 +1,26 @@
 import { useState } from 'react'
-import { Users, Plus, RefreshCw, RotateCcw, FolderPlus, ChevronRight, Trash2 } from 'lucide-react'
+import { Users, Plus, RefreshCw, RotateCcw, FolderPlus, ChevronRight, Trash2, Check } from 'lucide-react'
 import {
   useDiscordRoles,
   useCreateDiscordRoleGroup,
   useDeleteDiscordRoleGroup,
-  useCreateDiscordRole,
   useUpdateDiscordRole,
   useDeleteDiscordRole,
   useResetDiscordRoles,
   useAvailableDiscordRoles,
+  useBatchCreateDiscordRoles,
 } from '../hooks/useDiscordRoles'
-import type { DiscordRoleGroup, DiscordRoleEntry, CreateGroupRequest, CreateRoleRequest } from '../types/discordroles'
+import type { DiscordRoleGroup, DiscordRoleEntry, CreateGroupRequest } from '../types/discordroles'
 
 export default function DiscordRoles() {
   const { data, isLoading, refetch, isRefetching } = useDiscordRoles()
   const { data: availableRoles } = useAvailableDiscordRoles()
   const createGroupMutation = useCreateDiscordRoleGroup()
   const deleteGroupMutation = useDeleteDiscordRoleGroup()
-  const createRoleMutation = useCreateDiscordRole()
   const updateRoleMutation = useUpdateDiscordRole()
   const deleteRoleMutation = useDeleteDiscordRole()
   const resetMutation = useResetDiscordRoles()
+  const batchCreateMutation = useBatchCreateDiscordRoles()
 
   const [selectedGroup, setSelectedGroup] = useState<DiscordRoleGroup | null>(null)
   const [showAddGroupModal, setShowAddGroupModal] = useState(false)
@@ -28,20 +28,25 @@ export default function DiscordRoles() {
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [deleteGroupConfirm, setDeleteGroupConfirm] = useState<DiscordRoleGroup | null>(null)
   const [deleteRoleConfirm, setDeleteRoleConfirm] = useState<DiscordRoleEntry | null>(null)
+  const [editGroupsRole, setEditGroupsRole] = useState<DiscordRoleEntry | null>(null)
 
   // Form states
   const [newGroupName, setNewGroupName] = useState('')
   const [newGroupDescription, setNewGroupDescription] = useState('')
   const [newGroupColor, setNewGroupColor] = useState('#5865F2')
 
-  const [selectedDiscordRole, setSelectedDiscordRole] = useState('')
-  const [newRoleDescription, setNewRoleDescription] = useState('')
+  // Multi-select for adding roles
+  const [selectedDiscordRoles, setSelectedDiscordRoles] = useState<string[]>([])
+
+  // Multi-select for editing role groups
+  const [editRoleGroupIds, setEditRoleGroupIds] = useState<number[]>([])
 
   const roles = data?.roles || []
   const groups = data?.groups || []
 
+  // Filter roles that belong to the selected group
   const rolesInSelectedGroup = selectedGroup
-    ? roles.filter(r => r.groupId === selectedGroup.id)
+    ? roles.filter(r => r.groupIds.includes(selectedGroup.id))
     : []
 
   // Generate a unique key from name
@@ -70,38 +75,64 @@ export default function DiscordRoles() {
     }
   }
 
-  const handleCreateRole = async () => {
-    if (!selectedDiscordRole || !selectedGroup) return
-
-    // Get the Discord role name to generate the key
-    const discordRole = availableRoles?.roles.find(r => r.id === selectedDiscordRole)
-    if (!discordRole) return
+  const handleBatchCreateRoles = async () => {
+    if (selectedDiscordRoles.length === 0 || !selectedGroup) return
 
     try {
-      const request: CreateRoleRequest = {
-        roleId: selectedDiscordRole,
-        roleKey: generateKey(discordRole.name),
-        groupId: selectedGroup.id,
-        description: newRoleDescription || undefined,
-      }
-      await createRoleMutation.mutateAsync(request)
+      await batchCreateMutation.mutateAsync({
+        roleIds: selectedDiscordRoles,
+        groupIds: [selectedGroup.id],
+      })
       setShowAddRoleModal(false)
-      setSelectedDiscordRole('')
-      setNewRoleDescription('')
+      setSelectedDiscordRoles([])
     } catch {
       // Error handled by mutation state
     }
   }
 
-  const handleMoveRole = async (role: DiscordRoleEntry, newGroupId: number | null) => {
+  const toggleRoleSelection = (roleId: string) => {
+    setSelectedDiscordRoles(prev =>
+      prev.includes(roleId)
+        ? prev.filter(id => id !== roleId)
+        : [...prev, roleId]
+    )
+  }
+
+  const selectAllRoles = () => {
+    if (!availableRoles?.roles) return
+    setSelectedDiscordRoles(availableRoles.roles.map(r => r.id))
+  }
+
+  const deselectAllRoles = () => {
+    setSelectedDiscordRoles([])
+  }
+
+  const openEditGroupsModal = (role: DiscordRoleEntry) => {
+    setEditGroupsRole(role)
+    setEditRoleGroupIds([...role.groupIds])
+  }
+
+  const handleUpdateRoleGroups = async () => {
+    if (!editGroupsRole) return
+
     try {
       await updateRoleMutation.mutateAsync({
-        roleId: role.roleId,
-        request: { groupId: newGroupId || undefined },
+        roleId: editGroupsRole.roleId,
+        request: { groupIds: editRoleGroupIds },
       })
+      setEditGroupsRole(null)
+      setEditRoleGroupIds([])
     } catch {
       // Error handled by mutation state
     }
+  }
+
+  const toggleGroupForRole = (groupId: number) => {
+    setEditRoleGroupIds(prev =>
+      prev.includes(groupId)
+        ? prev.filter(id => id !== groupId)
+        : [...prev, groupId]
+    )
   }
 
   const handleReset = async () => {
@@ -182,9 +213,9 @@ export default function DiscordRoles() {
           <div>
             <h3 className="text-white font-medium mb-1">About Discord Roles</h3>
             <p className="text-gray-400 text-sm">
-              This page manages Discord role configurations for the bot. Roles are organized into
-              groups that serve both functional purposes (like determining admin or staff access)
-              and visual organization in this dashboard.
+              This page manages Discord role configurations for the bot. Roles can belong to
+              multiple groups for organization. Groups serve both functional purposes (like
+              determining admin or staff access) and visual organization.
             </p>
           </div>
         </div>
@@ -267,7 +298,7 @@ export default function DiscordRoles() {
                 className="flex items-center gap-2 bg-discord-blurple hover:bg-discord-blurple/80 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
               >
                 <Plus className="w-4 h-4" />
-                Add Role
+                Add Roles
               </button>
             )}
           </div>
@@ -281,7 +312,7 @@ export default function DiscordRoles() {
             ) : rolesInSelectedGroup.length === 0 ? (
               <div className="p-12 text-center text-gray-400">
                 <p>No roles in this group</p>
-                <p className="text-sm mt-1">Click &quot;Add Role&quot; to add Discord roles to this group</p>
+                <p className="text-sm mt-1">Click &quot;Add Roles&quot; to add Discord roles to this group</p>
               </div>
             ) : (
               rolesInSelectedGroup.map(role => (
@@ -294,23 +325,33 @@ export default function DiscordRoles() {
                       className="w-4 h-4 rounded-full"
                       style={{ backgroundColor: role.color || '#99AAB5' }}
                     />
-                    <div className="text-white font-medium">
-                      {role.roleName || role.roleKey}
+                    <div>
+                      <div className="text-white font-medium">
+                        {role.roleName || role.roleKey}
+                      </div>
+                      {role.groups.length > 1 && (
+                        <div className="flex items-center gap-1 mt-1 flex-wrap">
+                          {role.groups.map(g => (
+                            <span
+                              key={g.id}
+                              className="text-xs bg-discord-darker px-1.5 py-0.5 rounded"
+                              style={{ color: groups.find(gr => gr.id === g.id)?.color || '#99AAB5' }}
+                            >
+                              {g.displayName}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2">
-                    {/* Move to group dropdown */}
-                    <select
-                      value={role.groupId || ''}
-                      onChange={(e) => handleMoveRole(role, e.target.value ? parseInt(e.target.value) : null)}
-                      className="bg-discord-darker text-gray-300 text-sm rounded-md border border-discord-lighter px-2 py-1 focus:outline-none focus:ring-2 focus:ring-discord-blurple"
+                    <button
+                      onClick={() => openEditGroupsModal(role)}
+                      className="text-xs bg-discord-darker text-gray-300 hover:text-white px-2 py-1 rounded transition-colors"
                     >
-                      <option value="">Ungrouped</option>
-                      {groups.map(g => (
-                        <option key={g.id} value={g.id}>{g.displayName}</option>
-                      ))}
-                    </select>
+                      Edit Groups
+                    </button>
 
                     <button
                       onClick={() => setDeleteRoleConfirm(role)}
@@ -397,50 +438,78 @@ export default function DiscordRoles() {
         </div>
       )}
 
-      {/* Add Role Modal */}
+      {/* Add Roles Modal (Multi-select) */}
       {showAddRoleModal && selectedGroup && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-discord-light rounded-lg w-full max-w-md mx-4 p-6">
+          <div className="bg-discord-light rounded-lg w-full max-w-lg mx-4 p-6 max-h-[80vh] flex flex-col">
             <h3 className="text-lg font-semibold text-white mb-4">
-              Add Role to {selectedGroup.displayName}
+              Add Roles to {selectedGroup.displayName}
             </h3>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Discord Role</label>
-                <select
-                  value={selectedDiscordRole}
-                  onChange={(e) => setSelectedDiscordRole(e.target.value)}
-                  className="w-full bg-discord-darker text-white rounded-md px-3 py-2 border border-discord-lighter focus:outline-none focus:ring-2 focus:ring-discord-blurple"
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm text-gray-400">
+                {selectedDiscordRoles.length} role{selectedDiscordRoles.length !== 1 ? 's' : ''} selected
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={selectAllRoles}
+                  className="text-xs text-discord-blurple hover:text-discord-blurple/80 transition-colors"
                 >
-                  <option value="">Select a Discord role...</option>
-                  {availableRoles?.roles.map(role => (
-                    <option key={role.id} value={role.id}>
-                      {role.name}
-                    </option>
-                  ))}
-                </select>
-                {availableRoles?.roles.length === 0 && (
-                  <p className="text-xs text-yellow-400 mt-1">All Discord roles are already tracked</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Description (optional)</label>
-                <textarea
-                  value={newRoleDescription}
-                  onChange={(e) => setNewRoleDescription(e.target.value)}
-                  placeholder="What is this role for?"
-                  className="w-full bg-discord-darker text-white rounded-md px-3 py-2 border border-discord-lighter focus:outline-none focus:ring-2 focus:ring-discord-blurple resize-none"
-                  rows={2}
-                />
+                  Select All
+                </button>
+                <button
+                  onClick={deselectAllRoles}
+                  className="text-xs text-gray-400 hover:text-white transition-colors"
+                >
+                  Clear
+                </button>
               </div>
             </div>
 
-            {createRoleMutation.error && (
+            <div className="flex-1 overflow-y-auto border border-discord-lighter rounded-md">
+              {!availableRoles?.roles || availableRoles.roles.length === 0 ? (
+                <div className="p-8 text-center text-gray-400">
+                  <p>All Discord roles are already tracked</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-discord-lighter">
+                  {availableRoles.roles.map(role => (
+                    <label
+                      key={role.id}
+                      className="flex items-center gap-3 p-3 hover:bg-discord-lighter cursor-pointer transition-colors"
+                    >
+                      <div
+                        className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                          selectedDiscordRoles.includes(role.id)
+                            ? 'bg-discord-blurple border-discord-blurple'
+                            : 'border-gray-500'
+                        }`}
+                      >
+                        {selectedDiscordRoles.includes(role.id) && (
+                          <Check className="w-3 h-3 text-white" />
+                        )}
+                      </div>
+                      <div
+                        className="w-4 h-4 rounded-full"
+                        style={{ backgroundColor: role.color || '#99AAB5' }}
+                      />
+                      <span className="text-white">{role.name}</span>
+                      <input
+                        type="checkbox"
+                        checked={selectedDiscordRoles.includes(role.id)}
+                        onChange={() => toggleRoleSelection(role.id)}
+                        className="sr-only"
+                      />
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {batchCreateMutation.error && (
               <div className="bg-red-500/20 border border-red-500/30 rounded-md p-3 mt-4">
                 <p className="text-sm text-red-400">
-                  {(createRoleMutation.error as Error).message || 'Failed to add role'}
+                  {(batchCreateMutation.error as Error).message || 'Failed to add roles'}
                 </p>
               </div>
             )}
@@ -449,19 +518,89 @@ export default function DiscordRoles() {
               <button
                 onClick={() => {
                   setShowAddRoleModal(false)
-                  setSelectedDiscordRole('')
-                  setNewRoleDescription('')
+                  setSelectedDiscordRoles([])
                 }}
                 className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-white transition-colors"
               >
                 Cancel
               </button>
               <button
-                onClick={handleCreateRole}
-                disabled={createRoleMutation.isPending || !selectedDiscordRole}
+                onClick={handleBatchCreateRoles}
+                disabled={batchCreateMutation.isPending || selectedDiscordRoles.length === 0}
                 className="bg-discord-blurple hover:bg-discord-blurple/80 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-50"
               >
-                {createRoleMutation.isPending ? 'Adding...' : 'Add Role'}
+                {batchCreateMutation.isPending ? 'Adding...' : `Add ${selectedDiscordRoles.length} Role${selectedDiscordRoles.length !== 1 ? 's' : ''}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Role Groups Modal */}
+      {editGroupsRole && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-discord-light rounded-lg w-full max-w-md mx-4 p-6">
+            <h3 className="text-lg font-semibold text-white mb-2">Edit Groups</h3>
+            <p className="text-gray-400 text-sm mb-4">
+              Select which groups <span className="text-white font-medium">{editGroupsRole.roleName || editGroupsRole.roleKey}</span> belongs to:
+            </p>
+
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {groups.map(group => (
+                <label
+                  key={group.id}
+                  className="flex items-center gap-3 p-3 bg-discord-darker rounded-md hover:bg-discord-lighter cursor-pointer transition-colors"
+                >
+                  <div
+                    className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                      editRoleGroupIds.includes(group.id)
+                        ? 'bg-discord-blurple border-discord-blurple'
+                        : 'border-gray-500'
+                    }`}
+                  >
+                    {editRoleGroupIds.includes(group.id) && (
+                      <Check className="w-3 h-3 text-white" />
+                    )}
+                  </div>
+                  <div
+                    className="w-3 h-3 rounded-full"
+                    style={{ backgroundColor: group.color || '#5865F2' }}
+                  />
+                  <span className="text-white">{group.displayName}</span>
+                  <input
+                    type="checkbox"
+                    checked={editRoleGroupIds.includes(group.id)}
+                    onChange={() => toggleGroupForRole(group.id)}
+                    className="sr-only"
+                  />
+                </label>
+              ))}
+            </div>
+
+            {updateRoleMutation.error && (
+              <div className="bg-red-500/20 border border-red-500/30 rounded-md p-3 mt-4">
+                <p className="text-sm text-red-400">
+                  {(updateRoleMutation.error as Error).message || 'Failed to update groups'}
+                </p>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setEditGroupsRole(null)
+                  setEditRoleGroupIds([])
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateRoleGroups}
+                disabled={updateRoleMutation.isPending}
+                className="bg-discord-blurple hover:bg-discord-blurple/80 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                {updateRoleMutation.isPending ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </div>
@@ -475,7 +614,7 @@ export default function DiscordRoles() {
             <h3 className="text-lg font-semibold text-white mb-2">Delete Group?</h3>
             <p className="text-gray-400 mb-4">
               Are you sure you want to delete <span className="text-white font-medium">{deleteGroupConfirm.displayName}</span>?
-              Roles in this group will become ungrouped.
+              Roles will be removed from this group but not deleted.
             </p>
 
             {deleteGroupMutation.error && (

@@ -20,6 +20,7 @@ const RolePermissionFactory = require('./RolePermission');
 const SquadRolePermissionFactory = require('./SquadRolePermission');
 const DiscordRoleGroupFactory = require('./DiscordRoleGroup');
 const DiscordRoleFactory = require('./DiscordRole');
+const DiscordRoleGroupMemberFactory = require('./DiscordRoleGroupMember');
 
 const Group = GroupFactory(sequelize);
 const Whitelist = WhitelistFactory(sequelize);
@@ -32,14 +33,25 @@ const RolePermission = RolePermissionFactory(sequelize);
 const SquadRolePermission = SquadRolePermissionFactory(sequelize);
 const DiscordRoleGroup = DiscordRoleGroupFactory(sequelize);
 const DiscordRole = DiscordRoleFactory(sequelize);
+const DiscordRoleGroupMember = DiscordRoleGroupMemberFactory(sequelize);
 
 // Define associations
 PlayerSession.belongsTo(Player, { foreignKey: 'player_id', as: 'player' });
 Player.hasMany(PlayerSession, { foreignKey: 'player_id', as: 'sessions' });
 
-// Discord role associations
-DiscordRoleGroup.hasMany(DiscordRole, { foreignKey: 'group_id', as: 'roles' });
-DiscordRole.belongsTo(DiscordRoleGroup, { foreignKey: 'group_id', as: 'group' });
+// Discord role many-to-many associations via junction table
+DiscordRole.belongsToMany(DiscordRoleGroup, {
+  through: DiscordRoleGroupMember,
+  foreignKey: 'role_id',
+  otherKey: 'group_id',
+  as: 'groups'
+});
+DiscordRoleGroup.belongsToMany(DiscordRole, {
+  through: DiscordRoleGroupMember,
+  foreignKey: 'group_id',
+  otherKey: 'role_id',
+  as: 'roles'
+});
 
 // Export all models
 module.exports = {
@@ -59,5 +71,6 @@ module.exports = {
   RolePermission,
   SquadRolePermission,
   DiscordRoleGroup,
-  DiscordRole
+  DiscordRole,
+  DiscordRoleGroupMember
 };

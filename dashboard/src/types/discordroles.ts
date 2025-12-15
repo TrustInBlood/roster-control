@@ -14,15 +14,20 @@ export interface DiscordRoleGroup {
   updatedAt: string | null
 }
 
+export interface RoleGroupInfo {
+  id: number
+  groupKey: string
+  displayName: string
+}
+
 export interface DiscordRoleEntry {
   id: number
   roleId: string
   roleKey: string
   roleName: string | null
   description: string | null
-  groupId: number | null
-  groupKey: string | null
-  groupName: string | null
+  groupIds: number[]
+  groups: RoleGroupInfo[]
   isSystemRole: boolean
   discordPosition: number
   color: string
@@ -81,14 +86,35 @@ export interface UpdateGroupRequest {
 export interface CreateRoleRequest {
   roleId: string
   roleKey: string
-  groupId?: number
+  groupIds?: number[]
   description?: string
 }
 
 export interface UpdateRoleRequest {
   roleKey?: string
-  groupId?: number
+  groupIds?: number[]
   description?: string
+}
+
+export interface BatchCreateRolesRequest {
+  roleIds: string[]
+  groupIds: number[]
+}
+
+export interface BatchCreateResult {
+  id: number
+  roleId: string
+  roleKey: string
+  roleName: string
+}
+
+export interface BatchCreateRolesResponse {
+  success: boolean
+  results: {
+    created: BatchCreateResult[]
+    skipped: { roleId: string; reason: string }[]
+    errors: { roleId: string; error: string }[]
+  }
 }
 
 export interface CreateGroupResponse {

@@ -6,14 +6,16 @@ const logger = createServiceLogger('DiscordRoleService');
 // Lazy-load models to avoid circular dependency issues
 let DiscordRoleGroup = null;
 let DiscordRole = null;
+let DiscordRoleGroupMember = null;
 
 function getModels() {
-  if (!DiscordRoleGroup || !DiscordRole) {
+  if (!DiscordRoleGroup || !DiscordRole || !DiscordRoleGroupMember) {
     const models = require('../database/models');
     DiscordRoleGroup = models.DiscordRoleGroup;
     DiscordRole = models.DiscordRole;
+    DiscordRoleGroupMember = models.DiscordRoleGroupMember;
   }
-  return { DiscordRoleGroup, DiscordRole };
+  return { DiscordRoleGroup, DiscordRole, DiscordRoleGroupMember };
 }
 
 // Role key to group key mapping for seeding
@@ -156,7 +158,7 @@ class DiscordRoleService {
   }
 
   /**
-   * Get all roles in a specific group
+   * Get all roles in a specific group (via junction table)
    * @param {string} groupKey - Group key (e.g., 'admin_roles')
    * @returns {Promise<Array>}
    */
@@ -164,8 +166,29 @@ class DiscordRoleService {
     const group = await this.getGroupByKey(groupKey);
     if (!group) return [];
 
-    const roles = await this.getAllRoles();
-    return roles.filter(r => r.group_id === group.id);
+    const { DiscordRole: DR } = getModels();
+    return DR.getByGroupId(group.id);
+  }
+
+  /**
+   * Get all group IDs for a role
+   * @param {number} roleTableId - Role table ID (not Discord ID)
+   * @returns {Promise<number[]>}
+   */
+  async getGroupIdsForRole(roleTableId) {
+    const { DiscordRoleGroupMember: DRGM } = getModels();
+    return DRGM.getGroupsForRole(roleTableId);
+  }
+
+  /**
+   * Get all groups for a role with full group info
+   * @param {number} roleTableId - Role table ID
+   * @returns {Promise<Array>}
+   */
+  async getGroupsForRole(roleTableId) {
+    const groupIds = await this.getGroupIdsForRole(roleTableId);
+    const allGroups = await this.getAllGroups();
+    return allGroups.filter(g => groupIds.includes(g.id));
   }
 
   /**
@@ -222,6 +245,37 @@ class DiscordRoleService {
   async getGroupById(groupId) {
     const groups = await this.getAllGroups();
     return groups.find(g => g.id === groupId) || null;
+  }
+
+  /**
+   * Get role count for a group
+   * @param {number} groupId - Group ID
+   * @returns {Promise<number>}
+   */
+  async getRoleCountForGroup(groupId) {
+    const { DiscordRoleGroupMember: DRGM } = getModels();
+    const roleIds = await DRGM.getRolesForGroup(groupId);
+    return roleIds.length;
+  }
+
+  /**
+   * Get all roles with their group IDs loaded
+   * @returns {Promise<Array>} Roles with groupIds array property
+   */
+  async getAllRolesWithGroups() {
+    const roles = await this.getAllRoles();
+    const { DiscordRoleGroupMember: DRGM } = getModels();
+
+    // Load group memberships for all roles
+    const rolesWithGroups = await Promise.all(roles.map(async (role) => {
+      const groupIds = await DRGM.getGroupsForRole(role.id);
+      return {
+        ...role.dataValues || role,
+        groupIds
+      };
+    }));
+
+    return rolesWithGroups;
   }
 
   // ============ Helper Function Replacements ============

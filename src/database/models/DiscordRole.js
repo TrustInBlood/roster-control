@@ -29,16 +29,6 @@ module.exports = (sequelize) => {
       allowNull: true,
       comment: 'Optional description of the role purpose'
     },
-    group_id: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      references: {
-        model: 'discord_role_groups',
-        key: 'id'
-      },
-      onDelete: 'SET NULL',
-      comment: 'FK to discord_role_groups'
-    },
     is_system_role: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
@@ -74,8 +64,7 @@ module.exports = (sequelize) => {
     timestamps: false,
     indexes: [
       { fields: ['role_id'], unique: true },
-      { fields: ['role_key'], unique: true },
-      { fields: ['group_id'] }
+      { fields: ['role_key'], unique: true }
     ]
   });
 
@@ -112,27 +101,27 @@ module.exports = (sequelize) => {
   };
 
   /**
-   * Get all roles in a specific group
+   * Get all roles in a specific group (via junction table)
    * @param {number} groupId - Group ID
    * @returns {Promise<Array>}
    */
   DiscordRole.getByGroupId = async function(groupId) {
+    const { DiscordRoleGroupMember } = require('./index');
+    const roleIds = await DiscordRoleGroupMember.getRolesForGroup(groupId);
+    if (roleIds.length === 0) return [];
     return this.findAll({
-      where: { group_id: groupId },
+      where: { id: roleIds },
       order: [['role_key', 'ASC']]
     });
   };
 
   /**
-   * Get all role IDs in a specific group
+   * Get all Discord role IDs in a specific group (via junction table)
    * @param {number} groupId - Group ID
    * @returns {Promise<string[]>}
    */
   DiscordRole.getRoleIdsByGroupId = async function(groupId) {
-    const roles = await this.findAll({
-      where: { group_id: groupId },
-      attributes: ['role_id']
-    });
+    const roles = await this.getByGroupId(groupId);
     return roles.map(r => r.role_id);
   };
 
@@ -143,18 +132,25 @@ module.exports = (sequelize) => {
    * @returns {Promise<Object>}
    */
   DiscordRole.createRole = async function(data, createdBy = null) {
-    return this.create({
+    const role = await this.create({
       role_id: data.roleId,
       role_name: data.roleName || null,
       role_key: data.roleKey,
       description: data.description || null,
-      group_id: data.groupId || null,
       is_system_role: data.isSystemRole || false,
       created_by: createdBy,
       created_at: new Date(),
       updated_by: createdBy,
       updated_at: new Date()
     });
+
+    // If groupIds provided, add to those groups
+    if (data.groupIds && data.groupIds.length > 0) {
+      const { DiscordRoleGroupMember } = require('./index');
+      await DiscordRoleGroupMember.setGroupsForRole(role.id, data.groupIds, createdBy);
+    }
+
+    return role;
   };
 
   /**
@@ -170,11 +166,20 @@ module.exports = (sequelize) => {
     if (data.roleName !== undefined) updateData.role_name = data.roleName;
     if (data.roleKey !== undefined) updateData.role_key = data.roleKey;
     if (data.description !== undefined) updateData.description = data.description;
-    if (data.groupId !== undefined) updateData.group_id = data.groupId;
 
     const [updated] = await this.update(updateData, {
       where: { role_id: roleId }
     });
+
+    // Handle group membership updates
+    if (data.groupIds !== undefined) {
+      const role = await this.findOne({ where: { role_id: roleId } });
+      if (role) {
+        const { DiscordRoleGroupMember } = require('./index');
+        await DiscordRoleGroupMember.setGroupsForRole(role.id, data.groupIds, updatedBy);
+      }
+    }
+
     return updated > 0;
   };
 
@@ -213,20 +218,20 @@ module.exports = (sequelize) => {
   /**
    * Seed roles from config file
    * @param {Object} discordRoles - DISCORD_ROLES object from config
-   * @param {Object} groupMapping - Map of role keys to group IDs
+   * @param {Object} groupMapping - Map of role keys to group ID or array of group IDs
    * @param {string} [createdBy] - Discord user ID
    * @returns {Promise<number>} Number of roles created
    */
   DiscordRole.seedFromConfig = async function(discordRoles, groupMapping, createdBy = null) {
+    const { DiscordRoleGroupMember } = require('./index');
     let count = 0;
 
     for (const [roleKey, roleId] of Object.entries(discordRoles)) {
-      const [, created] = await this.findOrCreate({
+      const [role, created] = await this.findOrCreate({
         where: { role_id: roleId },
         defaults: {
           role_key: roleKey,
           role_name: roleKey.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-          group_id: groupMapping[roleKey] || null,
           is_system_role: true,
           created_by: createdBy,
           created_at: new Date(),
@@ -234,6 +239,17 @@ module.exports = (sequelize) => {
           updated_at: new Date()
         }
       });
+
+      // Handle group membership (supports single ID or array of IDs)
+      const groupIds = groupMapping[roleKey];
+      if (groupIds) {
+        const groupIdArray = Array.isArray(groupIds) ? groupIds : [groupIds];
+        if (created) {
+          // New role - set all groups
+          await DiscordRoleGroupMember.setGroupsForRole(role.id, groupIdArray, createdBy);
+        }
+      }
+
       if (created) count++;
     }
 

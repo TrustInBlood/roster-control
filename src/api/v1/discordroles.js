@@ -14,7 +14,7 @@ const logger = createServiceLogger('DiscordRolesAPI');
  */
 router.get('/', requirePermission('MANAGE_PERMISSIONS'), async (req, res) => {
   try {
-    const roles = await discordRoleService.getAllRoles();
+    const roles = await discordRoleService.getAllRolesWithGroups();
     const groups = await discordRoleService.getAllGroups();
 
     // Enrich roles with Discord info
@@ -30,16 +30,20 @@ router.get('/', requirePermission('MANAGE_PERMISSIONS'), async (req, res) => {
 
         enrichedRoles = roles.map(role => {
           const discordRole = guildRoles.get(role.role_id);
-          const group = groups.find(g => g.id === role.group_id);
+          // Get group info for all groups this role belongs to
+          const roleGroups = groups.filter(g => role.groupIds.includes(g.id));
           return {
             id: role.id,
             roleId: role.role_id,
             roleKey: role.role_key,
             roleName: discordRole?.name || role.role_name,
             description: role.description,
-            groupId: role.group_id,
-            groupKey: group?.group_key || null,
-            groupName: group?.display_name || null,
+            groupIds: role.groupIds,
+            groups: roleGroups.map(g => ({
+              id: g.id,
+              groupKey: g.group_key,
+              displayName: g.display_name
+            })),
             isSystemRole: role.is_system_role,
             discordPosition: discordRole?.position ?? 0,
             color: discordRole?.hexColor || '#99AAB5',
@@ -55,19 +59,22 @@ router.get('/', requirePermission('MANAGE_PERMISSIONS'), async (req, res) => {
       }
     }
 
+    // Get role counts per group
+    const groupsWithCounts = await Promise.all(groups.map(async g => ({
+      id: g.id,
+      groupKey: g.group_key,
+      displayName: g.display_name,
+      description: g.description,
+      displayOrder: g.display_order,
+      color: g.color,
+      isSystemGroup: g.is_system_group,
+      securityCritical: g.security_critical,
+      roleCount: await discordRoleService.getRoleCountForGroup(g.id)
+    })));
+
     res.json({
       roles: enrichedRoles,
-      groups: groups.map(g => ({
-        id: g.id,
-        groupKey: g.group_key,
-        displayName: g.display_name,
-        description: g.description,
-        displayOrder: g.display_order,
-        color: g.color,
-        isSystemGroup: g.is_system_group,
-        securityCritical: g.security_critical,
-        roleCount: roles.filter(r => r.group_id === g.id).length
-      }))
+      groups: groupsWithCounts
     });
   } catch (error) {
     logger.error('Failed to fetch Discord roles', { error: error.message });
@@ -83,9 +90,8 @@ router.get('/', requirePermission('MANAGE_PERMISSIONS'), async (req, res) => {
 router.get('/groups', requirePermission('MANAGE_PERMISSIONS'), async (req, res) => {
   try {
     const groups = await discordRoleService.getAllGroups();
-    const roles = await discordRoleService.getAllRoles();
 
-    const groupsWithCounts = groups.map(g => ({
+    const groupsWithCounts = await Promise.all(groups.map(async g => ({
       id: g.id,
       groupKey: g.group_key,
       displayName: g.display_name,
@@ -94,12 +100,12 @@ router.get('/groups', requirePermission('MANAGE_PERMISSIONS'), async (req, res) 
       color: g.color,
       isSystemGroup: g.is_system_group,
       securityCritical: g.security_critical,
-      roleCount: roles.filter(r => r.group_id === g.id).length,
+      roleCount: await discordRoleService.getRoleCountForGroup(g.id),
       createdBy: g.created_by,
       createdAt: g.created_at,
       updatedBy: g.updated_by,
       updatedAt: g.updated_at
-    }));
+    })));
 
     res.json({ groups: groupsWithCounts });
   } catch (error) {
@@ -122,8 +128,9 @@ router.get('/groups/:groupId', requirePermission('MANAGE_PERMISSIONS'), async (r
       return res.status(404).json({ error: 'Group not found' });
     }
 
-    const allRoles = await discordRoleService.getAllRoles();
-    const groupRoles = allRoles.filter(r => r.group_id === group.id);
+    // Get roles via junction table
+    const { DiscordRole: DR } = require('../../database/models');
+    const groupRoles = await DR.getByGroupId(group.id);
 
     // Enrich with Discord info
     const discordClient = global.discordClient;
@@ -358,7 +365,8 @@ router.get('/:roleId', requirePermission('MANAGE_PERMISSIONS'), async (req, res)
       return res.status(404).json({ error: 'Role not found' });
     }
 
-    const group = role.group_id ? await discordRoleService.getGroupById(role.group_id) : null;
+    // Get groups for this role
+    const groups = await discordRoleService.getGroupsForRole(role.id);
 
     // Enrich with Discord info
     let enrichedRole = {
@@ -367,9 +375,12 @@ router.get('/:roleId', requirePermission('MANAGE_PERMISSIONS'), async (req, res)
       roleKey: role.role_key,
       roleName: role.role_name,
       description: role.description,
-      groupId: role.group_id,
-      groupKey: group?.group_key || null,
-      groupName: group?.display_name || null,
+      groupIds: groups.map(g => g.id),
+      groups: groups.map(g => ({
+        id: g.id,
+        groupKey: g.group_key,
+        displayName: g.display_name
+      })),
       isSystemRole: role.is_system_role
     };
 
@@ -399,11 +410,11 @@ router.get('/:roleId', requirePermission('MANAGE_PERMISSIONS'), async (req, res)
  * POST /api/v1/discordroles
  * Add a new role entry
  * Requires: MANAGE_PERMISSIONS
- * Body: { roleId: string, roleKey: string, groupId?: number, description?: string }
+ * Body: { roleId: string, roleKey: string, groupIds?: number[], description?: string }
  */
 router.post('/', requirePermission('MANAGE_PERMISSIONS'), async (req, res) => {
   try {
-    const { roleId, roleKey, groupId, description } = req.body;
+    const { roleId, roleKey, groupIds, description } = req.body;
 
     if (!roleId || !roleKey) {
       return res.status(400).json({ error: 'roleId and roleKey are required' });
@@ -438,7 +449,7 @@ router.post('/', requirePermission('MANAGE_PERMISSIONS'), async (req, res) => {
       roleId,
       roleKey,
       roleName,
-      groupId: groupId || null,
+      groupIds: groupIds || [],
       description
     }, req.user.id);
 
@@ -452,7 +463,7 @@ router.post('/', requirePermission('MANAGE_PERMISSIONS'), async (req, res) => {
       targetId: roleId,
       targetName: roleName || roleKey,
       description: `Added Discord role: ${roleName || roleKey}`,
-      details: JSON.stringify({ roleId, roleKey, groupId, description }),
+      details: JSON.stringify({ roleId, roleKey, groupIds, description }),
       severity: 'medium',
       ipAddress: req.ip,
       userAgent: req.headers['user-agent']
@@ -467,7 +478,7 @@ router.post('/', requirePermission('MANAGE_PERMISSIONS'), async (req, res) => {
         roleId: role.role_id,
         roleKey: role.role_key,
         roleName: role.role_name,
-        groupId: role.group_id,
+        groupIds: groupIds || [],
         description: role.description,
         isSystemRole: role.is_system_role
       }
@@ -482,11 +493,12 @@ router.post('/', requirePermission('MANAGE_PERMISSIONS'), async (req, res) => {
  * PUT /api/v1/discordroles/:roleId
  * Update a role
  * Requires: MANAGE_PERMISSIONS
+ * Body: { roleKey?: string, groupIds?: number[], description?: string }
  */
 router.put('/:roleId', requirePermission('MANAGE_PERMISSIONS'), async (req, res) => {
   try {
     const { roleId } = req.params;
-    const { roleKey, groupId, description } = req.body;
+    const { roleKey, groupIds, description } = req.body;
 
     const role = await discordRoleService.getRoleById(roleId);
     if (!role) {
@@ -503,7 +515,7 @@ router.put('/:roleId', requirePermission('MANAGE_PERMISSIONS'), async (req, res)
 
     const updated = await discordRoleService.updateRole(roleId, {
       roleKey,
-      groupId,
+      groupIds,
       description
     }, req.user.id);
 
@@ -622,6 +634,111 @@ router.get('/available/list', requirePermission('MANAGE_PERMISSIONS'), async (re
   } catch (error) {
     logger.error('Failed to fetch available Discord roles', { error: error.message });
     res.status(500).json({ error: 'Failed to fetch available Discord roles' });
+  }
+});
+
+/**
+ * POST /api/v1/discordroles/batch
+ * Add multiple roles at once
+ * Requires: MANAGE_PERMISSIONS
+ * Body: { roleIds: string[], groupIds: number[] }
+ */
+router.post('/batch', requirePermission('MANAGE_PERMISSIONS'), async (req, res) => {
+  try {
+    const { roleIds, groupIds } = req.body;
+
+    if (!roleIds || !Array.isArray(roleIds) || roleIds.length === 0) {
+      return res.status(400).json({ error: 'roleIds array is required' });
+    }
+
+    const discordClient = global.discordClient;
+    if (!discordClient) {
+      return res.status(503).json({ error: 'Discord client not available' });
+    }
+
+    const guildId = process.env.DISCORD_GUILD_ID;
+    const guild = await discordClient.guilds.fetch(guildId).catch(() => null);
+
+    if (!guild) {
+      return res.status(503).json({ error: 'Could not fetch guild' });
+    }
+
+    const guildRoles = await guild.roles.fetch();
+    const results = { created: [], skipped: [], errors: [] };
+
+    for (const roleId of roleIds) {
+      try {
+        // Check if already exists
+        const existing = await discordRoleService.getRoleById(roleId);
+        if (existing) {
+          results.skipped.push({ roleId, reason: 'already exists' });
+          continue;
+        }
+
+        const discordRole = guildRoles.get(roleId);
+        if (!discordRole) {
+          results.errors.push({ roleId, error: 'Discord role not found' });
+          continue;
+        }
+
+        // Generate a unique key from the role name
+        const baseKey = discordRole.name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '_')
+          .replace(/^_|_$/g, '');
+        const roleKey = `${baseKey}_${Date.now().toString(36)}`;
+
+        const role = await discordRoleService.createRole({
+          roleId,
+          roleKey,
+          roleName: discordRole.name,
+          groupIds: groupIds || [],
+          description: null
+        }, req.user.id);
+
+        results.created.push({
+          id: role.id,
+          roleId: role.role_id,
+          roleKey: role.role_key,
+          roleName: role.role_name
+        });
+      } catch (error) {
+        results.errors.push({ roleId, error: error.message });
+      }
+    }
+
+    // Create audit log if any were created
+    if (results.created.length > 0) {
+      await AuditLog.create({
+        actionType: 'DISCORD_ROLE_BATCH_CREATE',
+        actorType: 'user',
+        actorId: req.user.id,
+        actorName: req.user.username,
+        targetType: 'discord_role',
+        targetId: 'batch',
+        targetName: `${results.created.length} roles`,
+        description: `Batch added ${results.created.length} Discord roles`,
+        details: JSON.stringify({ roleIds, groupIds, results }),
+        severity: 'medium',
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent']
+      });
+    }
+
+    logger.info('Discord roles batch created', {
+      created: results.created.length,
+      skipped: results.skipped.length,
+      errors: results.errors.length,
+      createdBy: req.user.username
+    });
+
+    res.status(201).json({
+      success: true,
+      results
+    });
+  } catch (error) {
+    logger.error('Failed to batch create Discord roles', { error: error.message });
+    res.status(500).json({ error: 'Failed to batch create Discord roles' });
   }
 });
 

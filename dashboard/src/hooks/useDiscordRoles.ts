@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { discordRolesApi } from '../lib/api'
 import { useAuth } from './useAuth'
-import type { CreateGroupRequest, UpdateGroupRequest, CreateRoleRequest, UpdateRoleRequest } from '../types/discordroles'
+import type { CreateGroupRequest, UpdateGroupRequest, CreateRoleRequest, UpdateRoleRequest, BatchCreateRolesRequest } from '../types/discordroles'
 
 /**
  * Hook to fetch all Discord roles and groups
@@ -143,6 +143,20 @@ export function useDeleteDiscordRole() {
 
   return useMutation({
     mutationFn: (roleId: string) => discordRolesApi.deleteRole(roleId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['discordroles'] })
+    },
+  })
+}
+
+/**
+ * Hook to batch create multiple roles at once
+ */
+export function useBatchCreateDiscordRoles() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (request: BatchCreateRolesRequest) => discordRolesApi.batchCreate(request),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['discordroles'] })
     },
