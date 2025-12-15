@@ -14,14 +14,18 @@ function getSquadRolePermissionModel() {
 
 // Predefined Squad permissions with metadata
 const SQUAD_PERMISSIONS = [
+  { id: 'balance', label: 'Balance', description: 'Team balance and swap commands' },
+  { id: 'ban', label: 'Ban', description: 'Ban players from the server' },
   { id: 'cameraman', label: 'Cameraman', description: 'Access to cameraman mode for spectating' },
   { id: 'canseeadminchat', label: 'Can See Admin Chat', description: 'View admin chat messages in-game' },
+  { id: 'changemap', label: 'Change Map', description: 'Change the current map' },
   { id: 'chat', label: 'Chat', description: 'Send chat messages in-game' },
   { id: 'forceteamchange', label: 'Force Team Change', description: 'Force players to change teams' },
   { id: 'immune', label: 'Immune', description: 'Immune to kicks and bans' },
+  { id: 'kick', label: 'Kick', description: 'Kick players from the server' },
   { id: 'reserve', label: 'Reserve Slot', description: 'Reserved slot access when server is full' },
-  { id: 'teamchange', label: 'Team Change', description: 'Change own team freely' },
-  { id: 'balance', label: 'Balance', description: 'Team balance and swap commands' }
+  { id: 'startvote', label: 'Start Vote', description: 'Start server votes' },
+  { id: 'teamchange', label: 'Team Change', description: 'Change own team freely' }
 ];
 
 // Get default squad groups from config file for seeding

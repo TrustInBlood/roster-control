@@ -6,7 +6,7 @@ const notificationService = require('./NotificationService');
 const { getMemberCacheService } = require('./MemberCacheService');
 
 // Staff-level permissions (anything beyond just reserve slot)
-const STAFF_PERMISSIONS = ['cameraman', 'canseeadminchat', 'chat', 'forceteamchange', 'immune', 'teamchange', 'balance', 'ban', 'kick', 'changemap', 'startvote', 'manageserver', 'config'];
+const STAFF_PERMISSIONS = ['ban', 'cameraman', 'canseeadminchat', 'changemap', 'chat', 'forceteamchange', 'immune', 'kick', 'startvote', 'teamchange', 'balance'];
 
 /**
  * Determine if a group should be 'staff' or 'whitelist' type based on permissions

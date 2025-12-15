@@ -382,8 +382,11 @@ class WhitelistService {
           }
         }
 
-        // Generate group definitions from database
+        // Generate group definitions from database (deduplicate by groupName)
+        const seenGroups = new Set();
         for (const config of enrichedConfigs) {
+          if (seenGroups.has(config.groupName)) continue;
+          seenGroups.add(config.groupName);
           const permString = Array.isArray(config.permissions) ? config.permissions.join(',') : config.permissions;
           combinedContent += `Group=${config.groupName}:${permString}\n`;
         }
