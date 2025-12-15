@@ -10,6 +10,7 @@ const battlemetricsRoutes = require('./battlemetrics');
 const membersRoutes = require('./members');
 const permissionsRoutes = require('./permissions');
 const squadgroupsRoutes = require('./squadgroups');
+const discordrolesRoutes = require('./discordroles');
 const { requireStaff, refreshUserRoles } = require('../middleware/auth');
 
 // Mount routes
@@ -25,6 +26,7 @@ router.use('/battlemetrics', refreshUserRoles, requireStaff, battlemetricsRoutes
 router.use('/members', refreshUserRoles, requireStaff, membersRoutes);
 router.use('/permissions', refreshUserRoles, requireStaff, permissionsRoutes);
 router.use('/squadgroups', refreshUserRoles, requireStaff, squadgroupsRoutes);
+router.use('/discordroles', refreshUserRoles, requireStaff, discordrolesRoutes);
 
 // Health check endpoint (public)
 router.get('/health', (req, res) => {

@@ -89,6 +89,11 @@ client.on('ready', async () => {
   // Log legacy command handler initialization
   loggerConsole.log('Legacy command handler initialized (messageCreate event)');
 
+  // Initialize DiscordRoleService (seeds database if empty)
+  const { discordRoleService } = require('./services/DiscordRoleService');
+  await discordRoleService.initialize();
+  loggerConsole.log('DiscordRoleService initialized');
+
   // Initialize whitelist functionality first (includes role-based cache)
   const whitelistServices = await initializeWhitelist();
 

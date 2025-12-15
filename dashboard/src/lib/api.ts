@@ -47,6 +47,24 @@ import type {
   RemoveRoleResponse,
   ResetSquadGroupsResponse,
 } from '../types/squadgroups'
+import type {
+  DiscordRolesListResponse,
+  DiscordRoleGroupsResponse,
+  DiscordRoleGroupDetailResponse,
+  DiscordRoleDetailResponse,
+  AvailableDiscordRolesResponse,
+  CreateGroupRequest,
+  UpdateGroupRequest,
+  CreateRoleRequest,
+  UpdateRoleRequest as DiscordRoleUpdateRequest,
+  CreateGroupResponse,
+  UpdateGroupResponse,
+  DeleteGroupResponse,
+  CreateRoleResponse,
+  UpdateRoleResponse as DiscordRoleUpdateResponse,
+  DeleteRoleResponse,
+  ResetDiscordRolesResponse,
+} from '../types/discordroles'
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -305,6 +323,71 @@ export const squadGroupsApi = {
 
   sync: async (): Promise<{ success: boolean; synced: number; updated: number; errors: number; message: string }> => {
     const { data } = await api.post<{ success: boolean; synced: number; updated: number; errors: number; message: string }>('/squadgroups/sync')
+    return data
+  },
+}
+
+// Discord Roles API
+export const discordRolesApi = {
+  list: async (): Promise<DiscordRolesListResponse> => {
+    const { data } = await api.get<DiscordRolesListResponse>('/discordroles')
+    return data
+  },
+
+  getGroups: async (): Promise<DiscordRoleGroupsResponse> => {
+    const { data } = await api.get<DiscordRoleGroupsResponse>('/discordroles/groups')
+    return data
+  },
+
+  getGroup: async (groupId: number): Promise<DiscordRoleGroupDetailResponse> => {
+    const { data } = await api.get<DiscordRoleGroupDetailResponse>(`/discordroles/groups/${groupId}`)
+    return data
+  },
+
+  createGroup: async (request: CreateGroupRequest): Promise<CreateGroupResponse> => {
+    const { data } = await api.post<CreateGroupResponse>('/discordroles/groups', request)
+    return data
+  },
+
+  updateGroup: async (groupId: number, request: UpdateGroupRequest): Promise<UpdateGroupResponse> => {
+    const { data } = await api.put<UpdateGroupResponse>(`/discordroles/groups/${groupId}`, request)
+    return data
+  },
+
+  deleteGroup: async (groupId: number): Promise<DeleteGroupResponse> => {
+    const { data } = await api.delete<DeleteGroupResponse>(`/discordroles/groups/${groupId}`)
+    return data
+  },
+
+  getRole: async (roleId: string): Promise<DiscordRoleDetailResponse> => {
+    const { data } = await api.get<DiscordRoleDetailResponse>(`/discordroles/${roleId}`)
+    return data
+  },
+
+  createRole: async (request: CreateRoleRequest): Promise<CreateRoleResponse> => {
+    const { data } = await api.post<CreateRoleResponse>('/discordroles', request)
+    return data
+  },
+
+  updateRole: async (roleId: string, request: DiscordRoleUpdateRequest): Promise<DiscordRoleUpdateResponse> => {
+    const { data } = await api.put<DiscordRoleUpdateResponse>(`/discordroles/${roleId}`, request)
+    return data
+  },
+
+  deleteRole: async (roleId: string): Promise<DeleteRoleResponse> => {
+    const { data } = await api.delete<DeleteRoleResponse>(`/discordroles/${roleId}`)
+    return data
+  },
+
+  getAvailable: async (): Promise<AvailableDiscordRolesResponse> => {
+    const { data } = await api.get<AvailableDiscordRolesResponse>('/discordroles/available/list')
+    return data
+  },
+
+  reset: async (): Promise<ResetDiscordRolesResponse> => {
+    const { data } = await api.post<ResetDiscordRolesResponse>('/discordroles/seed', {
+      confirm: 'RESET_ALL_DISCORDROLES',
+    })
     return data
   },
 }

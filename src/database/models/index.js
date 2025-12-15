@@ -18,6 +18,8 @@ const RoleArchiveFactory = require('./RoleArchive');
 const InteractivePostFactory = require('./InteractivePost');
 const RolePermissionFactory = require('./RolePermission');
 const SquadRolePermissionFactory = require('./SquadRolePermission');
+const DiscordRoleGroupFactory = require('./DiscordRoleGroup');
+const DiscordRoleFactory = require('./DiscordRole');
 
 const Group = GroupFactory(sequelize);
 const Whitelist = WhitelistFactory(sequelize);
@@ -28,10 +30,16 @@ const RoleArchive = RoleArchiveFactory(sequelize);
 const InteractivePost = InteractivePostFactory(sequelize);
 const RolePermission = RolePermissionFactory(sequelize);
 const SquadRolePermission = SquadRolePermissionFactory(sequelize);
+const DiscordRoleGroup = DiscordRoleGroupFactory(sequelize);
+const DiscordRole = DiscordRoleFactory(sequelize);
 
 // Define associations
 PlayerSession.belongsTo(Player, { foreignKey: 'player_id', as: 'player' });
 Player.hasMany(PlayerSession, { foreignKey: 'player_id', as: 'sessions' });
+
+// Discord role associations
+DiscordRoleGroup.hasMany(DiscordRole, { foreignKey: 'group_id', as: 'roles' });
+DiscordRole.belongsTo(DiscordRoleGroup, { foreignKey: 'group_id', as: 'group' });
 
 // Export all models
 module.exports = {
@@ -49,5 +57,7 @@ module.exports = {
   RoleArchive,
   InteractivePost,
   RolePermission,
-  SquadRolePermission
+  SquadRolePermission,
+  DiscordRoleGroup,
+  DiscordRole
 };

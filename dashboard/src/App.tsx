@@ -11,6 +11,7 @@ import AuditLogs from './pages/AuditLogs'
 import UnlinkedStaff from './pages/UnlinkedStaff'
 import Permissions from './pages/Permissions'
 import SquadGroups from './pages/SquadGroups'
+import DiscordRoles from './pages/DiscordRoles'
 import AccessDenied from './pages/AccessDenied'
 
 function ProtectedRoute() {
@@ -54,6 +55,7 @@ function App() {
           <Route path="security/unlinked-staff" element={<UnlinkedStaff />} />
           <Route path="admin/permissions" element={<Permissions />} />
           <Route path="admin/squadgroups" element={<SquadGroups />} />
+          <Route path="admin/discordroles" element={<DiscordRoles />} />
         </Route>
       </Route>
     </Routes>
