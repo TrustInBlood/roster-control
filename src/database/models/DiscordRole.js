@@ -193,7 +193,7 @@ module.exports = (sequelize) => {
   };
 
   /**
-   * Delete a role (if not system role)
+   * Delete a role
    * @param {string} roleId - Discord role ID
    * @returns {Promise<{success: boolean, error?: string}>}
    */
@@ -204,10 +204,6 @@ module.exports = (sequelize) => {
 
     if (!role) {
       return { success: false, error: 'Role not found' };
-    }
-
-    if (role.is_system_role) {
-      return { success: false, error: 'Cannot delete system role' };
     }
 
     await role.destroy();

@@ -146,7 +146,7 @@ module.exports = (sequelize) => {
   };
 
   /**
-   * Delete a group (if not system group)
+   * Delete a group
    * @param {number} groupId - Group ID
    * @returns {Promise<{success: boolean, error?: string}>}
    */
@@ -155,10 +155,6 @@ module.exports = (sequelize) => {
 
     if (!group) {
       return { success: false, error: 'Group not found' };
-    }
-
-    if (group.is_system_group) {
-      return { success: false, error: 'Cannot delete system group' };
     }
 
     await group.destroy();

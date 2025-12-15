@@ -30,13 +30,11 @@ export default function DiscordRoles() {
   const [deleteRoleConfirm, setDeleteRoleConfirm] = useState<DiscordRoleEntry | null>(null)
 
   // Form states
-  const [newGroupKey, setNewGroupKey] = useState('')
   const [newGroupName, setNewGroupName] = useState('')
   const [newGroupDescription, setNewGroupDescription] = useState('')
   const [newGroupColor, setNewGroupColor] = useState('#5865F2')
 
   const [selectedDiscordRole, setSelectedDiscordRole] = useState('')
-  const [newRoleKey, setNewRoleKey] = useState('')
   const [newRoleDescription, setNewRoleDescription] = useState('')
 
   const roles = data?.roles || []
@@ -46,19 +44,24 @@ export default function DiscordRoles() {
     ? roles.filter(r => r.groupId === selectedGroup.id)
     : []
 
+  // Generate a unique key from name
+  const generateKey = (name: string) => {
+    const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+    return `${base}_${Date.now().toString(36)}`
+  }
+
   const handleCreateGroup = async () => {
-    if (!newGroupKey || !newGroupName) return
+    if (!newGroupName) return
 
     try {
       const request: CreateGroupRequest = {
-        groupKey: newGroupKey,
+        groupKey: generateKey(newGroupName),
         displayName: newGroupName,
         description: newGroupDescription || undefined,
         color: newGroupColor,
       }
       await createGroupMutation.mutateAsync(request)
       setShowAddGroupModal(false)
-      setNewGroupKey('')
       setNewGroupName('')
       setNewGroupDescription('')
       setNewGroupColor('#5865F2')
@@ -68,19 +71,22 @@ export default function DiscordRoles() {
   }
 
   const handleCreateRole = async () => {
-    if (!selectedDiscordRole || !newRoleKey || !selectedGroup) return
+    if (!selectedDiscordRole || !selectedGroup) return
+
+    // Get the Discord role name to generate the key
+    const discordRole = availableRoles?.roles.find(r => r.id === selectedDiscordRole)
+    if (!discordRole) return
 
     try {
       const request: CreateRoleRequest = {
         roleId: selectedDiscordRole,
-        roleKey: newRoleKey,
+        roleKey: generateKey(discordRole.name),
         groupId: selectedGroup.id,
         description: newRoleDescription || undefined,
       }
       await createRoleMutation.mutateAsync(request)
       setShowAddRoleModal(false)
       setSelectedDiscordRole('')
-      setNewRoleKey('')
       setNewRoleDescription('')
     } catch {
       // Error handled by mutation state
@@ -228,22 +234,19 @@ export default function DiscordRoles() {
                       <div className="text-white font-medium truncate">{group.displayName}</div>
                       <div className="text-xs text-gray-400">
                         {group.roleCount} role{group.roleCount !== 1 ? 's' : ''}
-                        {group.isSystemGroup && ' • System'}
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {!group.isSystemGroup && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setDeleteGroupConfirm(group)
-                        }}
-                        className="p-1 text-gray-400 hover:text-red-400 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setDeleteGroupConfirm(group)
+                      }}
+                      className="p-1 text-gray-400 hover:text-red-400 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                     <ChevronRight className="w-4 h-4 text-gray-400" />
                   </div>
                 </div>
@@ -291,14 +294,8 @@ export default function DiscordRoles() {
                       className="w-4 h-4 rounded-full"
                       style={{ backgroundColor: role.color || '#99AAB5' }}
                     />
-                    <div>
-                      <div className="text-white font-medium">
-                        {role.roleName || role.roleKey}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        Key: {role.roleKey}
-                        {role.isSystemRole && ' • System Role'}
-                      </div>
+                    <div className="text-white font-medium">
+                      {role.roleName || role.roleKey}
                     </div>
                   </div>
 
@@ -315,14 +312,12 @@ export default function DiscordRoles() {
                       ))}
                     </select>
 
-                    {!role.isSystemRole && (
-                      <button
-                        onClick={() => setDeleteRoleConfirm(role)}
-                        className="p-1.5 text-gray-400 hover:text-red-400 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
+                    <button
+                      onClick={() => setDeleteRoleConfirm(role)}
+                      className="p-1.5 text-gray-400 hover:text-red-400 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
               ))
@@ -339,19 +334,7 @@ export default function DiscordRoles() {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Group Key</label>
-                <input
-                  type="text"
-                  value={newGroupKey}
-                  onChange={(e) => setNewGroupKey(e.target.value.toLowerCase().replace(/\s+/g, '_'))}
-                  placeholder="e.g., custom_roles"
-                  className="w-full bg-discord-darker text-white rounded-md px-3 py-2 border border-discord-lighter focus:outline-none focus:ring-2 focus:ring-discord-blurple"
-                />
-                <p className="text-xs text-gray-400 mt-1">Unique identifier, lowercase with underscores</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Display Name</label>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Group Name</label>
                 <input
                   type="text"
                   value={newGroupName}
@@ -362,11 +345,11 @@ export default function DiscordRoles() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Description</label>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Description (optional)</label>
                 <textarea
                   value={newGroupDescription}
                   onChange={(e) => setNewGroupDescription(e.target.value)}
-                  placeholder="Optional description"
+                  placeholder="What is this group for?"
                   className="w-full bg-discord-darker text-white rounded-md px-3 py-2 border border-discord-lighter focus:outline-none focus:ring-2 focus:ring-discord-blurple resize-none"
                   rows={2}
                 />
@@ -395,7 +378,6 @@ export default function DiscordRoles() {
               <button
                 onClick={() => {
                   setShowAddGroupModal(false)
-                  setNewGroupKey('')
                   setNewGroupName('')
                   setNewGroupDescription('')
                 }}
@@ -405,7 +387,7 @@ export default function DiscordRoles() {
               </button>
               <button
                 onClick={handleCreateGroup}
-                disabled={createGroupMutation.isPending || !newGroupKey || !newGroupName}
+                disabled={createGroupMutation.isPending || !newGroupName}
                 className="bg-discord-blurple hover:bg-discord-blurple/80 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-50"
               >
                 {createGroupMutation.isPending ? 'Creating...' : 'Create Group'}
@@ -428,14 +410,7 @@ export default function DiscordRoles() {
                 <label className="block text-sm font-medium text-gray-300 mb-1">Discord Role</label>
                 <select
                   value={selectedDiscordRole}
-                  onChange={(e) => {
-                    setSelectedDiscordRole(e.target.value)
-                    // Auto-fill role key based on role name
-                    const role = availableRoles?.roles.find(r => r.id === e.target.value)
-                    if (role && !newRoleKey) {
-                      setNewRoleKey(role.name.toUpperCase().replace(/\s+/g, '_'))
-                    }
-                  }}
+                  onChange={(e) => setSelectedDiscordRole(e.target.value)}
                   className="w-full bg-discord-darker text-white rounded-md px-3 py-2 border border-discord-lighter focus:outline-none focus:ring-2 focus:ring-discord-blurple"
                 >
                   <option value="">Select a Discord role...</option>
@@ -451,23 +426,11 @@ export default function DiscordRoles() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Role Key</label>
-                <input
-                  type="text"
-                  value={newRoleKey}
-                  onChange={(e) => setNewRoleKey(e.target.value.toUpperCase().replace(/\s+/g, '_'))}
-                  placeholder="e.g., CUSTOM_ROLE"
-                  className="w-full bg-discord-darker text-white rounded-md px-3 py-2 border border-discord-lighter focus:outline-none focus:ring-2 focus:ring-discord-blurple"
-                />
-                <p className="text-xs text-gray-400 mt-1">Unique identifier for code references</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Description</label>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Description (optional)</label>
                 <textarea
                   value={newRoleDescription}
                   onChange={(e) => setNewRoleDescription(e.target.value)}
-                  placeholder="Optional description"
+                  placeholder="What is this role for?"
                   className="w-full bg-discord-darker text-white rounded-md px-3 py-2 border border-discord-lighter focus:outline-none focus:ring-2 focus:ring-discord-blurple resize-none"
                   rows={2}
                 />
@@ -487,7 +450,6 @@ export default function DiscordRoles() {
                 onClick={() => {
                   setShowAddRoleModal(false)
                   setSelectedDiscordRole('')
-                  setNewRoleKey('')
                   setNewRoleDescription('')
                 }}
                 className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-white transition-colors"
@@ -496,7 +458,7 @@ export default function DiscordRoles() {
               </button>
               <button
                 onClick={handleCreateRole}
-                disabled={createRoleMutation.isPending || !selectedDiscordRole || !newRoleKey}
+                disabled={createRoleMutation.isPending || !selectedDiscordRole}
                 className="bg-discord-blurple hover:bg-discord-blurple/80 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-50"
               >
                 {createRoleMutation.isPending ? 'Adding...' : 'Add Role'}
