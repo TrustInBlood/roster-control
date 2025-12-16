@@ -1217,13 +1217,28 @@ async function handleStatsButton(interaction) {
       return await interaction.editReply({ content: result.error });
     }
 
-    // Send successful stats response (public) with user mention
-    const embed = buildStatsEmbed(result.stats);
-    await interaction.editReply({
-      content: `<@${userId}>`,
-      embeds: [embed],
-      components: [buildStatsButtonRow()]
-    });
+    // Try image generation first, fall back to embed
+    const { generateStatsImage } = require('../services/StatsImageService');
+    const { AttachmentBuilder } = require('discord.js');
+
+    try {
+      const imageBuffer = await generateStatsImage(result.stats);
+      const attachment = new AttachmentBuilder(imageBuffer, { name: 'stats.png' });
+
+      await interaction.editReply({
+        content: `<@${userId}>`,
+        files: [attachment],
+        components: [buildStatsButtonRow()]
+      });
+    } catch (imageError) {
+      // Fall back to embed if image generation fails
+      const embed = buildStatsEmbed(result.stats);
+      await interaction.editReply({
+        content: `<@${userId}>`,
+        embeds: [embed],
+        components: [buildStatsButtonRow()]
+      });
+    }
 
   } catch (error) {
     serviceLogger.error('Error handling stats button:', error);

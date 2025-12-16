@@ -16,39 +16,47 @@ module.exports = {
       });
     }
 
+    // Defer reply since image generation can take a few seconds
+    await interaction.deferReply();
+
     // Get stats for the user (pass member for admin cooldown check)
     const result = await getStatsForUser(interaction.user.id, interaction.member);
 
     // Handle cooldown
     if (result.cooldown) {
-      return await interaction.reply({
-        content: result.message,
-        flags: MessageFlags.Ephemeral
+      return await interaction.editReply({
+        content: result.message
       });
     }
 
     // Handle errors
     if (result.error) {
-      return await interaction.reply({
-        content: result.message,
-        flags: MessageFlags.Ephemeral
+      return await interaction.editReply({
+        content: result.message
       });
     }
 
-    // Handle no linked account (ephemeral so only they see it)
+    // Handle no linked account
     if (result.noLink) {
-      return await interaction.reply({
+      return await interaction.editReply({
         embeds: [result.embed],
-        components: result.components,
-        flags: MessageFlags.Ephemeral
+        components: result.components
       });
     }
 
     // Send successful stats response with user mention
-    await interaction.reply({
+    const replyOptions = {
       content: `<@${interaction.user.id}>`,
-      embeds: [result.embed],
       components: result.components
-    });
+    };
+
+    // Use image if available, otherwise embed
+    if (result.files) {
+      replyOptions.files = result.files;
+    } else if (result.embed) {
+      replyOptions.embeds = [result.embed];
+    }
+
+    await interaction.editReply(replyOptions);
   }
 };

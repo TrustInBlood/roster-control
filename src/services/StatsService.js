@@ -1,9 +1,10 @@
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const { createResponseEmbed } = require('../utils/messageHandler');
 const { console: loggerConsole } = require('../utils/logger');
 const { resolveSteamIdFromDiscord } = require('../utils/accountLinking');
 const { createLinkButtonRow, LINK_SOURCES } = require('../utils/linkButton');
 const { getAllAdminRoles } = require('../../config/discordRoles');
+const { generateStatsImage } = require('./StatsImageService');
 
 // API endpoint for player stats - configurable via environment variable
 const STATS_API_URL = process.env.STATS_API_URL || 'http://216.114.75.101:12000/stats';
@@ -193,15 +194,32 @@ async function getStatsForUser(discordUserId, member = null) {
     };
   }
 
-  // Build response
-  const embed = buildStatsEmbed(result.stats);
+  // Try image generation first, fall back to embed
   const components = [buildStatsButtonRow()];
 
-  return {
-    success: true,
-    embed,
-    components
-  };
+  try {
+    loggerConsole.log('Attempting stats image generation...');
+    const imageBuffer = await generateStatsImage(result.stats);
+    loggerConsole.log('Stats image generated, size:', imageBuffer.length);
+    const attachment = new AttachmentBuilder(imageBuffer, { name: 'stats.png' });
+
+    return {
+      success: true,
+      files: [attachment],
+      components
+    };
+  } catch (imageError) {
+    loggerConsole.warn('Stats image generation failed, falling back to embed:', imageError.message);
+    loggerConsole.warn('Stack:', imageError.stack);
+
+    // Fall back to embed
+    const embed = buildStatsEmbed(result.stats);
+    return {
+      success: true,
+      embed,
+      components
+    };
+  }
 }
 
 module.exports = {
