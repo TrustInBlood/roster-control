@@ -184,11 +184,11 @@ async function handleTicketAutoLink(message) {
     steamIds = [...new Set(steamIds)];
 
     if (steamIds.length === 0) {
-      // Only prompt for missing Steam ID on human messages, not bot messages
-      // This prevents prompting on ticket tool messages like "Are you sure you want to close?"
-      if (!message.author.bot) {
-        await checkForMissingSteamId(message);
-      }
+      // Check for existing linked account (and potentially prompt)
+      // For bot messages: check for link and serve BM profile, but don't prompt
+      // For human messages: check for link OR prompt if not found
+      const allowPrompt = !message.author.bot;
+      await checkForMissingSteamId(message, allowPrompt);
       return; // No Steam IDs found
     }
 
@@ -633,13 +633,14 @@ async function postBattleMetricsProfile(message, steamId, targetUser) {
 
 /**
  * Check if a ticket message is missing a Steam ID and prompt user
- * First checks if user has a linked Steam account - if so, serves their BM profile
- * Otherwise prompts once at ticket start, then never again for that channel
+ * First checks if ticket creator has a linked Steam account - if so, serves their BM profile
+ * Otherwise prompts once at ticket start (if allowPrompt is true)
  * @param {Message} message - Discord message object
+ * @param {boolean} allowPrompt - Whether to show prompt if no link found (false for bot messages)
  */
-async function checkForMissingSteamId(message) {
-  // Only prompt if configured to do so
-  if (!TICKET_CONFIG.PROMPT_MISSING_STEAMID) {
+async function checkForMissingSteamId(message, allowPrompt = true) {
+  // Only proceed if prompting is enabled in config (still check for links even if prompting disabled)
+  if (!TICKET_CONFIG.PROMPT_MISSING_STEAMID && !TICKET_CONFIG.BATTLEMETRICS_LOOKUP_ENABLED) {
     return;
   }
 
@@ -672,10 +673,35 @@ async function checkForMissingSteamId(message) {
 
   // If no Steam ID found in the message, check if ticket creator has a linked account
   if (steamIds.length === 0) {
-    // Find the ticket creator (first human user in the channel), not just message.author
-    // This prevents serving an admin's BM profile if they respond first
-    const ticketCreator = await findTicketCreator(message);
-    const targetUser = ticketCreator || message.author;
+    // Find the ticket creator - try multiple methods
+    // 1. For bot messages (like Ticket Tool), extract from mentions in the message
+    // 2. Fall back to finding first human in channel history
+    // 3. Last resort: message author (only for human messages)
+    let targetUser = null;
+
+    if (message.author.bot) {
+      // Try to extract user from bot message mentions (Ticket Tool mentions the user)
+      const contentMentions = extractUserMentionsFromContent(message);
+      if (contentMentions.length > 0) {
+        targetUser = contentMentions[0];
+      } else {
+        const embedMentions = extractUserMentionsFromEmbeds(message);
+        if (embedMentions.length > 0) {
+          targetUser = embedMentions[0];
+        }
+      }
+    }
+
+    // Fall back to finding ticket creator from channel history
+    if (!targetUser) {
+      const ticketCreator = await findTicketCreator(message);
+      targetUser = ticketCreator || (message.author.bot ? null : message.author);
+    }
+
+    // If we still can't determine the user, skip
+    if (!targetUser) {
+      return;
+    }
 
     // Check if the ticket creator has an existing linked Steam account
     const existingLink = await PlayerDiscordLink.findOne({
@@ -705,34 +731,38 @@ async function checkForMissingSteamId(message) {
       return;
     }
 
-    // No linked account - prompt for Steam ID
-    const embed = new EmbedBuilder()
-      .setColor(0xFFA500) // Orange for info/warning
-      .setTitle('⚠️ Steam ID Required')
-      .setDescription('To help us assist you better, please provide your **Steam ID64**.')
-      .addFields(
-        {
-          name: 'How to find your Steam ID64',
-          value: '1. Open your Steam profile\n2. Right-click anywhere and select "Copy Page URL"\n3. Paste the URL here, or just the 17-digit number from the URL',
-          inline: false
-        },
-        {
-          name: 'What it looks like',
-          value: 'URL: `https://steamcommunity.com/profiles/76561234567890123`\nOr just: `76561234567890123`',
-          inline: false
-        }
-      )
-      .setFooter({ text: 'Just paste your Steam profile URL or Steam ID64 in this channel' });
+    // No linked account - prompt for Steam ID (only if allowed)
+    if (allowPrompt && TICKET_CONFIG.PROMPT_MISSING_STEAMID) {
+      const embed = new EmbedBuilder()
+        .setColor(0xFFA500) // Orange for info/warning
+        .setTitle('⚠️ Steam ID Required')
+        .setDescription('To help us assist you better, please provide your **Steam ID64**.')
+        .addFields(
+          {
+            name: 'How to find your Steam ID64',
+            value: '1. Open your Steam profile\n2. Right-click anywhere and select "Copy Page URL"\n3. Paste the URL here, or just the 17-digit number from the URL',
+            inline: false
+          },
+          {
+            name: 'What it looks like',
+            value: 'URL: `https://steamcommunity.com/profiles/76561234567890123`\nOr just: `76561234567890123`',
+            inline: false
+          }
+        )
+        .setFooter({ text: 'Just paste your Steam profile URL or Steam ID64 in this channel' });
 
-    await message.channel.send({ embeds: [embed] });
+      await message.channel.send({ embeds: [embed] });
 
-    // Mark this ticket as handled (we've prompted for Steam ID)
-    handledTickets.add(message.channel.id);
+      // Mark this ticket as handled (we've prompted for Steam ID)
+      handledTickets.add(message.channel.id);
 
-    loggerConsole.log('Prompted for Steam ID in ticket:', {
-      channelId: message.channel.id,
-      channelName: message.channel.name
-    });
+      loggerConsole.log('Prompted for Steam ID in ticket:', {
+        channelId: message.channel.id,
+        channelName: message.channel.name
+      });
+    }
+    // If not allowed to prompt (bot message), don't mark as handled
+    // so a human message can still trigger the prompt later
   }
 }
 
