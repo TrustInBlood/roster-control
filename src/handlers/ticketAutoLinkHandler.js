@@ -633,7 +633,8 @@ async function postBattleMetricsProfile(message, steamId, targetUser) {
 
 /**
  * Check if a ticket message is missing a Steam ID and prompt user
- * Prompts once at ticket start, then never again for that channel
+ * First checks if user has a linked Steam account - if so, serves their BM profile
+ * Otherwise prompts once at ticket start, then never again for that channel
  * @param {Message} message - Discord message object
  */
 async function checkForMissingSteamId(message) {
@@ -669,8 +670,36 @@ async function checkForMissingSteamId(message) {
     }
   }
 
-  // If no Steam ID found, prompt the user
+  // If no Steam ID found in the message, check if user already has a linked account
   if (steamIds.length === 0) {
+    // Check if the user has an existing linked Steam account
+    const existingLink = await PlayerDiscordLink.findOne({
+      where: {
+        discord_user_id: message.author.id
+      },
+      order: [['confidence_score', 'DESC']] // Get highest confidence link
+    });
+
+    if (existingLink) {
+      // User has a linked account - serve their BattleMetrics profile
+      loggerConsole.log('User has existing link, serving BM profile:', {
+        channelId: message.channel.id,
+        userId: message.author.id,
+        steamId: existingLink.steamid64,
+        confidence: existingLink.confidence_score
+      });
+
+      // Post BattleMetrics profile using their linked Steam ID
+      if (TICKET_CONFIG.BATTLEMETRICS_LOOKUP_ENABLED) {
+        await postBattleMetricsProfile(message, existingLink.steamid64, message.author);
+      }
+
+      // Mark this ticket as handled
+      handledTickets.add(message.channel.id);
+      return;
+    }
+
+    // No linked account - prompt for Steam ID
     const embed = new EmbedBuilder()
       .setColor(0xFFA500) // Orange for info/warning
       .setTitle('⚠️ Steam ID Required')
