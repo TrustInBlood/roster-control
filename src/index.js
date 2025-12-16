@@ -469,47 +469,56 @@ async function initializeWhitelist() {
 }
 
 // Graceful shutdown handler
-process.on('SIGINT', async () => {
-  loggerConsole.log('\n🛑 Received SIGINT, shutting down gracefully...');
+let isShuttingDown = false;
 
-  if (global.playtimeTrackingService) {
-    await global.playtimeTrackingService.shutdown();
+async function gracefulShutdown(signal) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  loggerConsole.log(`\nReceived ${signal}, shutting down gracefully...`);
+
+  // Force exit after 5 seconds if graceful shutdown hangs
+  const forceExitTimeout = setTimeout(() => {
+    loggerConsole.log('Shutdown taking too long, forcing exit...');
+    process.exit(1);
+  }, 5000);
+
+  try {
+    // Shutdown stats image service
+    try {
+      const { shutdown: shutdownStatsImage } = require('./services/StatsImageService');
+      shutdownStatsImage();
+    } catch (e) { /* ignore if not loaded */ }
+
+    // Shutdown whitelist services (includes playtime tracking, SquadJS, etc.)
+    if (global.whitelistServices) {
+      await global.whitelistServices.gracefulShutdown();
+    }
+
+    // Close HTTP server
+    if (global.httpServer) {
+      await new Promise((resolve) => {
+        global.httpServer.close(() => {
+          loggerConsole.log('HTTP server closed');
+          resolve();
+        });
+      });
+    }
+
+    // Destroy Discord client
+    await client.destroy();
+    loggerConsole.log('Discord client destroyed');
+
+    clearTimeout(forceExitTimeout);
+    process.exit(0);
+  } catch (error) {
+    loggerConsole.error('Error during shutdown:', error.message);
+    clearTimeout(forceExitTimeout);
+    process.exit(1);
   }
+}
 
-  if (global.whitelistServices) {
-    await global.whitelistServices.gracefulShutdown();
-  }
-
-  if (global.httpServer) {
-    global.httpServer.close(() => {
-      loggerConsole.log('HTTP server closed');
-    });
-  }
-
-  client.destroy();
-  process.exit(0);
-});
-
-process.on('SIGTERM', async () => {
-  loggerConsole.log('\n🛑 Received SIGTERM, shutting down gracefully...');
-
-  if (global.playtimeTrackingService) {
-    await global.playtimeTrackingService.shutdown();
-  }
-
-  if (global.whitelistServices) {
-    await global.whitelistServices.gracefulShutdown();
-  }
-
-  if (global.httpServer) {
-    global.httpServer.close(() => {
-      loggerConsole.log('HTTP server closed');
-    });
-  }
-
-  client.destroy();
-  process.exit(0);
-});
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
 // Login to Discord
 client.login(process.env.DISCORD_TOKEN)

@@ -20,6 +20,9 @@ class PlaytimeTrackingService {
 
     // Polling frequency in milliseconds (60 seconds)
     this.pollIntervalMs = 60 * 1000;
+
+    // Shutdown guard
+    this.isShuttingDown = false;
   }
 
   /**
@@ -288,6 +291,12 @@ class PlaytimeTrackingService {
    * Shutdown service - stop polling and close all active sessions
    */
   async shutdown() {
+    // Prevent duplicate shutdown calls
+    if (this.isShuttingDown) {
+      return;
+    }
+    this.isShuttingDown = true;
+
     loggerConsole.log('Shutting down PlaytimeTrackingService...');
 
     // Stop all polling intervals
@@ -299,8 +308,12 @@ class PlaytimeTrackingService {
     this.pollIntervals.clear();
 
     // Close all active sessions
-    const closedCount = await PlayerSession.closeAllActiveSessions();
-    loggerConsole.log(`Closed ${closedCount} active sessions on shutdown`);
+    try {
+      const closedCount = await PlayerSession.closeAllActiveSessions();
+      loggerConsole.log(`Closed ${closedCount} active sessions on shutdown`);
+    } catch (error) {
+      loggerConsole.error('Error closing active sessions:', error.message);
+    }
 
     // Clear in-memory tracking
     this.activeSessions.clear();

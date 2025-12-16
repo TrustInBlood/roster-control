@@ -152,8 +152,23 @@ function clearCache() {
   logger.info('Template cache cleared');
 }
 
+/**
+ * Shutdown - clear queue and cache
+ */
+function shutdown() {
+  // Reject any pending queue items
+  while (queue.length > 0) {
+    const { reject } = queue.shift();
+    reject(new Error('StatsImageService shutting down'));
+  }
+  activeGenerations = 0;
+  cachedTemplate = null;
+  logger.info('StatsImageService shutdown complete');
+}
+
 module.exports = {
   generateStatsImage,
   loadTemplate,
-  clearCache
+  clearCache,
+  shutdown
 };
