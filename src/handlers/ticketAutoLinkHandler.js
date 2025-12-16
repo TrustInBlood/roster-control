@@ -670,28 +670,34 @@ async function checkForMissingSteamId(message) {
     }
   }
 
-  // If no Steam ID found in the message, check if user already has a linked account
+  // If no Steam ID found in the message, check if ticket creator has a linked account
   if (steamIds.length === 0) {
-    // Check if the user has an existing linked Steam account
+    // Find the ticket creator (first human user in the channel), not just message.author
+    // This prevents serving an admin's BM profile if they respond first
+    const ticketCreator = await findTicketCreator(message);
+    const targetUser = ticketCreator || message.author;
+
+    // Check if the ticket creator has an existing linked Steam account
     const existingLink = await PlayerDiscordLink.findOne({
       where: {
-        discord_user_id: message.author.id
+        discord_user_id: targetUser.id
       },
       order: [['confidence_score', 'DESC']] // Get highest confidence link
     });
 
     if (existingLink) {
-      // User has a linked account - serve their BattleMetrics profile
-      loggerConsole.log('User has existing link, serving BM profile:', {
+      // Ticket creator has a linked account - serve their BattleMetrics profile
+      loggerConsole.log('Ticket creator has existing link, serving BM profile:', {
         channelId: message.channel.id,
-        userId: message.author.id,
+        ticketCreatorId: targetUser.id,
+        ticketCreatorName: targetUser.username,
         steamId: existingLink.steamid64,
         confidence: existingLink.confidence_score
       });
 
       // Post BattleMetrics profile using their linked Steam ID
       if (TICKET_CONFIG.BATTLEMETRICS_LOOKUP_ENABLED) {
-        await postBattleMetricsProfile(message, existingLink.steamid64, message.author);
+        await postBattleMetricsProfile(message, existingLink.steamid64, targetUser);
       }
 
       // Mark this ticket as handled
