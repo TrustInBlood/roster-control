@@ -128,8 +128,7 @@ async function setupWhitelistRoutes(app, _sequelize, logger, discordClient) {
     connectionManager.disconnect();
   };
 
-  process.on('SIGINT', gracefulShutdown);
-  process.on('SIGTERM', gracefulShutdown);
+  // Note: SIGINT/SIGTERM handlers are in index.js to avoid duplicate shutdown calls
 
   logger.info('Whitelist integration setup complete', {
     routes: Object.keys(whitelistConfig.paths),
