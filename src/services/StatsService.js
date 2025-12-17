@@ -3,8 +3,8 @@ const { createResponseEmbed } = require('../utils/messageHandler');
 const { console: loggerConsole } = require('../utils/logger');
 const { resolveSteamIdFromDiscord } = require('../utils/accountLinking');
 const { createLinkButtonRow, LINK_SOURCES } = require('../utils/linkButton');
-const { getAllAdminRoles } = require('../../config/discordRoles');
-const { generateStatsImage } = require('./StatsImageService');
+const { getAllAdminRoles, getStatsTemplateForRoles } = require('../../config/discordRoles');
+const { generateStatsImage, DEFAULT_TEMPLATE } = require('./StatsImageService');
 
 // API endpoint for player stats - configurable via environment variable
 const STATS_API_URL = process.env.STATS_API_URL || 'http://216.114.75.101:12000/stats';
@@ -26,6 +26,21 @@ function isAdmin(member) {
   if (!member || !member.roles) return false;
   const adminRoles = getAllAdminRoles();
   return member.roles.cache.some(role => adminRoles.includes(role.id));
+}
+
+/**
+ * Determine which stats template to use based on member roles
+ * @param {GuildMember} [member] - Discord guild member
+ * @returns {string} Template name
+ */
+function getTemplateForMember(member) {
+  if (!member || !member.roles) return DEFAULT_TEMPLATE;
+
+  // Get role IDs from member
+  const roleIds = member.roles.cache.map(role => role.id);
+
+  // Check config for template mapping
+  return getStatsTemplateForRoles(roleIds) || DEFAULT_TEMPLATE;
 }
 
 /**
@@ -197,9 +212,12 @@ async function getStatsForUser(discordUserId, member = null) {
   // Try image generation first, fall back to embed
   const components = [buildStatsButtonRow()];
 
+  // Select template based on member roles
+  const templateName = getTemplateForMember(member);
+
   try {
-    loggerConsole.log('Attempting stats image generation...');
-    const imageBuffer = await generateStatsImage(result.stats);
+    loggerConsole.log(`Attempting stats image generation with template: ${templateName}...`);
+    const imageBuffer = await generateStatsImage(result.stats, templateName);
     loggerConsole.log('Stats image generated, size:', imageBuffer.length);
     const attachment = new AttachmentBuilder(imageBuffer, { name: 'stats.png' });
 
