@@ -1,11 +1,20 @@
-const { createCanvas, loadImage } = require('canvas');
+const { createCanvas, loadImage, registerFont } = require('canvas');
 const path = require('path');
 const { createServiceLogger } = require('../utils/logger');
+
+// Register bundled fonts with Unicode support
+const FONTS_PATH = path.join(__dirname, '../../assets/fonts');
+try {
+  registerFont(path.join(FONTS_PATH, 'DejaVuSans.ttf'), { family: 'DejaVu Sans' });
+  registerFont(path.join(FONTS_PATH, 'DejaVuSans-Bold.ttf'), { family: 'DejaVu Sans', weight: 'bold' });
+} catch {
+  // Fonts not available, fall back to system defaults
+}
 
 const logger = createServiceLogger('StatsImageService');
 
 // Template path
-const TEMPLATE_PATH = path.join(__dirname, '../../assets/stats-template.png');
+const TEMPLATE_PATH = path.join(__dirname, '../../assets/stats-template-banner.png');
 
 // Cached template image
 let cachedTemplate = null;
@@ -43,18 +52,6 @@ async function loadTemplate() {
 }
 
 /**
- * Apply a simple box blur to a canvas context
- * @param {CanvasRenderingContext2D} ctx - Canvas context
- * @param {number} width - Canvas width
- * @param {number} height - Canvas height
- * @param {number} radius - Blur radius
- */
-function applyBlur(ctx, width, height, radius) {
-  // Use CSS filter if available (node-canvas 2.x+)
-  ctx.filter = `blur(${radius}px)`;
-}
-
-/**
  * Generate a stats image for a player (queued for concurrency control)
  * @param {Object} stats - Player stats object
  * @returns {Promise<Buffer>} PNG image buffer
@@ -81,11 +78,11 @@ async function generateStatsImageInternal(stats) {
   ctx.drawImage(template, 0, 0);
   ctx.filter = 'none';
 
-  // Overlay box dimensions (right side) - scaled for 1227x574 image
-  const boxPadding = 25;
-  const boxWidth = 450;
-  const boxHeight = 450;
-  const boxX = template.width - boxWidth - 125;
+  // Overlay box dimensions for banner template (1344x300)
+  const padding = 20;
+  const boxWidth = 600;
+  const boxHeight = 260;
+  const boxX = template.width - boxWidth - 40;
   const boxY = (template.height - boxHeight) / 2;
 
   // Draw semi-transparent overlay box
@@ -94,29 +91,38 @@ async function generateStatsImageInternal(stats) {
   ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 12);
   ctx.fill();
 
-  // Text styling
-  ctx.fillStyle = '#ffffff';
-  ctx.textAlign = 'left';
-  const maxTextWidth = boxWidth - boxPadding * 2; // Prevent text overrun
+  // Styling constants
+  const labelColor = 'rgba(255, 255, 255, 0.7)';
+  const valueColor = '#ffffff';
+  const titleSize = 22;
+  const labelSize = 14;
+  const valueSize = 20;
+  const rowGap = 8;
+  const colWidth = (boxWidth - padding * 2) / 3;
+  const fontFamily = 'DejaVu Sans, sans-serif';
 
-  // Player name (title)
+  // Player name (centered)
   const playerName = stats.playerName || 'Unknown';
-  ctx.font = 'bold 28px sans-serif';
-  ctx.fillText(playerName, boxX + boxPadding, boxY + 45, boxWidth - boxPadding * 2);
+  ctx.fillStyle = valueColor;
+  ctx.textAlign = 'center';
+  ctx.font = `bold ${titleSize}px ${fontFamily}`;
+  ctx.fillText(playerName, boxX + boxWidth / 2, boxY + padding + titleSize);
 
   // Divider line
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(boxX + boxPadding, boxY + 60);
-  ctx.lineTo(boxX + boxWidth - boxPadding, boxY + 60);
+  const dividerY = boxY + padding + titleSize + 10;
+  ctx.moveTo(boxX + padding, dividerY);
+  ctx.lineTo(boxX + boxWidth - padding, dividerY);
   ctx.stroke();
 
-  // Stats text
-  ctx.font = '22px sans-serif';
-  const lineHeight = 50;
-  let y = boxY + 105;
+  // Column positions
+  const col1 = boxX + padding + colWidth * 0.5;
+  const col2 = boxX + padding + colWidth * 1.5;
+  const col3 = boxX + padding + colWidth * 2.5;
 
+  // Stats values with fallbacks
   const kills = stats.kills?.toString() || '0';
   const deaths = stats.deaths?.toString() || '0';
   const kdRatio = stats.kdRatio?.toFixed(2) || '0.00';
@@ -125,20 +131,52 @@ async function generateStatsImageInternal(stats) {
   const revivesReceived = stats.revivesReceived?.toString() || '0';
   const nemesis = stats.nemesis || 'None';
 
-  // Draw stat lines
-  const statLines = [
-    `Kills: ${kills}`,
-    `Deaths: ${deaths}`,
-    `K/D: ${kdRatio}`,
-    `Teamkills: ${teamkills}`,
-    `Revives: ${revivesGiven} / ${revivesReceived}`,
-    `Nemesis: ${nemesis}`
-  ];
+  let y = dividerY + 28;
 
-  for (const line of statLines) {
-    ctx.fillText(line, boxX + boxPadding, y, maxTextWidth);
-    y += lineHeight;
-  }
+  // Row 1: Kills / Deaths / K/D labels
+  ctx.font = `${labelSize}px ${fontFamily}`;
+  ctx.fillStyle = labelColor;
+  ctx.textAlign = 'center';
+  ctx.fillText('KILLS', col1, y);
+  ctx.fillText('DEATHS', col2, y);
+  ctx.fillText('K/D', col3, y);
+
+  // Row 2: Kills / Deaths / K/D values
+  y += rowGap + valueSize;
+  ctx.font = `bold ${valueSize}px ${fontFamily}`;
+  ctx.fillStyle = valueColor;
+  ctx.fillText(kills, col1, y);
+  ctx.fillText(deaths, col2, y);
+  ctx.fillText(kdRatio, col3, y);
+
+  // Row 3: Teamkills / Revives Given / Revives Received labels
+  y += rowGap + 28;
+  ctx.font = `${labelSize}px ${fontFamily}`;
+  ctx.fillStyle = labelColor;
+  ctx.fillText('TEAMKILLS', col1, y);
+  ctx.fillText('REVIVES GIVEN', col2, y);
+  ctx.fillText('REVIVES RECEIVED', col3, y);
+
+  // Row 4: Teamkills value + Revives values
+  y += rowGap + valueSize;
+  ctx.font = `bold ${valueSize}px ${fontFamily}`;
+  ctx.fillStyle = valueColor;
+  ctx.fillText(teamkills, col1, y);
+  ctx.fillText(revivesGiven, col2, y);
+  ctx.fillText(revivesReceived, col3, y);
+
+  // Row 5: Nemesis label
+  y += rowGap + 28;
+  ctx.font = `${labelSize}px ${fontFamily}`;
+  ctx.fillStyle = labelColor;
+  ctx.textAlign = 'center';
+  ctx.fillText('NEMESIS', boxX + boxWidth / 2, y);
+
+  // Row 6: Nemesis value
+  y += rowGap + valueSize - 4;
+  ctx.font = `bold ${valueSize - 2}px ${fontFamily}`;
+  ctx.fillStyle = valueColor;
+  ctx.fillText(nemesis, boxX + boxWidth / 2, y);
 
   // Return PNG buffer
   return canvas.toBuffer('image/png');
