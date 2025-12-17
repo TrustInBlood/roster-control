@@ -1219,10 +1219,16 @@ async function handleStatsButton(interaction) {
 
     // Try image generation first, fall back to embed
     const { generateStatsImage } = require('../services/StatsImageService');
+    const { getTemplateForRoles } = require('../../config/statsTemplates');
     const { AttachmentBuilder } = require('discord.js');
 
+    // Get template based on member roles
+    const roleIds = interaction.member?.roles?.cache?.map(role => role.id) || [];
+    const templateName = getTemplateForRoles(roleIds);
+    serviceLogger.info(`Stats button: Using template "${templateName}" for user ${userId}`);
+
     try {
-      const imageBuffer = await generateStatsImage(result.stats);
+      const imageBuffer = await generateStatsImage(result.stats, templateName);
       const attachment = new AttachmentBuilder(imageBuffer, { name: 'stats.png' });
 
       await interaction.editReply({

@@ -1,7 +1,7 @@
 const { createCanvas, loadImage, registerFont } = require('canvas');
 const path = require('path');
 const { createServiceLogger } = require('../utils/logger');
-const { getTemplateConfig } = require('../../config/statsTemplates');
+const { getTemplateConfig, DEFAULT_TEMPLATE } = require('../../config/statsTemplates');
 
 // Register bundled fonts with Unicode support
 const FONTS_PATH = path.join(__dirname, '../../assets/fonts');
@@ -17,9 +17,6 @@ const logger = createServiceLogger('StatsImageService');
 // Template directory
 const TEMPLATES_DIR = path.join(__dirname, '../../assets');
 
-// Default template name
-const DEFAULT_TEMPLATE = 'default';
-
 /**
  * Get template path by name
  * Templates are stored as: assets/stats-template-{name}.png
@@ -27,10 +24,7 @@ const DEFAULT_TEMPLATE = 'default';
  * @returns {string} Full path to template file
  */
 function getTemplatePath(templateName) {
-  const filename = templateName === 'default'
-    ? 'stats-template-wide.png'
-    : `stats-template-${templateName}.png`;
-  return path.join(TEMPLATES_DIR, filename);
+  return path.join(TEMPLATES_DIR, `stats-template-${templateName}.png`);
 }
 
 // Cached template images (keyed by template name)

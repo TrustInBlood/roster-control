@@ -3,7 +3,7 @@ const { createResponseEmbed } = require('../utils/messageHandler');
 const { console: loggerConsole } = require('../utils/logger');
 const { resolveSteamIdFromDiscord } = require('../utils/accountLinking');
 const { createLinkButtonRow, LINK_SOURCES } = require('../utils/linkButton');
-const { getAllAdminRoles } = require('../../config/discordRoles');
+const { discordRoles: { getAllAdminRoles } } = require('../utils/environment');
 const { generateStatsImage, DEFAULT_TEMPLATE } = require('./StatsImageService');
 const { getTemplateForRoles } = require('../../config/statsTemplates');
 
@@ -35,13 +35,18 @@ function isAdmin(member) {
  * @returns {string} Template name
  */
 function getTemplateForMember(member) {
-  if (!member || !member.roles) return DEFAULT_TEMPLATE;
+  if (!member || !member.roles) {
+    loggerConsole.log('getTemplateForMember: No member/roles, using DEFAULT_TEMPLATE:', DEFAULT_TEMPLATE);
+    return DEFAULT_TEMPLATE;
+  }
 
   // Get role IDs from member
   const roleIds = member.roles.cache.map(role => role.id);
 
   // Check config for template mapping
-  return getTemplateForRoles(roleIds);
+  const template = getTemplateForRoles(roleIds);
+  loggerConsole.log('getTemplateForMember: Selected template:', template);
+  return template;
 }
 
 /**

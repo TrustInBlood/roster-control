@@ -2,7 +2,7 @@
  * Stats Image Template Configuration
  * Defines template styling and role-based template selection
  */
-const { DISCORD_ROLES } = require('./discordRoles');
+const { discordRoles: { DISCORD_ROLES } } = require('../src/utils/environment');
 
 /**
  * Template box configurations
@@ -15,7 +15,20 @@ const { DISCORD_ROLES } = require('./discordRoles');
  */
 const TEMPLATES = {
   // Default template - uses stats-template-wide.png (2048x512)
-  default: {
+  wide: {
+    boxWidth: 800,
+    boxHeight: 420,
+    rightMargin: 80,
+    padding: 25,
+    titleSize: 28,
+    labelSize: 18,
+    valueSize: 26,
+    rowGap: 12,
+    topGap: 40,
+    sectionGap: 40
+  },
+  // Tank template (2048x512)
+  tank: {
     boxWidth: 800,
     boxHeight: 420,
     rightMargin: 80,
@@ -39,7 +52,7 @@ const TEMPLATE_MAPPING = [
 ];
 
 // Default template name
-const DEFAULT_TEMPLATE = 'default';
+const DEFAULT_TEMPLATE = 'wide';
 
 /**
  * Get template name for a user based on their roles
@@ -47,12 +60,24 @@ const DEFAULT_TEMPLATE = 'default';
  * @returns {string} Template name (or default)
  */
 function getTemplateForRoles(roleIds) {
+  // Check role mappings first
   for (const mapping of TEMPLATE_MAPPING) {
     if (roleIds.includes(mapping.roleId)) {
       return mapping.template;
     }
   }
-  return DEFAULT_TEMPLATE;
+
+  // No role match - pick a random template
+  return getRandomTemplate();
+}
+
+/**
+ * Get a random template name from available templates
+ * @returns {string} Random template name
+ */
+function getRandomTemplate() {
+  const templateNames = Object.keys(TEMPLATES);
+  return templateNames[Math.floor(Math.random() * templateNames.length)];
 }
 
 /**
@@ -61,7 +86,7 @@ function getTemplateForRoles(roleIds) {
  * @returns {Object} Box configuration (falls back to default if not found)
  */
 function getTemplateConfig(templateName) {
-  return TEMPLATES[templateName] || TEMPLATES.default;
+  return TEMPLATES[templateName] || TEMPLATES[DEFAULT_TEMPLATE];
 }
 
 module.exports = {
@@ -69,5 +94,6 @@ module.exports = {
   TEMPLATE_MAPPING,
   DEFAULT_TEMPLATE,
   getTemplateForRoles,
-  getTemplateConfig
+  getTemplateConfig,
+  getRandomTemplate
 };
