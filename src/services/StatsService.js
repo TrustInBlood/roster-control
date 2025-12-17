@@ -3,8 +3,9 @@ const { createResponseEmbed } = require('../utils/messageHandler');
 const { console: loggerConsole } = require('../utils/logger');
 const { resolveSteamIdFromDiscord } = require('../utils/accountLinking');
 const { createLinkButtonRow, LINK_SOURCES } = require('../utils/linkButton');
-const { getAllAdminRoles, getStatsTemplateForRoles } = require('../../config/discordRoles');
+const { getAllAdminRoles } = require('../../config/discordRoles');
 const { generateStatsImage, DEFAULT_TEMPLATE } = require('./StatsImageService');
+const { getTemplateForRoles } = require('../../config/statsTemplates');
 
 // API endpoint for player stats - configurable via environment variable
 const STATS_API_URL = process.env.STATS_API_URL || 'http://216.114.75.101:12000/stats';
@@ -40,7 +41,7 @@ function getTemplateForMember(member) {
   const roleIds = member.roles.cache.map(role => role.id);
 
   // Check config for template mapping
-  return getStatsTemplateForRoles(roleIds) || DEFAULT_TEMPLATE;
+  return getTemplateForRoles(roleIds);
 }
 
 /**

@@ -1,6 +1,7 @@
 const { createCanvas, loadImage, registerFont } = require('canvas');
 const path = require('path');
 const { createServiceLogger } = require('../utils/logger');
+const { getTemplateConfig } = require('../../config/statsTemplates');
 
 // Register bundled fonts with Unicode support
 const FONTS_PATH = path.join(__dirname, '../../assets/fonts');
@@ -27,7 +28,7 @@ const DEFAULT_TEMPLATE = 'default';
  */
 function getTemplatePath(templateName) {
   const filename = templateName === 'default'
-    ? 'stats-template-banner.png'
+    ? 'stats-template-wide.png'
     : `stats-template-${templateName}.png`;
   return path.join(TEMPLATES_DIR, filename);
 }
@@ -96,15 +97,18 @@ function generateStatsImage(stats, templateName = DEFAULT_TEMPLATE) {
 const FONT_FAMILY = 'DejaVu Sans, sans-serif';
 
 /**
- * Draw grid layout (for banner template)
+ * Draw grid layout for stats
+ * @param {CanvasRenderingContext2D} ctx - Canvas context
+ * @param {Object} stats - Player stats
+ * @param {number} boxX - Box X position
+ * @param {number} boxY - Box Y position
+ * @param {number} boxWidth - Box width
+ * @param {Object} config - Template config from discordRoles
  */
-function drawGridLayout(ctx, stats, boxX, boxY, boxWidth, padding) {
+function drawGridLayout(ctx, stats, boxX, boxY, boxWidth, config) {
+  const { padding, titleSize, labelSize, valueSize, rowGap, topGap, sectionGap } = config;
   const labelColor = 'rgba(255, 255, 255, 0.7)';
   const valueColor = '#ffffff';
-  const titleSize = 22;
-  const labelSize = 14;
-  const valueSize = 20;
-  const rowGap = 8;
   const colWidth = (boxWidth - padding * 2) / 3;
 
   // Player name (centered)
@@ -137,7 +141,7 @@ function drawGridLayout(ctx, stats, boxX, boxY, boxWidth, padding) {
   const revivesReceived = stats.revivesReceived?.toString() || '0';
   const nemesis = stats.nemesis || 'None';
 
-  let y = dividerY + 28;
+  let y = dividerY + topGap;
 
   // Row 1: Kills / Deaths / K/D labels
   ctx.font = `${labelSize}px ${FONT_FAMILY}`;
@@ -156,7 +160,7 @@ function drawGridLayout(ctx, stats, boxX, boxY, boxWidth, padding) {
   ctx.fillText(kdRatio, col3, y);
 
   // Row 3: Teamkills / Revives labels
-  y += rowGap + 28;
+  y += rowGap + sectionGap;
   ctx.font = `${labelSize}px ${FONT_FAMILY}`;
   ctx.fillStyle = labelColor;
   ctx.fillText('TEAMKILLS', col1, y);
@@ -172,7 +176,7 @@ function drawGridLayout(ctx, stats, boxX, boxY, boxWidth, padding) {
   ctx.fillText(revivesReceived, col3, y);
 
   // Row 5: Nemesis label
-  y += rowGap + 28;
+  y += rowGap + sectionGap;
   ctx.font = `${labelSize}px ${FONT_FAMILY}`;
   ctx.fillStyle = labelColor;
   ctx.fillText('NEMESIS', boxX + boxWidth / 2, y);
@@ -186,10 +190,11 @@ function drawGridLayout(ctx, stats, boxX, boxY, boxWidth, padding) {
 
 /**
  * Internal image generation (called by queue processor)
- * All templates use the same grid layout and dimensions (1344x300)
+ * Box dimensions and styling come from config/statsTemplates.js
  */
 async function generateStatsImageInternal(stats, templateName) {
   const template = await loadTemplate(templateName);
+  const config = getTemplateConfig(templateName);
 
   // Create canvas with template dimensions
   const canvas = createCanvas(template.width, template.height);
@@ -200,11 +205,9 @@ async function generateStatsImageInternal(stats, templateName) {
   ctx.drawImage(template, 0, 0);
   ctx.filter = 'none';
 
-  // Box dimensions for banner templates (1344x300)
-  const padding = 20;
-  const boxWidth = 600;
-  const boxHeight = 260;
-  const boxX = template.width - boxWidth - 40;
+  // Box dimensions from config
+  const { boxWidth, boxHeight, rightMargin } = config;
+  const boxX = template.width - boxWidth - rightMargin;
   const boxY = (template.height - boxHeight) / 2;
 
   // Draw semi-transparent overlay box
@@ -214,7 +217,7 @@ async function generateStatsImageInternal(stats, templateName) {
   ctx.fill();
 
   // Draw stats grid
-  drawGridLayout(ctx, stats, boxX, boxY, boxWidth, padding);
+  drawGridLayout(ctx, stats, boxX, boxY, boxWidth, config);
 
   // Return PNG buffer
   return canvas.toBuffer('image/png');

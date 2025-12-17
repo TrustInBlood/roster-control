@@ -115,35 +115,6 @@ function getAllStaffRoles() {
   return staffRoles;
 }
 
-/**
- * Stats template configuration
- * Maps role IDs to template names (template files: assets/stats-template-{name}.png)
- * Order matters - first matching role wins (highest priority first)
- *
- * To add a new template:
- * 1. Create assets/stats-template-{name}.png (1344x300 dimensions)
- * 2. Add role ID -> template name mapping below
- */
-const STATS_TEMPLATE_MAPPING = [
-  // { roleId: DISCORD_ROLES.SUPER_ADMIN, template: 'admin' },
-  // { roleId: DISCORD_ROLES.DONATOR, template: 'vip' },
-  // { roleId: DISCORD_ROLES.MEMBER, template: 'member' },
-];
-
-/**
- * Get stats template name for a user based on their roles
- * @param {string[]} roleIds - Array of role IDs the user has
- * @returns {string|null} Template name or null for default
- */
-function getStatsTemplateForRoles(roleIds) {
-  for (const mapping of STATS_TEMPLATE_MAPPING) {
-    if (roleIds.includes(mapping.roleId)) {
-      return mapping.template;
-    }
-  }
-  return null; // Use default template
-}
-
 module.exports = {
   DISCORD_ROLES,
   getAllAdminRoles,
@@ -151,6 +122,5 @@ module.exports = {
   getAllSpecialtyRoles,
   getAllWhitelistAwardRoles,
   getAllMemberRoles,
-  getAllStaffRoles,
-  getStatsTemplateForRoles
+  getAllStaffRoles
 };
