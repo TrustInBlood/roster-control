@@ -38,7 +38,6 @@ export default function StatsTemplates() {
   const [discordRoles, setDiscordRoles] = useState<DiscordRole[]>([])
   const [newMappingRoleId, setNewMappingRoleId] = useState('')
   const [newMappingTemplateId, setNewMappingTemplateId] = useState('')
-  const [newMappingPriority, setNewMappingPriority] = useState(0)
 
   // Fetch Discord roles when modal opens
   useEffect(() => {
@@ -93,16 +92,18 @@ export default function StatsTemplates() {
 
   const handleCreateRoleMapping = async () => {
     if (!newMappingRoleId || !newMappingTemplateId) return
+    // Use Discord role position as priority (higher position = higher priority)
+    const selectedRole = discordRoles.find(r => r.id === newMappingRoleId)
+    const priority = selectedRole?.position ?? 0
     try {
       await createRoleMappingMutation.mutateAsync({
         roleId: newMappingRoleId,
         templateId: parseInt(newMappingTemplateId, 10),
-        priority: newMappingPriority,
+        priority,
       })
       setShowAddMapping(false)
       setNewMappingRoleId('')
       setNewMappingTemplateId('')
-      setNewMappingPriority(0)
     } catch {
       // Error handled by mutation
     }
@@ -488,17 +489,11 @@ export default function StatsTemplates() {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Priority</label>
-                <input
-                  type="number"
-                  value={newMappingPriority}
-                  onChange={(e) => setNewMappingPriority(parseInt(e.target.value) || 0)}
-                  className="w-full bg-discord-darker border border-discord-lighter rounded px-3 py-2 text-white text-sm"
-                />
-                <p className="text-xs text-gray-500 mt-1">Higher priority = checked first when user has multiple roles</p>
-              </div>
             </div>
+
+            <p className="text-xs text-gray-500 mt-2">
+              Priority is based on Discord role hierarchy - higher roles take precedence.
+            </p>
 
             {createRoleMappingMutation.error && (
               <div className="bg-red-500/20 border border-red-500/30 rounded-md p-3 mt-4">
@@ -514,7 +509,6 @@ export default function StatsTemplates() {
                   setShowAddMapping(false)
                   setNewMappingRoleId('')
                   setNewMappingTemplateId('')
-                  setNewMappingPriority(0)
                 }}
                 className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-white transition-colors"
               >
