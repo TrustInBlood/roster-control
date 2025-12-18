@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Image, Plus, RefreshCw, Star, Settings, Trash2, Upload, Eye, EyeOff } from 'lucide-react'
 import {
@@ -10,10 +10,12 @@ import {
   useRoleMappings,
   useDeleteRoleMapping,
   useUpdateTemplate,
+  useCreateRoleMapping,
 } from '../hooks/useStatsTemplates'
 import { useAuth } from '../hooks/useAuth'
-import { statsTemplatesApi } from '../lib/api'
+import { statsTemplatesApi, permissionsApi } from '../lib/api'
 import type { StatsTemplate, RoleMapping } from '../types/statsTemplates'
+import type { DiscordRole } from '../types/permissions'
 
 export default function StatsTemplates() {
   const { hasPermission } = useAuth()
@@ -28,9 +30,26 @@ export default function StatsTemplates() {
   const seedMutation = useSeedTemplates()
   const deleteRoleMappingMutation = useDeleteRoleMapping()
   const updateMutation = useUpdateTemplate()
+  const createRoleMappingMutation = useCreateRoleMapping()
 
   const [deleteConfirm, setDeleteConfirm] = useState<StatsTemplate | null>(null)
   const [mappingDeleteConfirm, setMappingDeleteConfirm] = useState<RoleMapping | null>(null)
+  const [showAddMapping, setShowAddMapping] = useState(false)
+  const [discordRoles, setDiscordRoles] = useState<DiscordRole[]>([])
+  const [newMappingRoleId, setNewMappingRoleId] = useState('')
+  const [newMappingTemplateId, setNewMappingTemplateId] = useState('')
+  const [newMappingPriority, setNewMappingPriority] = useState(0)
+
+  // Fetch Discord roles when modal opens
+  useEffect(() => {
+    if (showAddMapping && discordRoles.length === 0) {
+      permissionsApi.getRoles().then(res => {
+        if (res.roles) {
+          setDiscordRoles(res.roles.sort((a, b) => b.position - a.position))
+        }
+      }).catch(console.error)
+    }
+  }, [showAddMapping, discordRoles.length])
 
   const handleSetDefault = async (template: StatsTemplate) => {
     if (template.isDefault) return
@@ -67,6 +86,23 @@ export default function StatsTemplates() {
     try {
       await deleteRoleMappingMutation.mutateAsync(mappingDeleteConfirm.roleId)
       setMappingDeleteConfirm(null)
+    } catch {
+      // Error handled by mutation
+    }
+  }
+
+  const handleCreateRoleMapping = async () => {
+    if (!newMappingRoleId || !newMappingTemplateId) return
+    try {
+      await createRoleMappingMutation.mutateAsync({
+        roleId: newMappingRoleId,
+        templateId: parseInt(newMappingTemplateId, 10),
+        priority: newMappingPriority,
+      })
+      setShowAddMapping(false)
+      setNewMappingRoleId('')
+      setNewMappingTemplateId('')
+      setNewMappingPriority(0)
     } catch {
       // Error handled by mutation
     }
@@ -261,13 +297,14 @@ export default function StatsTemplates() {
       <div className="bg-discord-light rounded-lg border border-discord-lighter overflow-hidden">
         <div className="px-4 py-3 border-b border-discord-lighter flex items-center justify-between">
           <h2 className="text-lg font-semibold text-white">Role Mappings</h2>
-          {canManage && (
-            <Link
-              to="/admin/stats-templates/mappings"
-              className="text-sm text-discord-blurple hover:text-discord-blurple/80 transition-colors"
+          {canManage && templates.length > 0 && (
+            <button
+              onClick={() => setShowAddMapping(true)}
+              className="flex items-center gap-1 text-sm text-discord-blurple hover:text-discord-blurple/80 transition-colors"
             >
-              Manage Mappings
-            </Link>
+              <Plus className="w-4 h-4" />
+              Add Mapping
+            </button>
           )}
         </div>
 
@@ -400,6 +437,95 @@ export default function StatsTemplates() {
                 className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-50"
               >
                 {deleteRoleMappingMutation.isPending ? 'Removing...' : 'Remove Mapping'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Role Mapping Modal */}
+      {showAddMapping && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-discord-light rounded-lg w-full max-w-md mx-4 p-6">
+            <h3 className="text-lg font-semibold text-white mb-4">
+              Add Role Mapping
+            </h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Discord Role</label>
+                <select
+                  value={newMappingRoleId}
+                  onChange={(e) => setNewMappingRoleId(e.target.value)}
+                  className="w-full bg-discord-darker border border-discord-lighter rounded px-3 py-2 text-white text-sm"
+                >
+                  <option value="">Select a role...</option>
+                  {discordRoles
+                    .filter(role => !mappings.some(m => m.roleId === role.id))
+                    .map(role => (
+                      <option key={role.id} value={role.id}>
+                        {role.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Template</label>
+                <select
+                  value={newMappingTemplateId}
+                  onChange={(e) => setNewMappingTemplateId(e.target.value)}
+                  className="w-full bg-discord-darker border border-discord-lighter rounded px-3 py-2 text-white text-sm"
+                >
+                  <option value="">Select a template...</option>
+                  {templates
+                    .filter(t => t.isActive)
+                    .map(template => (
+                      <option key={template.id} value={template.id}>
+                        {template.displayName}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Priority</label>
+                <input
+                  type="number"
+                  value={newMappingPriority}
+                  onChange={(e) => setNewMappingPriority(parseInt(e.target.value) || 0)}
+                  className="w-full bg-discord-darker border border-discord-lighter rounded px-3 py-2 text-white text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1">Higher priority = checked first when user has multiple roles</p>
+              </div>
+            </div>
+
+            {createRoleMappingMutation.error && (
+              <div className="bg-red-500/20 border border-red-500/30 rounded-md p-3 mt-4">
+                <p className="text-sm text-red-400">
+                  {(createRoleMappingMutation.error as Error).message || 'Failed to create mapping'}
+                </p>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowAddMapping(false)
+                  setNewMappingRoleId('')
+                  setNewMappingTemplateId('')
+                  setNewMappingPriority(0)
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateRoleMapping}
+                disabled={createRoleMappingMutation.isPending || !newMappingRoleId || !newMappingTemplateId}
+                className="bg-discord-blurple hover:bg-discord-blurple/80 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                {createRoleMappingMutation.isPending ? 'Adding...' : 'Add Mapping'}
               </button>
             </div>
           </div>
