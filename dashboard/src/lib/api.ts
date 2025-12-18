@@ -47,6 +47,20 @@ import type {
   RemoveRoleResponse,
   ResetSquadGroupsResponse,
 } from '../types/squadgroups'
+import type {
+  StatsTemplatesListResponse,
+  StatsTemplateDetailResponse,
+  RoleMappingsListResponse,
+  UpdateTemplateRequest,
+  UpdateTemplateResponse,
+  DeleteTemplateResponse,
+  SetDefaultTemplateResponse,
+  CreateRoleMappingRequest,
+  CreateRoleMappingResponse,
+  DeleteRoleMappingResponse,
+  RefreshCacheResponse,
+  SeedTemplatesResponse,
+} from '../types/statsTemplates'
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -305,6 +319,85 @@ export const squadGroupsApi = {
 
   sync: async (): Promise<{ success: boolean; synced: number; updated: number; errors: number; message: string }> => {
     const { data } = await api.post<{ success: boolean; synced: number; updated: number; errors: number; message: string }>('/squadgroups/sync')
+    return data
+  },
+}
+
+// Stats Templates API
+export const statsTemplatesApi = {
+  list: async (activeOnly?: boolean): Promise<StatsTemplatesListResponse> => {
+    const { data } = await api.get<StatsTemplatesListResponse>('/stats-templates', {
+      params: activeOnly ? { active: 'true' } : undefined,
+    })
+    return data
+  },
+
+  getDetail: async (id: number): Promise<StatsTemplateDetailResponse> => {
+    const { data } = await api.get<StatsTemplateDetailResponse>(`/stats-templates/${id}`)
+    return data
+  },
+
+  create: async (formData: FormData): Promise<{ success: boolean; template: StatsTemplateDetailResponse['template'] }> => {
+    const { data } = await api.post<{ success: boolean; template: StatsTemplateDetailResponse['template'] }>('/stats-templates', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+    return data
+  },
+
+  update: async (id: number, request: UpdateTemplateRequest): Promise<UpdateTemplateResponse> => {
+    const { data } = await api.put<UpdateTemplateResponse>(`/stats-templates/${id}`, request)
+    return data
+  },
+
+  updateImage: async (id: number, formData: FormData): Promise<UpdateTemplateResponse> => {
+    const { data } = await api.put<UpdateTemplateResponse>(`/stats-templates/${id}/image`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+    return data
+  },
+
+  delete: async (id: number): Promise<DeleteTemplateResponse> => {
+    const { data } = await api.delete<DeleteTemplateResponse>(`/stats-templates/${id}`)
+    return data
+  },
+
+  setDefault: async (id: number): Promise<SetDefaultTemplateResponse> => {
+    const { data } = await api.post<SetDefaultTemplateResponse>(`/stats-templates/${id}/set-default`)
+    return data
+  },
+
+  getImageUrl: (id: number): string => {
+    return `/api/v1/stats-templates/${id}/image`
+  },
+
+  // Role mappings
+  getRoleMappings: async (): Promise<RoleMappingsListResponse> => {
+    const { data } = await api.get<RoleMappingsListResponse>('/stats-templates/role-mappings')
+    return data
+  },
+
+  createRoleMapping: async (request: CreateRoleMappingRequest): Promise<CreateRoleMappingResponse> => {
+    const { data } = await api.post<CreateRoleMappingResponse>('/stats-templates/role-mappings', request)
+    return data
+  },
+
+  deleteRoleMapping: async (roleId: string): Promise<DeleteRoleMappingResponse> => {
+    const { data } = await api.delete<DeleteRoleMappingResponse>(`/stats-templates/role-mappings/${roleId}`)
+    return data
+  },
+
+  // Cache management
+  refreshCache: async (): Promise<RefreshCacheResponse> => {
+    const { data } = await api.post<RefreshCacheResponse>('/stats-templates/refresh-cache')
+    return data
+  },
+
+  seed: async (): Promise<SeedTemplatesResponse> => {
+    const { data } = await api.post<SeedTemplatesResponse>('/stats-templates/seed')
     return data
   },
 }

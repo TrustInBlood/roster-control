@@ -1218,13 +1218,26 @@ async function handleStatsButton(interaction) {
     }
 
     // Try image generation first, fall back to embed
-    const { generateStatsImage } = require('../services/StatsImageService');
-    const { getTemplateForRoles } = require('../../config/statsTemplates');
+    const { generateStatsImage, DEFAULT_TEMPLATE } = require('../services/StatsImageService');
+    const StatsTemplateService = require('../services/StatsTemplateService');
     const { AttachmentBuilder } = require('discord.js');
 
-    // Get template based on member roles
+    // Get template based on member roles (from database)
     const roleIds = interaction.member?.roles?.cache?.map(role => role.id) || [];
-    const templateName = getTemplateForRoles(roleIds);
+    let templateName = DEFAULT_TEMPLATE;
+    try {
+      const mappedTemplate = await StatsTemplateService.getTemplateForRoles(roleIds);
+      if (mappedTemplate) {
+        templateName = mappedTemplate.name;
+      } else {
+        const randomTemplate = await StatsTemplateService.getRandomTemplate();
+        if (randomTemplate) {
+          templateName = randomTemplate.name;
+        }
+      }
+    } catch (err) {
+      serviceLogger.warn('Failed to get template from database, using default:', err.message);
+    }
     serviceLogger.info(`Stats button: Using template "${templateName}" for user ${userId}`);
 
     try {

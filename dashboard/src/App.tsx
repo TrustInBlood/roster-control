@@ -11,6 +11,8 @@ import AuditLogs from './pages/AuditLogs'
 import UnlinkedStaff from './pages/UnlinkedStaff'
 import Permissions from './pages/Permissions'
 import SquadGroups from './pages/SquadGroups'
+import StatsTemplates from './pages/StatsTemplates'
+import StatsTemplateEditor from './pages/StatsTemplateEditor'
 import AccessDenied from './pages/AccessDenied'
 
 function ProtectedRoute() {
@@ -54,6 +56,8 @@ function App() {
           <Route path="security/unlinked-staff" element={<UnlinkedStaff />} />
           <Route path="admin/permissions" element={<Permissions />} />
           <Route path="admin/squadgroups" element={<SquadGroups />} />
+          <Route path="admin/stats-templates" element={<StatsTemplates />} />
+          <Route path="admin/stats-templates/:id" element={<StatsTemplateEditor />} />
         </Route>
       </Route>
     </Routes>

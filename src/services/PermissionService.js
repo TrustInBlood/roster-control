@@ -68,6 +68,14 @@ const PERMISSION_DEFINITIONS = {
   MANAGE_PERMISSIONS: {
     description: 'Manage role permissions',
     critical: true
+  },
+  VIEW_STATS_TEMPLATES: {
+    description: 'View stats templates',
+    critical: false
+  },
+  MANAGE_STATS_TEMPLATES: {
+    description: 'Manage stats templates and role mappings',
+    critical: false
   }
 };
 
@@ -119,6 +127,13 @@ function getDefaultPermissions() {
       DISCORD_ROLES.SUPER_ADMIN
     ],
     MANAGE_PERMISSIONS: [
+      DISCORD_ROLES.SUPER_ADMIN
+    ],
+    VIEW_STATS_TEMPLATES: [
+      ...getAllAdminRoles(),
+      DISCORD_ROLES.SUPER_ADMIN
+    ],
+    MANAGE_STATS_TEMPLATES: [
       DISCORD_ROLES.SUPER_ADMIN
     ]
   };

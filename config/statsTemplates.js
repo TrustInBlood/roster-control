@@ -40,19 +40,19 @@ const TEMPLATES = {
     topGap: 40,
     sectionGap: 40
   },
-    // Tank 2 template (2048x512)
-    tank2: {
-      boxWidth: 800,
-      boxHeight: 420,
-      rightMargin: 80,
-      padding: 25,
-      titleSize: 28,
-      labelSize: 18,
-      valueSize: 26,
-      rowGap: 12,
-      topGap: 40,
-      sectionGap: 40
-    }
+  // Tank 2 template (2048x512)
+  tank2: {
+    boxWidth: 800,
+    boxHeight: 420,
+    rightMargin: 80,
+    padding: 25,
+    titleSize: 28,
+    labelSize: 18,
+    valueSize: 26,
+    rowGap: 12,
+    topGap: 40,
+    sectionGap: 40
+  }
 };
 
 /**

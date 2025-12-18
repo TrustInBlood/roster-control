@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, List, Users, Clock, Shield, UserX, Key, Layers } from 'lucide-react'
+import { LayoutDashboard, List, Users, Clock, Shield, UserX, Key, Layers, Image } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuth } from '../../hooks/useAuth'
 import type { Permission } from '../../types/auth'
@@ -21,6 +21,7 @@ const navigation: NavItem[] = [
   { name: 'Unlinked Staff', href: '/security/unlinked-staff', icon: UserX, permission: 'VIEW_SECURITY' },
   { name: 'Permissions', href: '/admin/permissions', icon: Key, permission: 'MANAGE_PERMISSIONS' },
   { name: 'Squad Groups', href: '/admin/squadgroups', icon: Layers, permission: 'MANAGE_PERMISSIONS' },
+  { name: 'Stats Templates', href: '/admin/stats-templates', icon: Image, permission: 'VIEW_STATS_TEMPLATES' },
 ]
 
 export default function Sidebar() {

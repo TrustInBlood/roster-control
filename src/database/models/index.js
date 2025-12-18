@@ -18,6 +18,8 @@ const RoleArchiveFactory = require('./RoleArchive');
 const InteractivePostFactory = require('./InteractivePost');
 const RolePermissionFactory = require('./RolePermission');
 const SquadRolePermissionFactory = require('./SquadRolePermission');
+const StatsTemplateFactory = require('./StatsTemplate');
+const StatsTemplateRoleMappingFactory = require('./StatsTemplateRoleMapping');
 
 const Group = GroupFactory(sequelize);
 const Whitelist = WhitelistFactory(sequelize);
@@ -28,10 +30,16 @@ const RoleArchive = RoleArchiveFactory(sequelize);
 const InteractivePost = InteractivePostFactory(sequelize);
 const RolePermission = RolePermissionFactory(sequelize);
 const SquadRolePermission = SquadRolePermissionFactory(sequelize);
+const StatsTemplate = StatsTemplateFactory(sequelize);
+const StatsTemplateRoleMapping = StatsTemplateRoleMappingFactory(sequelize);
 
 // Define associations
 PlayerSession.belongsTo(Player, { foreignKey: 'player_id', as: 'player' });
 Player.hasMany(PlayerSession, { foreignKey: 'player_id', as: 'sessions' });
+
+// Stats template associations
+StatsTemplate.hasMany(StatsTemplateRoleMapping, { foreignKey: 'template_id', as: 'roleMappings' });
+StatsTemplateRoleMapping.belongsTo(StatsTemplate, { foreignKey: 'template_id', as: 'template' });
 
 // Export all models
 module.exports = {
@@ -49,5 +57,7 @@ module.exports = {
   RoleArchive,
   InteractivePost,
   RolePermission,
-  SquadRolePermission
+  SquadRolePermission,
+  StatsTemplate,
+  StatsTemplateRoleMapping
 };

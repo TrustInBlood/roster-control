@@ -5,7 +5,7 @@ const { resolveSteamIdFromDiscord } = require('../utils/accountLinking');
 const { createLinkButtonRow, LINK_SOURCES } = require('../utils/linkButton');
 const { discordRoles: { getAllAdminRoles } } = require('../utils/environment');
 const { generateStatsImage, DEFAULT_TEMPLATE } = require('./StatsImageService');
-const { getTemplateForRoles } = require('../../config/statsTemplates');
+const StatsTemplateService = require('./StatsTemplateService');
 
 // API endpoint for player stats - configurable via environment variable
 const STATS_API_URL = process.env.STATS_API_URL || 'http://216.114.75.101:12000/stats';
@@ -31,22 +31,42 @@ function isAdmin(member) {
 
 /**
  * Determine which stats template to use based on member roles
+ * Uses database role mappings, falls back to random active template
  * @param {GuildMember} [member] - Discord guild member
- * @returns {string} Template name
+ * @returns {Promise<string>} Template name
  */
-function getTemplateForMember(member) {
-  if (!member || !member.roles) {
-    loggerConsole.log('getTemplateForMember: No member/roles, using DEFAULT_TEMPLATE:', DEFAULT_TEMPLATE);
+async function getTemplateForMember(member) {
+  try {
+    if (!member || !member.roles) {
+      loggerConsole.log('getTemplateForMember: No member/roles, using random template');
+      const randomTemplate = await StatsTemplateService.getRandomTemplate();
+      return randomTemplate?.name || DEFAULT_TEMPLATE;
+    }
+
+    // Get role IDs from member
+    const roleIds = member.roles.cache.map(role => role.id);
+
+    // Check database for role-based template mapping
+    const mappedTemplate = await StatsTemplateService.getTemplateForRoles(roleIds);
+    if (mappedTemplate) {
+      loggerConsole.log('getTemplateForMember: Found role mapping, using template:', mappedTemplate.name);
+      return mappedTemplate.name;
+    }
+
+    // No role mapping - get a random active template
+    const randomTemplate = await StatsTemplateService.getRandomTemplate();
+    if (randomTemplate) {
+      loggerConsole.log('getTemplateForMember: No role mapping, using random template:', randomTemplate.name);
+      return randomTemplate.name;
+    }
+
+    // Fallback to default
+    loggerConsole.log('getTemplateForMember: No templates available, using DEFAULT_TEMPLATE:', DEFAULT_TEMPLATE);
+    return DEFAULT_TEMPLATE;
+  } catch (error) {
+    loggerConsole.error('getTemplateForMember: Error getting template:', error.message);
     return DEFAULT_TEMPLATE;
   }
-
-  // Get role IDs from member
-  const roleIds = member.roles.cache.map(role => role.id);
-
-  // Check config for template mapping
-  const template = getTemplateForRoles(roleIds);
-  loggerConsole.log('getTemplateForMember: Selected template:', template);
-  return template;
 }
 
 /**
@@ -219,7 +239,7 @@ async function getStatsForUser(discordUserId, member = null) {
   const components = [buildStatsButtonRow()];
 
   // Select template based on member roles
-  const templateName = getTemplateForMember(member);
+  const templateName = await getTemplateForMember(member);
 
   try {
     loggerConsole.log(`Attempting stats image generation with template: ${templateName}...`);
