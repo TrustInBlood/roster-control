@@ -114,6 +114,27 @@ client.on('ready', async () => {
   setTimeout(async () => {
     await performStartupSync(client);
 
+    // Initialize SeedingSessionService AFTER database migrations are complete
+    if (global.playtimeTrackingService && global.whitelistServices) {
+      try {
+        const SeedingSessionService = require('./services/SeedingSessionService');
+        const { setSeedingService } = require('./api/v1/seeding');
+
+        const seedingSessionService = new SeedingSessionService(
+          global.playtimeTrackingService,
+          global.whitelistServices.connectionManager
+        );
+        await seedingSessionService.initialize();
+        setSeedingService(seedingSessionService);
+        global.seedingSessionService = seedingSessionService;
+        loggerConsole.log('SeedingSessionService initialized');
+      } catch (error) {
+        loggerConsole.error('Failed to initialize SeedingSessionService:', error.message);
+      }
+    } else {
+      loggerConsole.warn('PlaytimeTrackingService or whitelistServices not available - SeedingSessionService disabled');
+    }
+
     // Initialize WhitelistPostService (persistent interactive post)
     // Must run AFTER performStartupSync which runs database migrations
     const WhitelistPostService = require('./services/WhitelistPostService');
@@ -210,10 +231,10 @@ client.on('guildMemberRemove', async (member) => {
 async function performStartupSync(client) {
   try {
     loggerConsole.log('Starting bot startup sync...');
-        
+
     // First, ensure database is connected and run migrations
     await ensureDatabaseReady();
-        
+
     const syncService = new DutyStatusSyncService();
         
     for (const [guildId, guild] of client.guilds.cache) {
@@ -362,10 +383,6 @@ async function initializeWhitelist() {
   try {
     loggerConsole.log('Initializing whitelist integration...');
 
-    // Import SeedingSessionService early for initialization later
-    const SeedingSessionService = require('./services/SeedingSessionService');
-    const { setSeedingService } = require('./api/v1/seeding');
-
     // Setup HTTP server
     const app = express();
     const helmet = require('helmet');
@@ -433,21 +450,6 @@ async function initializeWhitelist() {
     const donationRouter = setupDonationWebhook(client);
     app.use('/webhook', donationRouter);
     loggerConsole.log('Donation webhook routes registered at /webhook/donations');
-
-    // Initialize SeedingSessionService if playtimeTracking is available
-    let seedingSessionService = null;
-    if (global.playtimeTrackingService) {
-      seedingSessionService = new SeedingSessionService(
-        global.playtimeTrackingService,
-        whitelistServices.connectionManager
-      );
-      await seedingSessionService.initialize();
-      setSeedingService(seedingSessionService);
-      global.seedingSessionService = seedingSessionService;
-      loggerConsole.log('SeedingSessionService initialized');
-    } else {
-      loggerConsole.warn('PlaytimeTrackingService not available - SeedingSessionService disabled');
-    }
 
     // Setup BattleMetrics webhook routes
     const { setupBattleMetricsWebhook } = require('./routes/battlemetricsWebhook');
