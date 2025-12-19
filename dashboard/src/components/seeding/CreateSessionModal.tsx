@@ -68,7 +68,8 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
         }
         return !!targetServerId
       case 'threshold':
-        return playerThreshold >= 10
+        // Test mode allows threshold as low as 1, normal mode requires 10+
+        return testMode ? playerThreshold >= 1 : playerThreshold >= 10
       case 'rewards':
         return rewards.switch || rewards.playtime || rewards.completion
       case 'confirm':
@@ -271,14 +272,14 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
                 </label>
                 <input
                   type="number"
-                  min={10}
-                  max={100}
+                  min={testMode ? 1 : 10}
+                  max={99}
                   value={playerThreshold}
-                  onChange={(e) => setPlayerThreshold(parseInt(e.target.value) || 10)}
+                  onChange={(e) => setPlayerThreshold(Math.min(99, parseInt(e.target.value) || (testMode ? 1 : 10)))}
                   className="w-full bg-discord-lighter border border-discord-lighter rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-discord-blurple"
                 />
                 <p className="text-gray-500 text-xs mt-1">
-                  Minimum: 10 players
+                  {testMode ? 'Minimum: 1 player (test mode)' : 'Minimum: 10 players'} | Maximum: 99
                 </p>
               </div>
               {selectedServer && (

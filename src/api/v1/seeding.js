@@ -180,8 +180,13 @@ router.post('/sessions', requireAuth, requirePermission('MANAGE_SEEDING'), async
     if (!targetServerId) {
       return res.status(400).json({ error: 'targetServerId is required' });
     }
-    if (!playerThreshold || playerThreshold < 1) {
-      return res.status(400).json({ error: 'playerThreshold must be a positive number' });
+    // Test mode allows threshold as low as 1, normal mode requires 10+
+    const minThreshold = testMode ? 1 : 10;
+    if (!playerThreshold || playerThreshold < minThreshold) {
+      return res.status(400).json({ error: `playerThreshold must be at least ${minThreshold}` });
+    }
+    if (playerThreshold > 99) {
+      return res.status(400).json({ error: 'playerThreshold cannot exceed 99' });
     }
 
     // Validate test mode settings
