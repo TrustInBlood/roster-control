@@ -254,6 +254,34 @@ PlayerSession.closeAllActiveSessions = async function() {
 };
 
 /**
+ * Close stale sessions older than specified hours (for crash recovery)
+ * Uses bulk update for efficiency instead of loading all sessions into memory
+ * @param {number} hours - Hours threshold for stale sessions
+ * @returns {Promise<number>} - Number of sessions closed
+ */
+PlayerSession.closeStaleSessionsOlderThan = async function(hours) {
+  const { Op, literal } = require('sequelize');
+
+  const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000);
+
+  const [affectedCount] = await this.update(
+    {
+      isActive: false,
+      sessionEnd: new Date(),
+      durationMinutes: literal('TIMESTAMPDIFF(MINUTE, sessionStart, NOW())')
+    },
+    {
+      where: {
+        isActive: true,
+        sessionStart: { [Op.lt]: cutoff }
+      }
+    }
+  );
+
+  return affectedCount;
+};
+
+/**
  * Get total playtime for a player across all sessions
  * @param {number} playerId - Player ID
  * @returns {Promise<number>} - Total playtime in minutes

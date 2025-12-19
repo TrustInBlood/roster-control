@@ -1,0 +1,10 @@
+{
+  "watch": ["src", "config"],
+  "ext": "js,json",
+  "ignore": ["logs/*", "*.log", "node_modules/*"],
+  "delay": "2000",
+  "signal": "SIGTERM",
+  "env": {
+    "NODE_ENV": "development"
+  }
+}

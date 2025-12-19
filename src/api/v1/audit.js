@@ -17,6 +17,23 @@ function isDiscordId(str) {
 const displayNameCache = new Map();
 const CACHE_TTL = 5 * 60 * 1000;
 
+// Cleanup expired cache entries every 10 minutes (restart-safe)
+if (!global._auditCacheCleanupInterval) {
+  global._auditCacheCleanupInterval = setInterval(() => {
+    const now = Date.now();
+    let cleaned = 0;
+    for (const [id, data] of displayNameCache) {
+      if (now - data.timestamp >= CACHE_TTL) {
+        displayNameCache.delete(id);
+        cleaned++;
+      }
+    }
+    if (cleaned > 0) {
+      logger.debug(`Cleaned up ${cleaned} expired display name cache entries, ${displayNameCache.size} remaining`);
+    }
+  }, 10 * 60 * 1000);
+}
+
 function getCachedDisplayName(id) {
   const cached = displayNameCache.get(id);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {

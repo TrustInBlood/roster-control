@@ -7,6 +7,8 @@ class WhitelistCacheService {
     this.lastUpdate = new Map();
     this.combinedCache = null;
     this.combinedCacheTime = 0;
+    this.cleanupIntervalId = null;
+    this.refreshIntervalId = null;
 
     this.cacheRefreshSeconds = config.cacheRefreshSeconds || 30;
     this.logCacheHits = config.logCacheHits || false;
@@ -20,13 +22,28 @@ class WhitelistCacheService {
   }
 
   setupCleanupInterval() {
-    setInterval(() => {
+    this.cleanupIntervalId = setInterval(() => {
       this.cleanupExpiredCache();
     }, this.cacheRefreshSeconds * 1000);
 
-    setInterval(() => {
+    this.refreshIntervalId = setInterval(() => {
       this.refreshCombinedCache();
     }, (this.cacheRefreshSeconds - 5) * 1000);
+  }
+
+  shutdown() {
+    if (this.cleanupIntervalId) {
+      clearInterval(this.cleanupIntervalId);
+      this.cleanupIntervalId = null;
+    }
+    if (this.refreshIntervalId) {
+      clearInterval(this.refreshIntervalId);
+      this.refreshIntervalId = null;
+    }
+    this.cache.clear();
+    this.lastUpdate.clear();
+    this.combinedCache = null;
+    this.logger.info('WhitelistCacheService shutdown complete');
   }
 
   cleanupExpiredCache() {

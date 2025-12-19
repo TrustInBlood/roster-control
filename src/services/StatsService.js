@@ -15,6 +15,24 @@ const COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes for regular users
 const ADMIN_COOLDOWN_MS = 15 * 1000; // 15 seconds for admins
 const cooldowns = new Map();
 
+// Cleanup expired cooldowns every 10 minutes (restart-safe)
+const COOLDOWN_CLEANUP_INTERVAL = 10 * 60 * 1000;
+if (!global._statsServiceCleanupInterval) {
+  global._statsServiceCleanupInterval = setInterval(() => {
+    const now = Date.now();
+    let cleaned = 0;
+    for (const [userId, expiry] of cooldowns) {
+      if (now >= expiry) {
+        cooldowns.delete(userId);
+        cleaned++;
+      }
+    }
+    if (cleaned > 0) {
+      loggerConsole.log(`[StatsService] Cleaned up ${cleaned} expired cooldowns, ${cooldowns.size} remaining`);
+    }
+  }, COOLDOWN_CLEANUP_INTERVAL);
+}
+
 // Button ID for viewing stats
 const STATS_BUTTON_ID = 'view_my_stats';
 

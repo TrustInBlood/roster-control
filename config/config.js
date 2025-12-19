@@ -42,7 +42,8 @@ const config = {
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     dialect: 'mariadb',
-    logging: process.env.NODE_ENV === 'development' ? loggerConsole.log : false,
+    // DB_QUERY_LOGGING: 'true' to enable SQL query logging (disabled by default to reduce memory/noise)
+    logging: process.env.DB_QUERY_LOGGING === 'true' ? loggerConsole.log : false,
     pool: {
       max: 5,
       min: 0,

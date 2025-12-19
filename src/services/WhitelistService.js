@@ -11,6 +11,8 @@ class WhitelistService {
     this.discordClient = discordClient; // Optional Discord client
     this.cache = new Map();
     this.lastUpdate = new Map();
+    this.cleanupIntervalId = null;
+    this.prewarmTimeoutId = null;
 
     this.cacheRefreshSeconds = config.cache.refreshSeconds;
     this.preferEosID = config.identifiers.preferEosID;
@@ -26,16 +28,30 @@ class WhitelistService {
     this.setupCleanupInterval();
 
     // Pre-warm the cache
-    setTimeout(() => {
+    this.prewarmTimeoutId = setTimeout(() => {
       this.prewarmCache();
     }, 5000);
   }
 
   setupCleanupInterval() {
     // Clean up expired cache entries
-    setInterval(() => {
+    this.cleanupIntervalId = setInterval(() => {
       this.cleanupExpiredCache();
     }, this.cacheRefreshSeconds * 1000);
+  }
+
+  shutdown() {
+    if (this.cleanupIntervalId) {
+      clearInterval(this.cleanupIntervalId);
+      this.cleanupIntervalId = null;
+    }
+    if (this.prewarmTimeoutId) {
+      clearTimeout(this.prewarmTimeoutId);
+      this.prewarmTimeoutId = null;
+    }
+    this.cache.clear();
+    this.lastUpdate.clear();
+    this.logger.info('WhitelistService shutdown complete');
   }
 
   async prewarmCache() {

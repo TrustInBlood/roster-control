@@ -4,6 +4,7 @@ require('../config/config');
 // Validate environment variables before starting
 const { validateEnvironment, EnvValidationError } = require('./utils/envValidator');
 const { console: loggerConsole } = require('./utils/logger');
+const memoryMonitor = require('./utils/memoryMonitor');
 try {
   const validatedEnv = validateEnvironment();
   loggerConsole.log('✅ Environment validation passed');
@@ -73,6 +74,9 @@ client.logger = logger;
 client.on('ready', async () => {
   logger.info(`Logged in as ${client.user.tag}`);
   loggerConsole.log(`Bot logged in as ${client.user.tag}`);
+
+  // Start memory monitoring (logs every 60 seconds)
+  memoryMonitor.startMonitoring(60000);
 
   // Make Discord client globally available for background operations (e.g., role sync triggers)
   global.discordClient = client;
@@ -476,11 +480,16 @@ async function gracefulShutdown(signal) {
   isShuttingDown = true;
   loggerConsole.log(`\nReceived ${signal}, shutting down gracefully...`);
 
-  // Force exit after 5 seconds if graceful shutdown hangs
+  // Log memory stats before shutdown
+  const memoryTrend = memoryMonitor.getMemoryTrend();
+  loggerConsole.log(`Memory at shutdown: ${memoryTrend.currentRss} (peak: ${memoryTrend.peakRss}, trend: ${memoryTrend.trend})`);
+  memoryMonitor.stopMonitoring();
+
+  // Force exit after 10 seconds if graceful shutdown hangs (increased from 5s for SquadJS cleanup)
   const forceExitTimeout = setTimeout(() => {
     loggerConsole.log('Shutdown taking too long, forcing exit...');
     process.exit(1);
-  }, 5000);
+  }, 10000);
 
   try {
     // Shutdown stats image service

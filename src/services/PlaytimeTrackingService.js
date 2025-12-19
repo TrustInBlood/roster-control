@@ -31,6 +31,9 @@ class PlaytimeTrackingService {
   async initialize() {
     loggerConsole.log('Initializing PlaytimeTrackingService...');
 
+    // Clean up stale sessions from previous crashes (older than 6 hours)
+    await this.cleanupStaleSessions();
+
     // Get all server connections
     const connections = this.connectionManager.getConnections();
 
@@ -39,6 +42,23 @@ class PlaytimeTrackingService {
     }
 
     loggerConsole.log(`PlaytimeTrackingService initialized: Polling ${connections.size} servers every ${this.pollIntervalMs / 1000}s`);
+  }
+
+  /**
+   * Clean up stale sessions that were left open from previous crashes
+   * Sessions older than 6 hours are considered stale and closed
+   */
+  async cleanupStaleSessions() {
+    try {
+      const staleHours = 6;
+      const closedCount = await PlayerSession.closeStaleSessionsOlderThan(staleHours);
+
+      if (closedCount > 0) {
+        loggerConsole.log(`Cleaned up ${closedCount} stale sessions (older than ${staleHours} hours)`);
+      }
+    } catch (error) {
+      loggerConsole.error('Error cleaning up stale sessions:', error.message);
+    }
   }
 
   /**

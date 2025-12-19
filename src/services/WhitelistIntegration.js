@@ -122,6 +122,7 @@ async function setupWhitelistRoutes(app, _sequelize, logger, discordClient) {
   const gracefulShutdown = async () => {
     logger.info('Shutting down whitelist integration');
     clearInterval(cleanupInterval);
+    whitelistService.shutdown();
     await playtimeTrackingService.shutdown();
     inGameCommandService.shutdown();
     squadJSService.destroy();
