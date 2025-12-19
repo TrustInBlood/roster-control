@@ -362,6 +362,10 @@ async function initializeWhitelist() {
   try {
     loggerConsole.log('Initializing whitelist integration...');
 
+    // Import SeedingSessionService early for initialization later
+    const SeedingSessionService = require('./services/SeedingSessionService');
+    const { setSeedingService } = require('./api/v1/seeding');
+
     // Setup HTTP server
     const app = express();
     const helmet = require('helmet');
@@ -430,6 +434,21 @@ async function initializeWhitelist() {
     app.use('/webhook', donationRouter);
     loggerConsole.log('Donation webhook routes registered at /webhook/donations');
 
+    // Initialize SeedingSessionService if playtimeTracking is available
+    let seedingSessionService = null;
+    if (global.playtimeTrackingService) {
+      seedingSessionService = new SeedingSessionService(
+        global.playtimeTrackingService,
+        whitelistServices.connectionManager
+      );
+      await seedingSessionService.initialize();
+      setSeedingService(seedingSessionService);
+      global.seedingSessionService = seedingSessionService;
+      loggerConsole.log('SeedingSessionService initialized');
+    } else {
+      loggerConsole.warn('PlaytimeTrackingService not available - SeedingSessionService disabled');
+    }
+
     // Setup BattleMetrics webhook routes
     const { setupBattleMetricsWebhook } = require('./routes/battlemetricsWebhook');
     const battlemetricsRouter = setupBattleMetricsWebhook(client);
@@ -497,6 +516,16 @@ async function gracefulShutdown(signal) {
       const { shutdown: shutdownStatsImage } = require('./services/StatsImageService');
       shutdownStatsImage();
     } catch (e) { /* ignore if not loaded */ }
+
+    // Shutdown seeding session service first (depends on playtime tracking)
+    if (global.seedingSessionService) {
+      try {
+        await global.seedingSessionService.shutdown();
+        loggerConsole.log('SeedingSessionService shutdown complete');
+      } catch (e) {
+        loggerConsole.error('SeedingSessionService shutdown error:', e.message);
+      }
+    }
 
     // Shutdown whitelist services (includes playtime tracking, SquadJS, etc.)
     if (global.whitelistServices) {

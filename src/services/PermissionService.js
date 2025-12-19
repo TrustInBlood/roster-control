@@ -76,6 +76,14 @@ const PERMISSION_DEFINITIONS = {
   MANAGE_STATS_TEMPLATES: {
     description: 'Manage stats templates and role mappings',
     critical: false
+  },
+  VIEW_SEEDING: {
+    description: 'View seeding sessions and participants',
+    critical: false
+  },
+  MANAGE_SEEDING: {
+    description: 'Create, close, and cancel seeding sessions',
+    critical: false
   }
 };
 
@@ -134,6 +142,14 @@ function getDefaultPermissions() {
       DISCORD_ROLES.SUPER_ADMIN
     ],
     MANAGE_STATS_TEMPLATES: [
+      DISCORD_ROLES.SUPER_ADMIN
+    ],
+    VIEW_SEEDING: [
+      ...getAllAdminRoles(),
+      DISCORD_ROLES.SUPER_ADMIN
+    ],
+    MANAGE_SEEDING: [
+      ...getAllAdminRoles(),
       DISCORD_ROLES.SUPER_ADMIN
     ]
   };

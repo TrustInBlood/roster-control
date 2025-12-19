@@ -13,6 +13,8 @@ import Permissions from './pages/Permissions'
 import SquadGroups from './pages/SquadGroups'
 import StatsTemplates from './pages/StatsTemplates'
 import StatsTemplateEditor from './pages/StatsTemplateEditor'
+import Seeding from './pages/Seeding'
+import SeedingSession from './pages/SeedingSession'
 import AccessDenied from './pages/AccessDenied'
 
 function ProtectedRoute() {
@@ -58,6 +60,8 @@ function App() {
           <Route path="admin/squadgroups" element={<SquadGroups />} />
           <Route path="admin/stats-templates" element={<StatsTemplates />} />
           <Route path="admin/stats-templates/:id" element={<StatsTemplateEditor />} />
+          <Route path="seeding" element={<Seeding />} />
+          <Route path="seeding/:id" element={<SeedingSession />} />
         </Route>
       </Route>
     </Routes>

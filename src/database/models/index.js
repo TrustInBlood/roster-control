@@ -7,6 +7,8 @@ const Admin = require('./Admin');
 const Server = require('./Server');
 const AuditLog = require('./AuditLog');
 const PlayerSession = require('./PlayerSession');
+const SeedingSession = require('./SeedingSession');
+const SeedingParticipant = require('./SeedingParticipant');
 
 // Import and initialize whitelist models (factory functions)
 const GroupFactory = require('./Group');
@@ -41,6 +43,12 @@ Player.hasMany(PlayerSession, { foreignKey: 'player_id', as: 'sessions' });
 StatsTemplate.hasMany(StatsTemplateRoleMapping, { foreignKey: 'template_id', as: 'roleMappings' });
 StatsTemplateRoleMapping.belongsTo(StatsTemplate, { foreignKey: 'template_id', as: 'template' });
 
+// Seeding session associations
+SeedingSession.hasMany(SeedingParticipant, { foreignKey: 'session_id', as: 'participants' });
+SeedingParticipant.belongsTo(SeedingSession, { foreignKey: 'session_id', as: 'session' });
+SeedingParticipant.belongsTo(Player, { foreignKey: 'player_id', as: 'player' });
+Player.hasMany(SeedingParticipant, { foreignKey: 'player_id', as: 'seedingParticipations' });
+
 // Export all models
 module.exports = {
   Player,
@@ -59,5 +67,7 @@ module.exports = {
   RolePermission,
   SquadRolePermission,
   StatsTemplate,
-  StatsTemplateRoleMapping
+  StatsTemplateRoleMapping,
+  SeedingSession,
+  SeedingParticipant
 };

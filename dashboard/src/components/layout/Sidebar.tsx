@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, List, Users, Clock, Shield, UserX, Key, Layers, Image } from 'lucide-react'
+import { LayoutDashboard, List, Users, Clock, Shield, UserX, Key, Layers, Image, Sprout } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuth } from '../../hooks/useAuth'
 import type { Permission } from '../../types/auth'
@@ -16,6 +16,7 @@ const navigation: NavItem[] = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Whitelist', href: '/whitelist', icon: List, permission: 'VIEW_WHITELIST' },
   { name: 'Members', href: '/members', icon: Users, permission: 'VIEW_MEMBERS' },
+  { name: 'Seeding', href: '/seeding', icon: Sprout, permission: 'VIEW_SEEDING' },
   { name: 'Duty Stats', href: '/duty', icon: Clock, disabled: true, permission: 'VIEW_DUTY' },
   { name: 'Audit Logs', href: '/audit', icon: Shield, permission: 'VIEW_AUDIT' },
   { name: 'Unlinked Staff', href: '/security/unlinked-staff', icon: UserX, permission: 'VIEW_SECURITY' },

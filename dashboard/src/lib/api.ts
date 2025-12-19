@@ -48,6 +48,14 @@ import type {
   ResetSquadGroupsResponse,
 } from '../types/squadgroups'
 import type {
+  SeedingSession,
+  SeedingSessionWithStats,
+  ServerInfo,
+  CreateSessionRequest,
+  SessionsListResponse,
+  ParticipantsListResponse,
+} from '../types/seeding'
+import type {
   StatsTemplatesListResponse,
   StatsTemplateDetailResponse,
   RoleMappingsListResponse,
@@ -398,6 +406,68 @@ export const statsTemplatesApi = {
 
   seed: async (): Promise<SeedTemplatesResponse> => {
     const { data } = await api.post<SeedTemplatesResponse>('/stats-templates/seed')
+    return data
+  },
+}
+
+// Seeding API
+export const seedingApi = {
+  getServers: async (): Promise<{ success: boolean; data: ServerInfo[] }> => {
+    const { data } = await api.get<{ success: boolean; data: ServerInfo[] }>('/seeding/servers')
+    return data
+  },
+
+  listSessions: async (params?: {
+    page?: number
+    limit?: number
+    status?: string
+    sortBy?: string
+    sortOrder?: string
+  }): Promise<{ success: boolean; data: SessionsListResponse }> => {
+    const { data } = await api.get<{ success: boolean; data: SessionsListResponse }>('/seeding/sessions', { params })
+    return data
+  },
+
+  getActiveSession: async (): Promise<{ success: boolean; data: SeedingSessionWithStats | null }> => {
+    const { data } = await api.get<{ success: boolean; data: SeedingSessionWithStats | null }>('/seeding/sessions/active')
+    return data
+  },
+
+  getSession: async (id: number): Promise<{ success: boolean; data: SeedingSessionWithStats }> => {
+    const { data } = await api.get<{ success: boolean; data: SeedingSessionWithStats }>(`/seeding/sessions/${id}`)
+    return data
+  },
+
+  getParticipants: async (
+    sessionId: number,
+    params?: {
+      page?: number
+      limit?: number
+      status?: string
+      participantType?: string
+      sortBy?: string
+      sortOrder?: string
+    }
+  ): Promise<{ success: boolean; data: ParticipantsListResponse }> => {
+    const { data } = await api.get<{ success: boolean; data: ParticipantsListResponse }>(
+      `/seeding/sessions/${sessionId}/participants`,
+      { params }
+    )
+    return data
+  },
+
+  createSession: async (request: CreateSessionRequest): Promise<{ success: boolean; data: SeedingSession }> => {
+    const { data } = await api.post<{ success: boolean; data: SeedingSession }>('/seeding/sessions', request)
+    return data
+  },
+
+  closeSession: async (id: number): Promise<{ success: boolean; data: SeedingSession }> => {
+    const { data } = await api.post<{ success: boolean; data: SeedingSession }>(`/seeding/sessions/${id}/close`)
+    return data
+  },
+
+  cancelSession: async (id: number, reason?: string): Promise<{ success: boolean; data: SeedingSession }> => {
+    const { data } = await api.post<{ success: boolean; data: SeedingSession }>(`/seeding/sessions/${id}/cancel`, { reason })
     return data
   },
 }

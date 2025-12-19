@@ -11,6 +11,7 @@ const membersRoutes = require('./members');
 const permissionsRoutes = require('./permissions');
 const squadgroupsRoutes = require('./squadgroups');
 const statsTemplatesRoutes = require('./statsTemplates');
+const seedingRoutes = require('./seeding');
 const { requireStaff, refreshUserRoles } = require('../middleware/auth');
 
 // Mount routes
@@ -27,6 +28,7 @@ router.use('/members', refreshUserRoles, requireStaff, membersRoutes);
 router.use('/permissions', refreshUserRoles, requireStaff, permissionsRoutes);
 router.use('/squadgroups', refreshUserRoles, requireStaff, squadgroupsRoutes);
 router.use('/stats-templates', refreshUserRoles, requireStaff, statsTemplatesRoutes);
+router.use('/seeding', refreshUserRoles, requireStaff, seedingRoutes);
 
 // Health check endpoint (public)
 router.get('/health', (req, res) => {

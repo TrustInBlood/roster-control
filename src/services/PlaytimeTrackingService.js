@@ -1,3 +1,4 @@
+const EventEmitter = require('events');
 const { console: loggerConsole } = require('../utils/logger');
 const { Player } = require('../database/models');
 const { Server } = require('../database/models');
@@ -6,9 +7,15 @@ const PlayerSession = require('../database/models/PlayerSession');
 /**
  * Playtime Tracking Service
  * Polls Squad servers every 60 seconds to track player sessions via diff detection
+ *
+ * Events emitted:
+ * - 'playerJoined': { serverId, steamId, eosId, username, playerId, playerCount }
+ * - 'playerLeft': { serverId, steamId, username, playerId, durationMinutes, playerCount }
+ * - 'playerCountUpdate': { serverId, playerCount, steamIds }
  */
-class PlaytimeTrackingService {
+class PlaytimeTrackingService extends EventEmitter {
   constructor(logger, connectionManager) {
+    super();
     this.logger = logger;
     this.connectionManager = connectionManager;
 
@@ -196,6 +203,13 @@ class PlaytimeTrackingService {
         await this.handleDepartedPlayer(serverId, steamId, playerCount);
       }
     }
+
+    // Emit playerCountUpdate event with current state
+    this.emit('playerCountUpdate', {
+      serverId,
+      playerCount,
+      steamIds: Array.from(currentPlayers)
+    });
   }
 
   /**
@@ -248,6 +262,16 @@ class PlaytimeTrackingService {
 
       loggerConsole.log(`Player joined: ${username} (${steamId}) on ${serverId}`);
 
+      // Emit playerJoined event for other services (e.g., SeedingSessionService)
+      this.emit('playerJoined', {
+        serverId,
+        steamId,
+        eosId,
+        username,
+        playerId: player.id,
+        playerCount
+      });
+
     } catch (error) {
       loggerConsole.error(`Error handling new player ${steamId}:`, error.message);
     }
@@ -299,6 +323,16 @@ class PlaytimeTrackingService {
       this.activeSessions.delete(sessionKey);
 
       loggerConsole.log(`Player left: ${username} (${steamId}) from ${serverId} - Duration: ${session.durationMinutes} minutes`);
+
+      // Emit playerLeft event for other services (e.g., SeedingSessionService)
+      this.emit('playerLeft', {
+        serverId,
+        steamId,
+        username,
+        playerId,
+        durationMinutes: session.durationMinutes,
+        playerCount
+      });
 
     } catch (error) {
       loggerConsole.error(`Error handling departed player ${steamId}:`, error.message);
