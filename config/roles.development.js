@@ -26,6 +26,7 @@ const COMMAND_PERMISSIONS = {
   'reloadposts': ['1365205433236717598'], // Admin roles can reload info posts config
   'checkenv': ['1365205433236717598'],    // Admin roles can check environment
   'addmember': ['1444815201516912720'],  // Applications role
+  'promote': ['1444815201516912720'],    // Applications role: Promote users to Member or Moderator T1
   'dashboard': ['1365205433236717598'],  // Admin roles can access dashboard link
 
   // Public commands

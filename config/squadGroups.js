@@ -27,12 +27,21 @@ const SQUAD_GROUPS = {
     ]
   },
   
-  // Moderator - Basic admin permissions
-  Moderator: {
+  // Moderator T2 - Senior moderator permissions
+  ModeratorT2: {
     priority: 100,
     permissions: 'canseeadminchat,chat,reserve,teamchange',
     discordRoles: [
-      DISCORD_ROLES.MODERATOR
+      DISCORD_ROLES.MODERATOR_T2
+    ]
+  },
+
+  // Moderator T1 - Entry level moderator permissions
+  ModeratorT1: {
+    priority: 50,
+    permissions: 'canseeadminchat,chat,reserve',
+    discordRoles: [
+      DISCORD_ROLES.MODERATOR_T1
     ]
   },
   

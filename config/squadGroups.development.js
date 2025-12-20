@@ -27,12 +27,21 @@ const SQUAD_GROUPS = {
     ].filter(Boolean)
   },
   
-  // Moderator - Basic admin permissions (for testing)
-  Moderator: {
+  // Moderator T2 - Senior moderator permissions (for testing)
+  ModeratorT2: {
     priority: 100,
+    permissions: 'canseeadminchat,chat,reserve,teamchange',
+    discordRoles: [
+      // DISCORD_ROLES.MODERATOR_T2   // Add when you create "Test Moderator T2" role
+    ].filter(Boolean)
+  },
+
+  // Moderator T1 - Entry level moderator permissions (for testing)
+  ModeratorT1: {
+    priority: 50,
     permissions: 'canseeadminchat,chat,reserve',
     discordRoles: [
-      // DISCORD_ROLES.MODERATOR      // Add when you create "Test Moderator" role
+      // DISCORD_ROLES.MODERATOR_T1   // Add when you create "Test Moderator T1" role
     ].filter(Boolean)
   },
   

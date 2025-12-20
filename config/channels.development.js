@@ -23,6 +23,10 @@ const CHANNELS = {
   WHITELIST_POST: '1448167332764712960', // Whitelist channel
   // Channel where /stats command can be used
   STATS_COMMAND: '1448167332764712960', // Replace with stats channel ID
+  // Moderator channels (using BOT_LOGS for dev)
+  MODERATOR_CHAT: '1416292357887758439',  // Moderator chat for welcome messages
+  ADMIN_ACADEMY: '1416292357887758439',   // Admin academy channel reference
+  MOD_RULES: '1416292357887758439',       // Moderator rules channel reference
 };
 
 /**
@@ -39,6 +43,7 @@ const NOTIFICATION_ROUTES = {
   account_link: 'BOT_LOGS',
   whitelist: 'BOT_LOGS',
   member_addition: 'MEMBER_ADDITION_LOGS',
+  moderator_addition: 'MODERATOR_CHAT',
   command_usage: 'BOT_LOGS',
   error: 'BOT_LOGS',
   warning: 'BOT_LOGS',

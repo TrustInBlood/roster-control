@@ -14,7 +14,8 @@ const DISCORD_ROLES = {
   SENIOR_ADMIN: '1363025129814233190',     // "Senior Admin"
   OG_ADMIN: '1363017008039329972',         // "OG Admin"
   SQUAD_ADMIN: '814554233377652736',       // "Squad Admin"
-  MODERATOR: '1285786746948423730',       // "Moderator"
+  MODERATOR_T1: '1449608700095496212',    // "Moderator T1" - Entry level moderator
+  MODERATOR_T2: '1285786746948423730',    // "Moderator T2" - Senior moderator (formerly just "Moderator")
   STAFF: '1397788169264562267',           // "Staff"
   TICKET_SUPPORT: '1221983850440429608',  // "Ticket Support"
   APPLICATIONS: '1332116503260168233',     // "Applications" - Handles member applications
@@ -101,7 +102,8 @@ function getAllMemberRoles() {
 function getAllStaffRoles() {
   const staffRoles = [
     ...getAllAdminRoles(),
-    DISCORD_ROLES.MODERATOR,
+    DISCORD_ROLES.MODERATOR_T1,
+    DISCORD_ROLES.MODERATOR_T2,
     DISCORD_ROLES.STAFF,
     DISCORD_ROLES.TICKET_SUPPORT
   ].filter(Boolean);

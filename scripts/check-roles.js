@@ -66,7 +66,8 @@ client.once('ready', async () => {
     const adminRoles = [
       DISCORD_ROLES.HEAD_ADMIN,
       DISCORD_ROLES.SQUAD_ADMIN,
-      DISCORD_ROLES.MODERATOR,
+      DISCORD_ROLES.MODERATOR_T1,
+      DISCORD_ROLES.MODERATOR_T2,
       DISCORD_ROLES.SENIOR_ADMIN,
       DISCORD_ROLES.ADMIN
     ].filter(Boolean);

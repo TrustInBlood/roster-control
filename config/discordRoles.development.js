@@ -14,8 +14,9 @@ const DISCORD_ROLES_DEV = {
   SENIOR_ADMIN: null,                         // CREATE: "Test Senior Admin"
   OG_ADMIN: null,                            // CREATE: "Test OG Admin"
   SQUAD_ADMIN: '1449526271162712295',        // CREATE: "Test Squad Admin"
-  MODERATOR: null,                           // CREATE: "Test Moderator"
-  STAFF: '1420297163166191627',                               // CREATE: "Test Staff"
+  MODERATOR_T1: '1452011419204714678',       // "Test Moderator T1" - Entry level moderator
+  MODERATOR_T2: null,                        // CREATE: "Test Moderator T2" - Senior moderator
+  STAFF: '1420297163166191627',              // CREATE: "Test Staff"
   TICKET_SUPPORT: null,                      // CREATE: "Test Ticket Support"
   APPLICATIONS: '1444815201516912720',                        // CREATE: "Test Applications" - Handles member applications
 
@@ -96,7 +97,8 @@ function getAllMemberRoles() {
 function getAllStaffRoles() {
   const staffRoles = [
     ...getAllAdminRoles(),
-    DISCORD_ROLES_DEV.MODERATOR,
+    DISCORD_ROLES_DEV.MODERATOR_T1,
+    DISCORD_ROLES_DEV.MODERATOR_T2,
     DISCORD_ROLES_DEV.STAFF,
     DISCORD_ROLES_DEV.TICKET_SUPPORT
   ].filter(Boolean);
