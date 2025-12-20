@@ -174,6 +174,21 @@ export const whitelistApi = {
     const { data } = await api.put<{ success: boolean; entry: WhitelistEntry }>(`/whitelist/entry/${id}`, request)
     return data
   },
+
+  upgradeConfidence: async (steamid64: string, reason: string): Promise<{
+    success: boolean
+    previousConfidence: number
+    newConfidence: number
+    message: string
+  }> => {
+    const { data } = await api.post<{
+      success: boolean
+      previousConfidence: number
+      newConfidence: number
+      message: string
+    }>(`/whitelist/${steamid64}/upgrade-confidence`, { reason })
+    return data
+  },
 }
 
 // Audit API

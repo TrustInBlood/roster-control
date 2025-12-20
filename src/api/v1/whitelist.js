@@ -843,4 +843,96 @@ router.post('/:steamid64/revoke', requireAuth, requirePermission('REVOKE_WHITELI
   }
 });
 
+// POST /api/v1/whitelist/:steamid64/upgrade-confidence - Upgrade account link confidence to 1.0
+router.post('/:steamid64/upgrade-confidence', requireAuth, requirePermission('GRANT_WHITELIST'), async (req, res) => {
+  try {
+    const { PlayerDiscordLink } = require('../../database/models');
+    const { triggerUserRoleSync } = require('../../utils/triggerUserRoleSync');
+    const { steamid64 } = req.params;
+    const { reason } = req.body;
+
+    if (!reason) {
+      return res.status(400).json({ error: 'Reason is required for confidence upgrade' });
+    }
+
+    // Find the account link for this Steam ID
+    const accountLink = await PlayerDiscordLink.findOne({
+      where: {
+        steamid64,
+        is_primary: true
+      }
+    });
+
+    if (!accountLink) {
+      return res.status(404).json({ error: 'No account link found for this Steam ID' });
+    }
+
+    if (parseFloat(accountLink.confidence_score) >= 1.0) {
+      return res.status(400).json({ error: 'Account link already has maximum confidence (100%)' });
+    }
+
+    const beforeConfidence = accountLink.confidence_score;
+    const upgraded_by = `${req.user.username} (${req.user.id})`;
+
+    // Upgrade confidence to 1.0
+    await accountLink.update({
+      confidence_score: 1.0,
+      metadata: {
+        ...accountLink.metadata,
+        confidence_upgrade: {
+          upgraded_by: req.user.id,
+          upgraded_by_name: req.user.username,
+          upgraded_at: new Date().toISOString(),
+          previous_confidence: beforeConfidence,
+          reason,
+          source: 'dashboard'
+        }
+      }
+    });
+
+    // Trigger role sync to upgrade any security-blocked whitelist entries
+    try {
+      await triggerUserRoleSync(accountLink.discord_user_id, 'confidence_upgrade');
+    } catch (syncError) {
+      logger.warn('Role sync after confidence upgrade failed (non-blocking)', {
+        error: syncError.message,
+        discordUserId: accountLink.discord_user_id
+      });
+    }
+
+    // Log to audit
+    await AuditLog.logAction({
+      actionType: 'confidence_upgrade',
+      actorType: 'dashboard_user',
+      actorId: req.user.id,
+      actorName: req.user.username,
+      targetType: 'player',
+      targetId: steamid64,
+      targetName: accountLink.username || steamid64,
+      description: `Upgraded account link confidence from ${(beforeConfidence * 100).toFixed(0)}% to 100%: ${reason}`,
+      beforeState: { confidence_score: beforeConfidence },
+      afterState: { confidence_score: 1.0 },
+      metadata: { source: 'dashboard', reason, discord_user_id: accountLink.discord_user_id }
+    });
+
+    logger.info('Account link confidence upgraded via dashboard', {
+      steamid64,
+      discordUserId: accountLink.discord_user_id,
+      beforeConfidence,
+      upgradedBy: upgraded_by,
+      reason
+    });
+
+    res.json({
+      success: true,
+      previousConfidence: beforeConfidence,
+      newConfidence: 1.0,
+      message: `Successfully upgraded confidence from ${(beforeConfidence * 100).toFixed(0)}% to 100%`
+    });
+  } catch (error) {
+    logger.error('Error upgrading confidence', { error: error.message });
+    res.status(500).json({ error: 'Failed to upgrade confidence' });
+  }
+});
+
 module.exports = router;

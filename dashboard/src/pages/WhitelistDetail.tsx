@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Plus, Trash2, Clock, User, Shield, History, Pencil } from 'lucide-react'
-import { useWhitelistDetail, useExtendWhitelist, useRevokeWhitelist, useRevokeWhitelistEntry, useEditWhitelistEntry } from '../hooks/useWhitelist'
+import { ArrowLeft, Plus, Trash2, Clock, User, Shield, History, Pencil, TrendingUp } from 'lucide-react'
+import { useWhitelistDetail, useExtendWhitelist, useRevokeWhitelist, useRevokeWhitelistEntry, useEditWhitelistEntry, useUpgradeConfidence } from '../hooks/useWhitelist'
 import { cn, formatDateTime, formatRelativeTime, getStatusColor, getSourceColor } from '../lib/utils'
 import CopyButton from '../components/ui/CopyButton'
 import type { ExtendWhitelistRequest, RevokeWhitelistRequest, EditWhitelistRequest, WhitelistEntry } from '../types/whitelist'
@@ -14,6 +14,7 @@ export default function WhitelistDetail() {
   const [showRevokeModal, setShowRevokeModal] = useState(false)
   const [showRevokeEntryModal, setShowRevokeEntryModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [showUpgradeConfidenceModal, setShowUpgradeConfidenceModal] = useState(false)
   const [selectedEntry, setSelectedEntry] = useState<WhitelistEntry | null>(null)
 
   if (isLoading) {
@@ -140,17 +141,29 @@ export default function WhitelistDetail() {
           </div>
           {accountLink ? (
             <dl className="space-y-2 text-sm">
-              <div>
-                <dt className="text-gray-400">Confidence</dt>
-                <dd className="text-white">
-                  <span className={cn(
-                    'font-medium',
-                    accountLink.confidence_score >= 1.0 ? 'text-green-400' :
-                    accountLink.confidence_score >= 0.7 ? 'text-yellow-400' : 'text-red-400'
-                  )}>
-                    {(accountLink.confidence_score * 100).toFixed(0)}%
-                  </span>
-                </dd>
+              <div className="flex items-center justify-between">
+                <div>
+                  <dt className="text-gray-400">Confidence</dt>
+                  <dd className="text-white">
+                    <span className={cn(
+                      'font-medium',
+                      accountLink.confidence_score >= 1.0 ? 'text-green-400' :
+                      accountLink.confidence_score >= 0.7 ? 'text-yellow-400' : 'text-red-400'
+                    )}>
+                      {(accountLink.confidence_score * 100).toFixed(0)}%
+                    </span>
+                  </dd>
+                </div>
+                {accountLink.confidence_score < 1.0 && (
+                  <button
+                    onClick={() => setShowUpgradeConfidenceModal(true)}
+                    className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs font-medium transition-colors flex items-center gap-1"
+                    title="Upgrade to 100% confidence"
+                  >
+                    <TrendingUp className="w-3 h-3" />
+                    Upgrade
+                  </button>
+                )}
               </div>
               <div>
                 <dt className="text-gray-400">Source</dt>
@@ -324,6 +337,18 @@ export default function WhitelistDetail() {
           onClose={() => setShowRevokeModal(false)}
           onSuccess={() => {
             setShowRevokeModal(false)
+          }}
+        />
+      )}
+
+      {/* Upgrade Confidence Modal */}
+      {showUpgradeConfidenceModal && accountLink && (
+        <UpgradeConfidenceModal
+          steamid64={steamid64!}
+          currentConfidence={accountLink.confidence_score}
+          onClose={() => setShowUpgradeConfidenceModal(false)}
+          onSuccess={() => {
+            setShowUpgradeConfidenceModal(false)
           }}
         />
       )}
@@ -654,6 +679,83 @@ function RevokeModal({
               className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
             >
               {revokeMutation.isPending ? 'Revoking...' : 'Revoke All'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// Upgrade Confidence Modal Component
+function UpgradeConfidenceModal({
+  steamid64,
+  currentConfidence,
+  onClose,
+  onSuccess,
+}: {
+  steamid64: string
+  currentConfidence: number
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const upgradeMutation = useUpgradeConfidence()
+  const [reason, setReason] = useState('')
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!reason.trim()) return
+
+    try {
+      await upgradeMutation.mutateAsync({ steamid64, reason })
+      onSuccess()
+    } catch {
+      // Error handled by mutation state
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-discord-light rounded-lg w-full max-w-md mx-4 p-4">
+        <h3 className="text-lg font-semibold text-white mb-4">Upgrade Account Confidence</h3>
+        <p className="text-sm text-gray-400 mb-4">
+          This will upgrade the account link confidence from{' '}
+          <span className="text-yellow-400 font-medium">{(currentConfidence * 100).toFixed(0)}%</span> to{' '}
+          <span className="text-green-400 font-medium">100%</span>.
+        </p>
+        <div className="bg-discord-darker rounded p-3 mb-4 text-sm text-gray-300">
+          <p>Upgrading confidence will:</p>
+          <ul className="list-disc list-inside mt-1 text-xs text-gray-400">
+            <li>Mark this Steam account as fully verified</li>
+            <li>Enable staff whitelist access if applicable</li>
+            <li>Trigger automatic role sync for any security-blocked entries</li>
+          </ul>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Reason for upgrade (required)"
+            rows={2}
+            required
+            className="w-full bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 resize-none"
+          />
+          {upgradeMutation.error && (
+            <p className="text-sm text-red-400">
+              {(upgradeMutation.error as { response?: { data?: { error?: string } } }).response?.data?.error
+                || (upgradeMutation.error as Error).message}
+            </p>
+          )}
+          <div className="flex justify-end gap-3">
+            <button type="button" onClick={onClose} className="text-gray-400 hover:text-white">
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={upgradeMutation.isPending || !reason.trim()}
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
+            >
+              {upgradeMutation.isPending ? 'Upgrading...' : 'Upgrade to 100%'}
             </button>
           </div>
         </form>

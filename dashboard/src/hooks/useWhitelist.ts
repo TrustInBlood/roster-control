@@ -94,3 +94,15 @@ export function useEditWhitelistEntry() {
     },
   })
 }
+
+export function useUpgradeConfidence() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ steamid64, reason }: { steamid64: string; reason: string }) =>
+      whitelistApi.upgradeConfidence(steamid64, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['whitelist'] })
+    },
+  })
+}
