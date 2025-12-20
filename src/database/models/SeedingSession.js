@@ -125,6 +125,12 @@ const SeedingSession = sequelize.define('SeedingSession', {
     type: DataTypes.JSON,
     allowNull: true,
     comment: 'Additional session data (extensible)'
+  },
+
+  custom_broadcast_message: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: 'Custom broadcast message template for seeding call'
   }
 }, {
   tableName: 'seeding_sessions',
@@ -174,7 +180,8 @@ SeedingSession.createSession = async function(config) {
     rewards,
     sourceServerIds,
     startedBy,
-    startedByName
+    startedByName,
+    customBroadcastMessage
   } = config;
 
   return await this.create({
@@ -194,7 +201,8 @@ SeedingSession.createSession = async function(config) {
     started_by: startedBy,
     started_by_name: startedByName,
     participants_count: 0,
-    rewards_granted_count: 0
+    rewards_granted_count: 0,
+    custom_broadcast_message: customBroadcastMessage || null
   });
 };
 

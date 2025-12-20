@@ -10,15 +10,19 @@ interface CreateSessionModalProps {
 
 type Step = 'target' | 'threshold' | 'rewards' | 'confirm'
 
+// Default broadcast message template
+const DEFAULT_BROADCAST_MESSAGE = '[SEEDING] B&B Server {server} needs players! Switch now for up to {reward} whitelist reward!'
+
 export default function CreateSessionModal({ onClose, onSuccess }: CreateSessionModalProps) {
   const [step, setStep] = useState<Step>('target')
   const [targetServerId, setTargetServerId] = useState<string>('')
-  const [playerThreshold, setPlayerThreshold] = useState<number>(50)
+  const [playerThresholdStr, setPlayerThresholdStr] = useState<string>('50')
   const [rewards, setRewards] = useState<RewardsConfig>({
     switch: { value: 1, unit: 'days' },
     playtime: { value: 1, unit: 'days', thresholdMinutes: 30 },
     completion: { value: 1, unit: 'days' },
   })
+  const [customBroadcastMessage, setCustomBroadcastMessage] = useState<string>(DEFAULT_BROADCAST_MESSAGE)
 
   const { data: servers, isLoading: loadingServers } = useServers()
   const createSession = useCreateSession()
@@ -47,8 +51,10 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
     switch (step) {
       case 'target':
         return !!targetServerId
-      case 'threshold':
-        return playerThreshold >= 10
+      case 'threshold': {
+        const threshold = parseInt(playerThresholdStr) || 0
+        return threshold >= 10 && threshold <= 99
+      }
       case 'rewards':
         return rewards.switch || rewards.playtime || rewards.completion
       case 'confirm':
@@ -73,10 +79,12 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
   }
 
   const handleSubmit = async () => {
+    const playerThreshold = parseInt(playerThresholdStr) || 50
     const request: CreateSessionRequest = {
       targetServerId,
       playerThreshold,
       rewards,
+      customBroadcastMessage: customBroadcastMessage !== DEFAULT_BROADCAST_MESSAGE ? customBroadcastMessage : undefined,
     }
 
     try {
@@ -202,8 +210,12 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
                   type="number"
                   min={10}
                   max={99}
-                  value={playerThreshold}
-                  onChange={(e) => setPlayerThreshold(Math.min(99, parseInt(e.target.value) || 10))}
+                  value={playerThresholdStr}
+                  onChange={(e) => setPlayerThresholdStr(e.target.value)}
+                  onBlur={(e) => {
+                    const val = parseInt(e.target.value) || 50
+                    setPlayerThresholdStr(String(Math.max(10, Math.min(99, val))))
+                  }}
                   className="w-full bg-discord-lighter border border-discord-lighter rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-discord-blurple"
                 />
                 <p className="text-gray-500 text-xs mt-1">
@@ -229,6 +241,29 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
                 <p className="text-gray-400 text-sm mb-4">
                   Configure the whitelist rewards. All enabled rewards stack additively.
                 </p>
+              </div>
+
+              {/* Custom Broadcast Message */}
+              <div className="bg-discord-lighter rounded-lg p-4">
+                <label className="text-white font-medium block mb-2">Broadcast Message</label>
+                <p className="text-gray-400 text-xs mb-2">
+                  Customize the message sent to source servers. Use {'{server}'} for server number and {'{reward}'} for reward duration.
+                </p>
+                <textarea
+                  value={customBroadcastMessage}
+                  onChange={(e) => setCustomBroadcastMessage(e.target.value)}
+                  rows={2}
+                  className="w-full bg-discord-light border border-discord-lighter rounded px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-discord-blurple resize-none"
+                  placeholder={DEFAULT_BROADCAST_MESSAGE}
+                />
+                <div className="mt-2 p-2 bg-discord-light rounded border border-discord-lighter">
+                  <div className="text-gray-400 text-xs mb-1">Preview:</div>
+                  <div className="text-white text-sm">
+                    {customBroadcastMessage
+                      .replace(/\{server\}/g, targetServerId.replace(/\D/g, '') || '1')
+                      .replace(/\{reward\}/g, `${totalRewardDays} days`)}
+                  </div>
+                </div>
               </div>
 
               {/* Switch Reward */}
@@ -257,9 +292,16 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
                       onChange={(e) =>
                         setRewards({
                           ...rewards,
-                          switch: { ...rewards.switch!, value: parseInt(e.target.value) || 1 },
+                          switch: { ...rewards.switch!, value: parseInt(e.target.value) || 0 },
                         })
                       }
+                      onBlur={(e) => {
+                        const val = parseInt(e.target.value) || 1
+                        setRewards({
+                          ...rewards,
+                          switch: { ...rewards.switch!, value: Math.max(1, val) },
+                        })
+                      }}
                       className="w-20 bg-discord-light border border-discord-lighter rounded px-2 py-1 text-white text-sm"
                     />
                     <select
@@ -308,9 +350,16 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
                         onChange={(e) =>
                           setRewards({
                             ...rewards,
-                            playtime: { ...rewards.playtime!, value: parseInt(e.target.value) || 1 },
+                            playtime: { ...rewards.playtime!, value: parseInt(e.target.value) || 0 },
                           })
                         }
+                        onBlur={(e) => {
+                          const val = parseInt(e.target.value) || 1
+                          setRewards({
+                            ...rewards,
+                            playtime: { ...rewards.playtime!, value: Math.max(1, val) },
+                          })
+                        }}
                         className="w-20 bg-discord-light border border-discord-lighter rounded px-2 py-1 text-white text-sm"
                       />
                       <select
@@ -339,10 +388,20 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
                             ...rewards,
                             playtime: {
                               ...rewards.playtime!,
-                              thresholdMinutes: parseInt(e.target.value) || 5,
+                              thresholdMinutes: parseInt(e.target.value) || 0,
                             },
                           })
                         }
+                        onBlur={(e) => {
+                          const val = parseInt(e.target.value) || 30
+                          setRewards({
+                            ...rewards,
+                            playtime: {
+                              ...rewards.playtime!,
+                              thresholdMinutes: Math.max(5, Math.min(120, val)),
+                            },
+                          })
+                        }}
                         className="w-16 bg-discord-light border border-discord-lighter rounded px-2 py-1 text-white text-sm"
                       />
                       <span className="text-gray-400 text-sm">minutes</span>
@@ -377,9 +436,16 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
                       onChange={(e) =>
                         setRewards({
                           ...rewards,
-                          completion: { ...rewards.completion!, value: parseInt(e.target.value) || 1 },
+                          completion: { ...rewards.completion!, value: parseInt(e.target.value) || 0 },
                         })
                       }
+                      onBlur={(e) => {
+                        const val = parseInt(e.target.value) || 1
+                        setRewards({
+                          ...rewards,
+                          completion: { ...rewards.completion!, value: Math.max(1, val) },
+                        })
+                      }}
                       className="w-20 bg-discord-light border border-discord-lighter rounded px-2 py-1 text-white text-sm"
                     />
                     <select
@@ -425,7 +491,7 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
                 </div>
                 <div className="bg-discord-lighter rounded-lg p-3">
                   <div className="text-gray-400 text-xs">Player Threshold</div>
-                  <div className="text-white font-medium">{playerThreshold} players</div>
+                  <div className="text-white font-medium">{playerThresholdStr} players</div>
                 </div>
                 <div className="bg-discord-lighter rounded-lg p-3">
                   <div className="text-gray-400 text-xs mb-2">Rewards</div>
@@ -455,6 +521,14 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
                       ? sourceServers.map((s) => s.name).join(', ')
                       : <span className="text-gray-500 italic">None selected</span>
                     }
+                  </div>
+                </div>
+                <div className="bg-discord-lighter rounded-lg p-3">
+                  <div className="text-gray-400 text-xs mb-1">Broadcast Message</div>
+                  <div className="text-white text-sm">
+                    {customBroadcastMessage
+                      .replace(/\{server\}/g, targetServerId.replace(/\D/g, '') || '1')
+                      .replace(/\{reward\}/g, `${totalRewardDays} days`)}
                   </div>
                 </div>
               </div>

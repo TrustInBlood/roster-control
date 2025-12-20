@@ -42,6 +42,7 @@ export interface SeedingSession {
   participants_count: number
   rewards_granted_count: number
   metadata: SeedingSessionMetadata | null
+  custom_broadcast_message: string | null
   createdAt: string
   updatedAt: string
 }
@@ -97,6 +98,7 @@ export interface CreateSessionRequest {
   rewards: RewardsConfig
   testMode?: boolean
   sourceServerIds?: string[] // Only used in test mode - manually specify source servers
+  customBroadcastMessage?: string // Custom message template with {server} and {reward} placeholders
 }
 
 export interface SessionsListResponse {

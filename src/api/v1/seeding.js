@@ -173,7 +173,8 @@ router.post('/sessions', requireAuth, requirePermission('MANAGE_SEEDING'), async
       playerThreshold,
       rewards,
       testMode,
-      sourceServerIds
+      sourceServerIds,
+      customBroadcastMessage
     } = req.body;
 
     // Validate required fields
@@ -228,7 +229,7 @@ router.post('/sessions', requireAuth, requirePermission('MANAGE_SEEDING'), async
     }
 
     const session = await seedingService.createSession(
-      { targetServerId, playerThreshold, rewards, testMode, sourceServerIds },
+      { targetServerId, playerThreshold, rewards, testMode, sourceServerIds, customBroadcastMessage },
       req.user.id,
       req.user.username || req.user.displayName
     );

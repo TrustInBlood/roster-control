@@ -146,7 +146,8 @@ class SeedingSessionService {
       playerThreshold,
       rewards,
       testMode = false,
-      sourceServerIds: manualSourceServerIds
+      sourceServerIds: manualSourceServerIds,
+      customBroadcastMessage
     } = config;
 
     // Get target server info
@@ -187,6 +188,7 @@ class SeedingSessionService {
       sourceServerIds,
       startedBy,
       startedByName,
+      customBroadcastMessage,
       metadata: testMode ? { testMode: true } : null
     });
 
@@ -915,7 +917,21 @@ class SeedingSessionService {
     const totalRewardMinutes = session.getTotalPossibleRewardMinutes();
     const formattedReward = formatRewardDuration(totalRewardMinutes);
     const testModePrefix = (bypassThreshold || this.isTestMode) ? '[TEST] ' : '';
-    const message = `${testModePrefix}[SEEDING] ${session.target_server_name} needs players! Switch now for up to ${formattedReward} whitelist reward!`;
+
+    // Extract server number from server ID (e.g., "server1" -> "1")
+    const serverNumber = session.target_server_id.replace(/\D/g, '') || session.target_server_id;
+
+    // Use custom message if provided, otherwise use default
+    let message;
+    if (session.custom_broadcast_message) {
+      // Replace placeholders in custom message
+      message = session.custom_broadcast_message
+        .replace(/\{server\}/g, serverNumber)
+        .replace(/\{reward\}/g, formattedReward);
+      message = `${testModePrefix}${message}`;
+    } else {
+      message = `${testModePrefix}[SEEDING] ${session.target_server_name} needs players! Switch now for up to ${formattedReward} whitelist reward!`;
+    }
 
     // In test mode or with bypass, broadcast to all specified servers
     // Otherwise, filter to only full/busy servers
