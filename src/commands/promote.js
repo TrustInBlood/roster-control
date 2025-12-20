@@ -35,7 +35,7 @@ const PROMOTION_TARGETS = {
     roles: [DISCORD_ROLES.MEMBER, DISCORD_ROLES.MODERATOR_T1, DISCORD_ROLES.STAFF],
     welcomeChannel: 'MODERATOR_CHAT',
     welcomeMessage: (userId) =>
-      `**Let's welcome our new moderator!!!** <@${userId}>\n` +
+      `**Let's welcome our new moderator!!!** <@${userId}>\n\n` +
       `Make sure to read all the rules in <#${CHANNELS.MOD_RULES}>\n` +
       `And visit the <#${CHANNELS.ADMIN_ACADEMY}> to learn about and earn access to BattleMetrics controls and Ticket Support!`,
     auditActionType: 'MODERATOR_PROMOTED',
