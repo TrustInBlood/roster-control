@@ -34,6 +34,9 @@ class SeedingSessionService {
     // Active session cache (only one allowed at a time)
     this.activeSession = null;
 
+    // Potential switchers: Map<steamId, { serverId, joinTime, participantId }>
+    this.potentialSwitchers = new Map();
+
     // Playtime accumulator for participants: Map<participantId, lastUpdateTime>
     this.playtimeTracking = new Map();
 
