@@ -30,13 +30,30 @@ class SquadJSConnectionManager {
       return;
     }
 
-    this.logger.info('Connecting to SquadJS servers', { 
+    this.logger.info('Connecting to SquadJS servers', {
       serverCount: this.servers.length,
       servers: this.servers.map(s => ({ id: s.id, name: s.name, host: s.host, port: s.port }))
     });
 
     for (const server of this.servers) {
       await this.connectToServer(server);
+    }
+
+    // Probe all servers after initial connection attempt (with delay to allow connections to establish)
+    setTimeout(() => {
+      this.probeAllConnectedServers();
+    }, 5000);
+  }
+
+  /**
+   * Probe all currently connected servers for available endpoints and fetch initial queue data
+   */
+  probeAllConnectedServers() {
+    this.logger.debug('Fetching initial queue data from connected servers');
+    for (const [serverId, connection] of this.connections) {
+      if (connection.socket && connection.socket.connected) {
+        this.probeServerEndpoints(serverId);
+      }
     }
   }
 
@@ -63,7 +80,8 @@ class SquadJSConnectionManager {
       reconnectAttempts: 0,
       state: this.STATES.CONNECTING,
       lastAttemptTime: Date.now(),
-      disconnectedAt: null
+      disconnectedAt: null,
+      serverInfo: null // Cache for queue data from UPDATED_SERVER_INFORMATION
     });
     this.setupEventHandlers(socket, server);
   }
@@ -139,6 +157,9 @@ class SquadJSConnectionManager {
       connection.reconnectAttempts = 0;
       connection.state = this.STATES.CONNECTED;
       connection.disconnectedAt = null;
+
+      // Probe available endpoints on connect to discover what SquadJS exposes
+      this.probeServerEndpoints(server.id);
 
       // Clear any pending reconnect timers
       if (this.reconnectTimers.has(server.id)) {
@@ -238,6 +259,51 @@ class SquadJSConnectionManager {
       });
     });
 
+    // Listen for server information updates (contains queue data)
+    socket.on('UPDATED_SERVER_INFORMATION', (data) => {
+      const connection = this.connections.get(server.id);
+      if (connection) {
+        this.logger.info('UPDATED_SERVER_INFORMATION received', {
+          serverId: server.id,
+          publicQueue: data?.publicQueue,
+          reserveQueue: data?.reserveQueue,
+          rawData: JSON.stringify(data).substring(0, 500)
+        });
+        connection.serverInfo = {
+          publicQueue: data?.publicQueue || 0,
+          reserveQueue: data?.reserveQueue || 0,
+          maxPlayers: data?.maxPlayers || 100,
+          currentMap: data?.currentMap || null,
+          nextMap: data?.nextMap || null,
+          updatedAt: Date.now()
+        };
+      }
+    });
+
+    // Listen for A2S information updates - use this as trigger to fetch queue data
+    socket.on('UPDATED_A2S_INFORMATION', (data) => {
+      const connection = this.connections.get(server.id);
+      if (connection) {
+        // A2S data is nested in 'raw' object with keys like MaxPlayers, PlayerCount_I, etc.
+        const raw = data?.raw || data;
+        const maxPlayers = raw?.MaxPlayers || raw?.maxPlayers;
+        const playerCount = raw?.PlayerCount_I ? parseInt(raw.PlayerCount_I, 10) : undefined;
+        const mapName = raw?.MapName_s || raw?.currentMap;
+
+        // Update serverInfo with A2S data
+        connection.serverInfo = {
+          ...connection.serverInfo,
+          maxPlayers: maxPlayers ?? connection.serverInfo?.maxPlayers ?? 100,
+          currentMap: mapName ?? connection.serverInfo?.currentMap ?? null,
+          a2sPlayerCount: playerCount,
+          updatedAt: Date.now()
+        };
+
+        // When A2S updates, also fetch queue data via RPC getters
+        this.fetchQueueData(server.id);
+      }
+    });
+
     // Listen for RCON responses/errors for debugging
     socket.on('rcon-response', (data) => {
       this.logger.debug('RCON response received', {
@@ -256,17 +322,17 @@ class SquadJSConnectionManager {
     });
 
     // Listen for any unhandled events for debugging (only log event names, not full data)
-    socket.onAny((eventName, ...args) => {
+    socket.onAny((eventName) => {
       const knownEvents = [
         ...eventTypes,
-        'connect', 'disconnect', 'connect_error', 
+        'connect', 'disconnect', 'connect_error',
         'rcon-response', 'rcon-error',
         'PLAYER_POSSESS', 'PLAYER_UNPOSSESS', 'PLAYER_SPAWN', 'PLAYER_REVIVED',
         'PLAYER_WARNED', 'PLAYER_KICKED', 'PLAYER_BANNED',
-        'UPDATED_A2S_INFORMATION', 'UPDATED_LAYER_INFORMATION', 'UPDATED_PLAYER_INFORMATION',
+        'UPDATED_A2S_INFORMATION', 'UPDATED_LAYER_INFORMATION', 'UPDATED_PLAYER_INFORMATION', 'UPDATED_SERVER_INFORMATION',
         'TICK_RATE', 'NEW_GAME', 'DEPLOYABLE_BUILT', 'DEPLOYABLE_DAMAGED'
       ];
-      
+
       if (!knownEvents.includes(eventName)) {
         // Only log unknown events if enabled in config (disabled in development by default)
         if (this.config.logging && this.config.logging.logSquadJSEvents) {
@@ -274,7 +340,6 @@ class SquadJSConnectionManager {
             serverId: server.id,
             serverName: server.name,
             eventName
-            // Removed args to reduce noise
           });
         }
       }
@@ -410,7 +475,7 @@ class SquadJSConnectionManager {
 
   disconnect() {
     // Clear all reconnection timers
-    for (const [serverId, timer] of this.reconnectTimers) {
+    for (const [, timer] of this.reconnectTimers) {
       clearTimeout(timer);
     }
     this.reconnectTimers.clear();
@@ -466,6 +531,138 @@ class SquadJSConnectionManager {
 
   getConnections() {
     return this.connections;
+  }
+
+  /**
+   * Fetch queue data from SquadJS using RPC-style property getters
+   * Called when UPDATED_A2S_INFORMATION event is received
+   */
+  fetchQueueData(serverId) {
+    const connection = this.connections.get(serverId);
+    if (!connection || !connection.socket || !connection.socket.connected) {
+      return;
+    }
+
+    const socket = connection.socket;
+
+    // Query publicQueue property
+    socket.emit('publicQueue', (value) => {
+      if (value !== undefined && value !== null) {
+        const conn = this.connections.get(serverId);
+        if (conn) {
+          conn.serverInfo = {
+            ...conn.serverInfo,
+            publicQueue: typeof value === 'number' ? value : parseInt(value, 10) || 0,
+            updatedAt: Date.now()
+          };
+          this.logger.debug('publicQueue fetched', { serverId, publicQueue: value });
+        }
+      }
+    });
+
+    // Query reserveQueue property
+    socket.emit('reserveQueue', (value) => {
+      if (value !== undefined && value !== null) {
+        const conn = this.connections.get(serverId);
+        if (conn) {
+          conn.serverInfo = {
+            ...conn.serverInfo,
+            reserveQueue: typeof value === 'number' ? value : parseInt(value, 10) || 0,
+            updatedAt: Date.now()
+          };
+          this.logger.debug('reserveQueue fetched', { serverId, reserveQueue: value });
+        }
+      }
+    });
+  }
+
+  /**
+   * Probe SquadJS endpoints to discover what data is available
+   * Called once on connect to each server
+   */
+  probeServerEndpoints(serverId) {
+    const connection = this.connections.get(serverId);
+    if (!connection || !connection.socket || !connection.socket.connected) {
+      return;
+    }
+
+    const socket = connection.socket;
+    // Include queue property getters in the probe
+    const endpoints = ['serverState', 'server', 'serverInfo', 'state', 'info', 'squads', 'maps', 'publicQueue', 'reserveQueue'];
+
+    this.logger.debug('Probing SquadJS endpoints', { serverId, endpoints });
+
+    endpoints.forEach(endpoint => {
+      socket.emit(endpoint, (response) => {
+        if (response !== undefined && response !== null) {
+          // For queue properties, cache the values
+          if (endpoint === 'publicQueue' || endpoint === 'reserveQueue') {
+            const value = typeof response === 'number' ? response : parseInt(response, 10) || 0;
+            connection.serverInfo = {
+              ...connection.serverInfo,
+              [endpoint]: value,
+              updatedAt: Date.now()
+            };
+            this.logger.info('Queue data fetched on connect', {
+              serverId,
+              [endpoint]: value
+            });
+          } else {
+            // Log other endpoint responses at debug level
+            this.logger.debug(`SquadJS endpoint "${endpoint}" responded`, {
+              serverId,
+              type: typeof response,
+              isArray: Array.isArray(response)
+            });
+          }
+        }
+      });
+    });
+  }
+
+  /**
+   * Query server info directly from SquadJS socket
+   * @param {string} serverId - Server ID to query
+   * @returns {Promise<Object|null>} - Server info or null
+   */
+  async queryServerInfo(serverId) {
+    const connection = this.connections.get(serverId);
+    if (!connection || !connection.socket || !connection.socket.connected) {
+      return null;
+    }
+
+    return new Promise((resolve) => {
+      let resolved = false;
+      const timeout = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          this.logger.debug('serverState query timeout', { serverId });
+          resolve(null);
+        }
+      }, 3000);
+
+      // Try 'serverState' endpoint
+      connection.socket.emit('serverState', (info) => {
+        if (resolved) return;
+        resolved = true;
+        clearTimeout(timeout);
+
+        if (info) {
+          // Update cached serverInfo with queue data if available
+          connection.serverInfo = {
+            ...connection.serverInfo,
+            publicQueue: info.publicQueue ?? connection.serverInfo?.publicQueue ?? 0,
+            reserveQueue: info.reserveQueue ?? connection.serverInfo?.reserveQueue ?? 0,
+            maxPlayers: info.maxPlayers ?? connection.serverInfo?.maxPlayers ?? 100,
+            currentMap: info.currentMap ?? info.layer ?? connection.serverInfo?.currentMap ?? null,
+            updatedAt: Date.now()
+          };
+          resolve(info);
+        } else {
+          resolve(null);
+        }
+      });
+    });
   }
 }
 

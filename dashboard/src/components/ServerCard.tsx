@@ -1,5 +1,5 @@
-import { Users, Wifi, WifiOff, Shield } from 'lucide-react'
-import type { ServerStatus } from '../types/servers'
+import { Users, Wifi, WifiOff, Shield, Clock } from 'lucide-react'
+import type { ServerStatus, OnlineStaff } from '../types/servers'
 
 interface ServerCardProps {
   server: ServerStatus
@@ -14,6 +14,38 @@ function getPlayerCountColor(playerCount: number, maxPlayers: number): string {
   if (percentage >= 50) return 'text-yellow-400'
   if (percentage >= 20) return 'text-orange-400'
   return 'text-gray-400'
+}
+
+/**
+ * Calculate whether text should be light or dark based on background color
+ * Uses relative luminance formula
+ */
+function getContrastTextColor(hexColor: string): string {
+  // Remove # if present
+  const hex = hexColor.replace('#', '')
+  const r = parseInt(hex.substring(0, 2), 16)
+  const g = parseInt(hex.substring(2, 4), 16)
+  const b = parseInt(hex.substring(4, 6), 16)
+
+  // Calculate relative luminance
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+
+  // Return white for dark backgrounds, dark for light backgrounds
+  return luminance > 0.5 ? '#1a1a1a' : '#ffffff'
+}
+
+/**
+ * Get role pill styles based on Discord role color
+ */
+function getRolePillStyles(staff: OnlineStaff): React.CSSProperties {
+  if (staff.roleColor) {
+    return {
+      backgroundColor: staff.roleColor,
+      color: getContrastTextColor(staff.roleColor)
+    }
+  }
+  // Default fallback style
+  return {}
 }
 
 /**
@@ -42,6 +74,8 @@ export default function ServerCard({ server }: ServerCardProps) {
   const connectionState = getConnectionState(server)
   const playerCountColor = getPlayerCountColor(server.playerCount, server.maxPlayers)
   const hasStaffOnline = server.onlineStaff.length > 0
+  const totalQueue = server.publicQueue + server.reserveQueue
+  const hasQueue = totalQueue > 0
 
   return (
     <div className="bg-discord-light rounded-lg p-5 hover:bg-discord-lighter transition-colors">
@@ -59,7 +93,7 @@ export default function ServerCard({ server }: ServerCardProps) {
           </div>
         </div>
 
-        {/* Player Count */}
+        {/* Player Count & Queue */}
         <div className="text-right">
           <div className={`text-2xl font-bold ${playerCountColor}`}>
             {server.playerCount}
@@ -69,6 +103,15 @@ export default function ServerCard({ server }: ServerCardProps) {
             <Users className="w-3 h-3" />
             <span>players</span>
           </div>
+          {hasQueue && (
+            <div className="flex items-center gap-1 justify-end text-xs text-yellow-400 mt-1">
+              <Clock className="w-3 h-3" />
+              <span>{totalQueue} in queue</span>
+              {server.reserveQueue > 0 && (
+                <span className="text-gray-500">({server.reserveQueue} res)</span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -91,7 +134,10 @@ export default function ServerCard({ server }: ServerCardProps) {
                 <span className="text-white truncate flex-1 mr-2">
                   {staff.displayName}
                 </span>
-                <span className="text-xs text-gray-500 bg-discord-darker px-2 py-0.5 rounded">
+                <span
+                  className="text-xs px-2 py-0.5 rounded bg-discord-darker text-gray-300"
+                  style={getRolePillStyles(staff)}
+                >
                   {staff.role}
                 </span>
               </div>

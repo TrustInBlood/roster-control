@@ -6,6 +6,7 @@ export interface OnlineStaff {
   steamId: string
   displayName: string
   role: string
+  roleColor?: string // Hex color from Discord role
 }
 
 /**
@@ -18,6 +19,8 @@ export interface ServerStatus {
   state: string
   playerCount: number
   maxPlayers: number
+  publicQueue: number
+  reserveQueue: number
   onlineStaff: OnlineStaff[]
   lastUpdate: string
 }

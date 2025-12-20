@@ -91,16 +91,32 @@ async function getOnlineStaff(steamIds) {
       const member = await guild.members.fetch(link.discord_user_id).catch(() => null);
       if (!member) continue;
 
-      const memberRoles = member.roles.cache.map(r => r.id);
-      const isStaff = memberRoles.some(roleId => allStaffRoles.includes(roleId));
+      const memberRoleIds = member.roles.cache.map(r => r.id);
+      const isStaff = memberRoleIds.some(roleId => allStaffRoles.includes(roleId));
 
       if (isStaff) {
-        const highestRole = getHighestAdminRole(memberRoles);
+        // Get the highest priority staff role and use its actual Discord name and color
+        const highestRole = getHighestAdminRole(memberRoleIds);
+        let roleName = 'Staff';
+        let roleColor = null;
+
+        if (highestRole?.roleId) {
+          const discordRole = member.roles.cache.get(highestRole.roleId);
+          if (discordRole) {
+            roleName = discordRole.name;
+            // Discord stores color as integer, convert to hex
+            if (discordRole.color !== 0) {
+              roleColor = '#' + discordRole.color.toString(16).padStart(6, '0');
+            }
+          }
+        }
+
         onlineStaff.push({
           discordId: link.discord_user_id,
           steamId: link.steamid64,
           displayName: member.displayName || member.user.username,
-          role: highestRole?.roleName || 'Staff'
+          role: roleName,
+          roleColor
         });
       }
     } catch (error) {
@@ -190,7 +206,7 @@ async function getServersStatus() {
   const servers = [];
 
   for (const [serverId, connectionData] of connections) {
-    const { server, socket, state } = connectionData;
+    const { server, socket, state, serverInfo } = connectionData;
 
     // Get active Steam IDs for this server (try socket first, then cache)
     const activeSteamIds = await getActiveSteamIdsForServer(playtimeService, serverId, socket);
@@ -199,13 +215,26 @@ async function getServersStatus() {
     // Get online staff for this server
     const onlineStaff = await getOnlineStaff(activeSteamIds);
 
+    // Try to query server info directly if we don't have queue data cached
+    let currentServerInfo = serverInfo;
+    if (socket && socket.connected && (!serverInfo || serverInfo.publicQueue === undefined)) {
+      await connectionManager.queryServerInfo(serverId);
+      // Re-fetch the connection data to get updated serverInfo
+      const updatedConnection = connections.get(serverId);
+      if (updatedConnection) {
+        currentServerInfo = updatedConnection.serverInfo;
+      }
+    }
+
     servers.push({
       id: serverId,
       name: server.name,
       connected: socket && socket.connected,
       state: state || 'unknown',
       playerCount,
-      maxPlayers: 100,
+      maxPlayers: currentServerInfo?.maxPlayers || 100,
+      publicQueue: currentServerInfo?.publicQueue || 0,
+      reserveQueue: currentServerInfo?.reserveQueue || 0,
       onlineStaff,
       lastUpdate: new Date().toISOString()
     });
