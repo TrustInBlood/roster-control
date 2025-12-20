@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, Server, Target, Award, ChevronRight, ChevronLeft, AlertTriangle, FlaskConical } from 'lucide-react'
+import { X, Server, Target, Award, ChevronRight, ChevronLeft, AlertTriangle } from 'lucide-react'
 import { useServers, useCreateSession } from '../../hooks/useSeeding'
 import type { RewardUnit, RewardsConfig, CreateSessionRequest } from '../../types/seeding'
 
@@ -14,8 +14,6 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
   const [step, setStep] = useState<Step>('target')
   const [targetServerId, setTargetServerId] = useState<string>('')
   const [playerThreshold, setPlayerThreshold] = useState<number>(50)
-  const [testMode, setTestMode] = useState<boolean>(false)
-  const [selectedSourceServerIds, setSelectedSourceServerIds] = useState<string[]>([])
   const [rewards, setRewards] = useState<RewardsConfig>({
     switch: { value: 1, unit: 'days' },
     playtime: { value: 1, unit: 'days', thresholdMinutes: 30 },
@@ -26,18 +24,7 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
   const createSession = useCreateSession()
 
   const selectedServer = servers?.find((s) => s.id === targetServerId)
-  const availableSourceServers = servers?.filter((s) => s.id !== targetServerId) || []
-  const sourceServers = testMode
-    ? availableSourceServers.filter((s) => selectedSourceServerIds.includes(s.id))
-    : availableSourceServers
-
-  const toggleSourceServer = (serverId: string) => {
-    setSelectedSourceServerIds((prev) =>
-      prev.includes(serverId)
-        ? prev.filter((id) => id !== serverId)
-        : [...prev, serverId]
-    )
-  }
+  const sourceServers = servers?.filter((s) => s.id !== targetServerId) || []
 
   const totalRewardDays = (() => {
     let total = 0
@@ -59,14 +46,9 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
   const canProceed = () => {
     switch (step) {
       case 'target':
-        // In test mode, must also select at least one source server
-        if (testMode) {
-          return !!targetServerId && selectedSourceServerIds.length > 0
-        }
         return !!targetServerId
       case 'threshold':
-        // Test mode allows threshold as low as 1, normal mode requires 10+
-        return testMode ? playerThreshold >= 1 : playerThreshold >= 10
+        return playerThreshold >= 10
       case 'rewards':
         return rewards.switch || rewards.playtime || rewards.completion
       case 'confirm':
@@ -95,8 +77,6 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
       targetServerId,
       playerThreshold,
       rewards,
-      testMode: testMode || undefined,
-      sourceServerIds: testMode ? selectedSourceServerIds : undefined,
     }
 
     try {
@@ -154,33 +134,8 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
                   Select Target Server
                 </h3>
                 <p className="text-gray-400 text-sm mb-4">
-                  Choose the server that needs players. {testMode ? 'Select source servers below.' : 'All other servers will receive the seeding call.'}
+                  Choose the server that needs players. All other servers will receive the seeding call.
                 </p>
-              </div>
-
-              {/* Test Mode Toggle */}
-              <div className="bg-discord-lighter rounded-lg p-3 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FlaskConical className="w-4 h-4 text-yellow-500" />
-                  <div>
-                    <div className="text-white text-sm font-medium">Test Mode</div>
-                    <div className="text-gray-400 text-xs">Manually select source servers, bypass player threshold for broadcasts</div>
-                  </div>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={testMode}
-                    onChange={(e) => {
-                      setTestMode(e.target.checked)
-                      if (!e.target.checked) {
-                        setSelectedSourceServerIds([])
-                      }
-                    }}
-                    className="sr-only peer"
-                  />
-                  <div className="w-9 h-5 bg-discord-light peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-yellow-500"></div>
-                </label>
               </div>
 
               {loadingServers ? (
@@ -225,39 +180,6 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
                   })}
                 </div>
               )}
-
-              {/* Source Server Selection (Test Mode Only) */}
-              {testMode && targetServerId && availableSourceServers.length > 0 && (
-                <div className="space-y-2 pt-2 border-t border-discord-lighter">
-                  <div className="text-gray-400 text-xs font-medium uppercase tracking-wider">Source Servers (select at least one)</div>
-                  {availableSourceServers.map((server) => (
-                    <button
-                      key={server.id}
-                      onClick={() => toggleSourceServer(server.id)}
-                      className={`w-full p-3 rounded-lg border text-left transition-colors ${
-                        selectedSourceServerIds.includes(server.id)
-                          ? 'border-yellow-500 bg-yellow-500/10'
-                          : 'border-discord-lighter hover:border-gray-500'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="text-white font-medium">{server.name}</div>
-                          <div className="text-gray-400 text-sm">{server.id}</div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-gray-400 text-sm">{server.playerCount}/{server.maxPlayers}</span>
-                          <span
-                            className={`w-2 h-2 rounded-full ${
-                              server.connected ? 'bg-green-500' : 'bg-red-500'
-                            }`}
-                          />
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
           )}
 
@@ -278,14 +200,14 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
                 </label>
                 <input
                   type="number"
-                  min={testMode ? 1 : 10}
+                  min={10}
                   max={99}
                   value={playerThreshold}
-                  onChange={(e) => setPlayerThreshold(Math.min(99, parseInt(e.target.value) || (testMode ? 1 : 10)))}
+                  onChange={(e) => setPlayerThreshold(Math.min(99, parseInt(e.target.value) || 10))}
                   className="w-full bg-discord-lighter border border-discord-lighter rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-discord-blurple"
                 />
                 <p className="text-gray-500 text-xs mt-1">
-                  {testMode ? 'Minimum: 1 player (test mode)' : 'Minimum: 10 players'} | Maximum: 99
+                  Minimum: 10 players | Maximum: 99
                 </p>
               </div>
               {selectedServer && (
@@ -488,14 +410,8 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
           {step === 'confirm' && (
             <div className="space-y-4">
               <div>
-                <h3 className="text-white font-medium mb-2 flex items-center gap-2">
+                <h3 className="text-white font-medium mb-2">
                   Confirm Session
-                  {testMode && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-yellow-500/20 text-yellow-500 border border-yellow-500/30">
-                      <FlaskConical className="w-3 h-3" />
-                      Test Mode
-                    </span>
-                  )}
                 </h3>
                 <p className="text-gray-400 text-sm mb-4">
                   Review the session configuration before creating.
@@ -546,10 +462,7 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
               <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 flex gap-3">
                 <AlertTriangle className="w-5 h-5 text-yellow-500 flex-shrink-0" />
                 <div className="text-yellow-500 text-sm">
-                  {testMode
-                    ? 'TEST MODE: Broadcasts will be sent to selected source servers regardless of player count. Messages will include [TEST] prefix.'
-                    : 'This will broadcast a seeding call to all source servers. Players will be notified in-game.'
-                  }
+                  This will broadcast a seeding call to all source servers. Players will be notified in-game.
                 </div>
               </div>
             </div>
@@ -569,17 +482,9 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
             <button
               onClick={handleSubmit}
               disabled={createSession.isPending}
-              className={`${
-                testMode
-                  ? 'bg-yellow-600 hover:bg-yellow-700'
-                  : 'bg-discord-blurple hover:bg-discord-blurple/80'
-              } disabled:bg-gray-600 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2`}
+              className="bg-discord-blurple hover:bg-discord-blurple/80 disabled:bg-gray-600 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2"
             >
-              {createSession.isPending
-                ? 'Creating...'
-                : testMode
-                ? 'Create Test Session'
-                : 'Create Session'}
+              {createSession.isPending ? 'Creating...' : 'Create Session'}
             </button>
           ) : (
             <button

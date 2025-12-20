@@ -271,12 +271,12 @@ class SeedingSessionService {
       if (serverId === session.target_server_id) {
         await this.handlePlayerJoinedTarget(steamId, username, playerId, playerCount);
       }
-      // Check if this is a source server
-      else if (session.source_server_ids.includes(serverId)) {
+      // Check if this is a source server (only in test mode with explicit source servers)
+      else if (session.source_server_ids && session.source_server_ids.includes(serverId)) {
         await this.handlePlayerJoinedSource(serverId, steamId, username, playerId);
       }
     } catch (error) {
-      this.logger.error(`Error handling playerJoined for ${steamId}:`, error.message);
+      this.logger.error(`Error handling playerJoined for ${steamId}:`, error.message || error);
     }
   }
 
@@ -417,8 +417,8 @@ class SeedingSessionService {
         }
       }
 
-      // If leaving source server, update source_leave_time
-      if (session.source_server_ids.includes(serverId)) {
+      // If leaving source server, update source_leave_time (only in test mode with explicit source servers)
+      if (session.source_server_ids && session.source_server_ids.includes(serverId)) {
         const participant = await SeedingParticipant.findBySessionAndSteamId(session.id, steamId);
         if (participant && participant.status === 'on_source') {
           await SeedingParticipant.update(
@@ -428,7 +428,7 @@ class SeedingSessionService {
         }
       }
     } catch (error) {
-      this.logger.error(`Error handling playerLeft for ${steamId}:`, error.message);
+      this.logger.error(`Error handling playerLeft for ${steamId}:`, error.message || error);
     }
   }
 
