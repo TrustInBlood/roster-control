@@ -401,6 +401,41 @@ class PlaytimeTrackingService extends EventEmitter {
       pollingServers: this.pollIntervals.size
     };
   }
+
+  /**
+   * Get the current player count for a server
+   * Uses active sessions count, or queries socket directly as fallback
+   * @param {string} serverId - Server identifier
+   * @returns {Promise<number>} - Current player count
+   */
+  async getServerPlayerCount(serverId) {
+    // First try active sessions count (fast path)
+    let count = 0;
+    for (const [sessionKey] of this.activeSessions) {
+      if (sessionKey.startsWith(`${serverId}:`)) {
+        count++;
+      }
+    }
+
+    // If we have active sessions tracked, return that count
+    if (count > 0) {
+      return count;
+    }
+
+    // Otherwise, try to query the socket directly
+    const connection = this.connectionManager.getServerConnection(serverId);
+    if (!connection || !connection.socket || !connection.socket.connected) {
+      return 0;
+    }
+
+    try {
+      const playerList = await this.getPlayerList(connection.socket);
+      return playerList ? playerList.length : 0;
+    } catch (error) {
+      loggerConsole.debug(`Failed to get player count for ${serverId}:`, error.message);
+      return 0;
+    }
+  }
 }
 
 module.exports = PlaytimeTrackingService;

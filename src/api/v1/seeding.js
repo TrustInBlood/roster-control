@@ -24,7 +24,7 @@ router.get('/servers', requireAuth, requirePermission('VIEW_SEEDING'), async (re
       return res.status(503).json({ error: 'Seeding service not initialized' });
     }
 
-    const servers = seedingService.getAvailableServers();
+    const servers = await seedingService.getAvailableServers();
 
     res.json({
       success: true,

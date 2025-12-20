@@ -467,10 +467,23 @@ class SeedingSessionService {
 
   /**
    * Get current player count for a server
+   * Falls back to PlaytimeTrackingService stats if no cached count
    */
   getServerPlayerCount(serverId) {
     const data = this.serverPlayerCounts.get(serverId);
-    return data ? data.playerCount : 0;
+    if (data && data.playerCount > 0) {
+      return data.playerCount;
+    }
+
+    // Fallback to PlaytimeTrackingService stats (count of active sessions)
+    if (this.playtimeTrackingService) {
+      const stats = this.playtimeTrackingService.getStats();
+      if (stats.sessionsByServer && stats.sessionsByServer[serverId] !== undefined) {
+        return stats.sessionsByServer[serverId];
+      }
+    }
+
+    return 0;
   }
 
   /**
@@ -954,14 +967,28 @@ class SeedingSessionService {
 
   /**
    * Get available servers for seeding
+   * Fetches current player counts from PlaytimeTrackingService (which may query sockets)
    */
-  getAvailableServers() {
+  async getAvailableServers() {
     const servers = [];
     const connections = this.connectionManager.getConnections();
 
     for (const [serverId, connectionData] of connections) {
       const { server, socket } = connectionData;
-      const playerCount = this.getServerPlayerCount(serverId);
+
+      // Try to get player count from PlaytimeTrackingService (most accurate)
+      let playerCount = 0;
+      if (this.playtimeTrackingService) {
+        try {
+          playerCount = await this.playtimeTrackingService.getServerPlayerCount(serverId);
+        } catch (error) {
+          // Fallback to cached count
+          playerCount = this.getServerPlayerCount(serverId);
+        }
+      } else {
+        playerCount = this.getServerPlayerCount(serverId);
+      }
+
       servers.push({
         id: serverId,
         name: server.name,
