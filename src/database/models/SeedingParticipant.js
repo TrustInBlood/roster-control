@@ -220,11 +220,17 @@ SeedingParticipant.getParticipants = async function(sessionId, options = {}) {
     status = null,
     participantType = null,
     sortBy = 'createdAt',
-    sortOrder = 'DESC'
+    sortOrder = 'DESC',
+    includeOnSource = false
   } = options;
 
   const where = { session_id: sessionId };
-  if (status) where.status = status;
+  if (status) {
+    where.status = status;
+  } else if (!includeOnSource) {
+    // By default, exclude on_source participants (they haven't joined target yet)
+    where.status = { [Op.ne]: 'on_source' };
+  }
   if (participantType) where.participant_type = participantType;
 
   return await this.findAndCountAll({

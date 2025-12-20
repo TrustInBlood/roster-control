@@ -44,7 +44,7 @@ const SeedingSession = sequelize.define('SeedingSession', {
   switch_reward_unit: {
     type: DataTypes.STRING(20),
     allowNull: true,
-    comment: 'Reward unit: hours, days, months'
+    comment: 'Reward unit: days, months'
   },
 
   playtime_reward_value: {
@@ -56,7 +56,7 @@ const SeedingSession = sequelize.define('SeedingSession', {
   playtime_reward_unit: {
     type: DataTypes.STRING(20),
     allowNull: true,
-    comment: 'Reward unit: hours, days, months'
+    comment: 'Reward unit: days, months'
   },
 
   playtime_threshold_minutes: {
@@ -74,7 +74,7 @@ const SeedingSession = sequelize.define('SeedingSession', {
   completion_reward_unit: {
     type: DataTypes.STRING(20),
     allowNull: true,
-    comment: 'Reward unit: hours, days, months'
+    comment: 'Reward unit: days, months'
   },
 
   source_server_ids: {
@@ -372,13 +372,11 @@ SeedingSession.prototype.getTotalPossibleRewardMinutes = function() {
 /**
  * Convert reward value and unit to minutes
  * @param {number} value - Reward value
- * @param {string} unit - Reward unit (hours, days, months)
+ * @param {string} unit - Reward unit (days, months)
  * @returns {number}
  */
 SeedingSession.prototype.rewardToMinutes = function(value, unit) {
   switch (unit) {
-    case 'hours':
-      return value * 60;
     case 'days':
       return value * 60 * 24;
     case 'months':

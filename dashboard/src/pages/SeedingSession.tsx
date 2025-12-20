@@ -48,13 +48,17 @@ function getParticipantTypeColor(type: string): string {
     : 'bg-cyan-500/20 text-cyan-400'
 }
 
-function ParticipantRow({ participant }: { participant: SeedingParticipant }) {
+function ParticipantRow({ participant, isActiveSession }: { participant: SeedingParticipant; isActiveSession: boolean }) {
   const formatRewardTime = (minutes: number | null) => {
     if (!minutes) return '-'
-    if (minutes < 60) return `${minutes}m`
-    const hours = Math.floor(minutes / 60)
-    const mins = minutes % 60
-    return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`
+    const days = minutes / (60 * 24)
+    if (days < 30) {
+      const displayDays = days % 1 === 0 ? days : Math.round(days * 10) / 10
+      return `${displayDays}d`
+    }
+    const months = days / 30
+    const displayMonths = months % 1 === 0 ? months : Math.round(months * 10) / 10
+    return `${displayMonths}mo`
   }
 
   return (
@@ -74,10 +78,14 @@ function ParticipantRow({ participant }: { participant: SeedingParticipant }) {
         </span>
       </td>
       <td className="px-4 py-3 text-gray-400">
-        {participant.is_on_target ? (
-          <span className="text-green-400">Online</span>
+        {isActiveSession ? (
+          participant.is_on_target ? (
+            <span className="text-green-400">Online</span>
+          ) : (
+            <span className="text-gray-500">Offline</span>
+          )
         ) : (
-          <span className="text-gray-500">Offline</span>
+          <span className="text-gray-500">-</span>
         )}
       </td>
       <td className="px-4 py-3 text-gray-400">
@@ -161,22 +169,19 @@ export default function SeedingSession() {
     )
   }
 
-  const totalRewardHours = (() => {
+  const totalRewardDays = (() => {
     let total = 0
     if (session.switch_reward_value && session.switch_reward_unit) {
-      total += session.switch_reward_unit === 'hours' ? session.switch_reward_value :
-               session.switch_reward_unit === 'days' ? session.switch_reward_value * 24 :
-               session.switch_reward_value * 24 * 30
+      total += session.switch_reward_unit === 'days' ? session.switch_reward_value :
+               session.switch_reward_value * 30
     }
     if (session.playtime_reward_value && session.playtime_reward_unit) {
-      total += session.playtime_reward_unit === 'hours' ? session.playtime_reward_value :
-               session.playtime_reward_unit === 'days' ? session.playtime_reward_value * 24 :
-               session.playtime_reward_value * 24 * 30
+      total += session.playtime_reward_unit === 'days' ? session.playtime_reward_value :
+               session.playtime_reward_value * 30
     }
     if (session.completion_reward_value && session.completion_reward_unit) {
-      total += session.completion_reward_unit === 'hours' ? session.completion_reward_value :
-               session.completion_reward_unit === 'days' ? session.completion_reward_value * 24 :
-               session.completion_reward_value * 24 * 30
+      total += session.completion_reward_unit === 'days' ? session.completion_reward_value :
+               session.completion_reward_value * 30
     }
     return total
   })()
@@ -288,7 +293,7 @@ export default function SeedingSession() {
             <Clock className="w-4 h-4" />
             Max Reward
           </div>
-          <div className="text-2xl font-bold text-white">{totalRewardHours}h</div>
+          <div className="text-2xl font-bold text-white">{totalRewardDays}d</div>
         </div>
         <div className="bg-discord-light rounded-lg p-4">
           <div className="flex items-center gap-2 text-gray-400 text-sm mb-1">
@@ -375,7 +380,7 @@ export default function SeedingSession() {
                 </thead>
                 <tbody>
                   {participantsData.participants.map((participant) => (
-                    <ParticipantRow key={participant.id} participant={participant} />
+                    <ParticipantRow key={participant.id} participant={participant} isActiveSession={isActive} />
                   ))}
                 </tbody>
               </table>

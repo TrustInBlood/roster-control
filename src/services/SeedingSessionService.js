@@ -3,23 +3,12 @@ const { SeedingSession, SeedingParticipant, Whitelist, AuditLog } = require('../
 
 /**
  * Format a duration in minutes to a human-readable string
- * Uses the most appropriate unit (minutes, hours, days, months)
+ * Uses the most appropriate unit (days, months)
  * @param {number} minutes - Duration in minutes
- * @returns {string} Formatted duration string (e.g., "30min", "6hr", "2d", "1mo")
+ * @returns {string} Formatted duration string (e.g., "2d", "1mo")
  */
 function formatRewardDuration(minutes) {
-  if (minutes < 60) {
-    return `${minutes}min`;
-  }
-
-  const hours = minutes / 60;
-  if (hours < 24) {
-    // Show hours, round to 1 decimal if needed
-    const displayHours = hours % 1 === 0 ? hours : Math.round(hours * 10) / 10;
-    return `${displayHours}hr`;
-  }
-
-  const days = hours / 24;
+  const days = minutes / (60 * 24);
   if (days < 30) {
     // Show days, round to 1 decimal if needed
     const displayDays = days % 1 === 0 ? days : Math.round(days * 10) / 10;
@@ -44,9 +33,6 @@ class SeedingSessionService {
 
     // Active session cache (only one allowed at a time)
     this.activeSession = null;
-
-    // Tracking potential switchers on source servers: Map<steamId, { serverId, joinTime }>
-    this.potentialSwitchers = new Map();
 
     // Playtime accumulator for participants: Map<participantId, lastUpdateTime>
     this.playtimeTracking = new Map();

@@ -1,7 +1,7 @@
 export type SessionStatus = 'active' | 'completed' | 'cancelled'
 export type ParticipantType = 'switcher' | 'seeder'
 export type ParticipantStatus = 'on_source' | 'seeder' | 'switched' | 'playtime_met' | 'completed'
-export type RewardUnit = 'hours' | 'days' | 'months'
+export type RewardUnit = 'days' | 'months'
 
 export interface RewardConfig {
   value: number

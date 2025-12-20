@@ -204,7 +204,7 @@ router.post('/sessions', requireAuth, requirePermission('MANAGE_SEEDING'), async
       if (!rewards.switch.value || !rewards.switch.unit) {
         return res.status(400).json({ error: 'Switch reward requires value and unit' });
       }
-      if (!['hours', 'days', 'months'].includes(rewards.switch.unit)) {
+      if (!['days', 'months'].includes(rewards.switch.unit)) {
         return res.status(400).json({ error: 'Invalid switch reward unit' });
       }
     }
@@ -213,7 +213,7 @@ router.post('/sessions', requireAuth, requirePermission('MANAGE_SEEDING'), async
       if (!rewards.playtime.value || !rewards.playtime.unit || !rewards.playtime.thresholdMinutes) {
         return res.status(400).json({ error: 'Playtime reward requires value, unit, and thresholdMinutes' });
       }
-      if (!['hours', 'days', 'months'].includes(rewards.playtime.unit)) {
+      if (!['days', 'months'].includes(rewards.playtime.unit)) {
         return res.status(400).json({ error: 'Invalid playtime reward unit' });
       }
     }
@@ -222,7 +222,7 @@ router.post('/sessions', requireAuth, requirePermission('MANAGE_SEEDING'), async
       if (!rewards.completion.value || !rewards.completion.unit) {
         return res.status(400).json({ error: 'Completion reward requires value and unit' });
       }
-      if (!['hours', 'days', 'months'].includes(rewards.completion.unit)) {
+      if (!['days', 'months'].includes(rewards.completion.unit)) {
         return res.status(400).json({ error: 'Invalid completion reward unit' });
       }
     }

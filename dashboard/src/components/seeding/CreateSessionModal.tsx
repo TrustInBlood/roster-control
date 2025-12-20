@@ -17,9 +17,9 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
   const [testMode, setTestMode] = useState<boolean>(false)
   const [selectedSourceServerIds, setSelectedSourceServerIds] = useState<string[]>([])
   const [rewards, setRewards] = useState<RewardsConfig>({
-    switch: { value: 6, unit: 'hours' },
-    playtime: { value: 12, unit: 'hours', thresholdMinutes: 30 },
-    completion: { value: 6, unit: 'hours' },
+    switch: { value: 1, unit: 'days' },
+    playtime: { value: 1, unit: 'days', thresholdMinutes: 30 },
+    completion: { value: 1, unit: 'days' },
   })
 
   const { data: servers, isLoading: loadingServers } = useServers()
@@ -39,22 +39,19 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
     )
   }
 
-  const totalRewardHours = (() => {
+  const totalRewardDays = (() => {
     let total = 0
     if (rewards.switch) {
-      total += rewards.switch.unit === 'hours' ? rewards.switch.value :
-               rewards.switch.unit === 'days' ? rewards.switch.value * 24 :
-               rewards.switch.value * 24 * 30
+      total += rewards.switch.unit === 'days' ? rewards.switch.value :
+               rewards.switch.value * 30
     }
     if (rewards.playtime) {
-      total += rewards.playtime.unit === 'hours' ? rewards.playtime.value :
-               rewards.playtime.unit === 'days' ? rewards.playtime.value * 24 :
-               rewards.playtime.value * 24 * 30
+      total += rewards.playtime.unit === 'days' ? rewards.playtime.value :
+               rewards.playtime.value * 30
     }
     if (rewards.completion) {
-      total += rewards.completion.unit === 'hours' ? rewards.completion.value :
-               rewards.completion.unit === 'days' ? rewards.completion.value * 24 :
-               rewards.completion.value * 24 * 30
+      total += rewards.completion.unit === 'days' ? rewards.completion.value :
+               rewards.completion.value * 30
     }
     return total
   })()
@@ -191,32 +188,41 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
               ) : (
                 <div className="space-y-2">
                   <div className="text-gray-400 text-xs font-medium uppercase tracking-wider">Target Server</div>
-                  {servers?.map((server) => (
-                    <button
-                      key={server.id}
-                      onClick={() => setTargetServerId(server.id)}
-                      className={`w-full p-3 rounded-lg border text-left transition-colors ${
-                        targetServerId === server.id
-                          ? 'border-discord-blurple bg-discord-blurple/10'
-                          : 'border-discord-lighter hover:border-gray-500'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="text-white font-medium">{server.name}</div>
-                          <div className="text-gray-400 text-sm">{server.id}</div>
+                  {servers?.map((server) => {
+                    const isFull = server.playerCount > 60
+                    return (
+                      <button
+                        key={server.id}
+                        onClick={() => !isFull && setTargetServerId(server.id)}
+                        disabled={isFull}
+                        className={`w-full p-3 rounded-lg border text-left transition-colors ${
+                          isFull
+                            ? 'border-discord-lighter opacity-50 cursor-not-allowed'
+                            : targetServerId === server.id
+                              ? 'border-discord-blurple bg-discord-blurple/10'
+                              : 'border-discord-lighter hover:border-gray-500'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className={`font-medium ${isFull ? 'text-gray-500' : 'text-white'}`}>{server.name}</div>
+                            <div className="text-gray-400 text-sm">{server.id}</div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {isFull && (
+                              <span className="text-red-400 text-xs font-medium">FULL</span>
+                            )}
+                            <span className="text-gray-400 text-sm">{server.playerCount}/{server.maxPlayers}</span>
+                            <span
+                              className={`w-2 h-2 rounded-full ${
+                                server.connected ? 'bg-green-500' : 'bg-red-500'
+                              }`}
+                            />
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-gray-400 text-sm">{server.playerCount}/{server.maxPlayers}</span>
-                          <span
-                            className={`w-2 h-2 rounded-full ${
-                              server.connected ? 'bg-green-500' : 'bg-red-500'
-                            }`}
-                          />
-                        </div>
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    )
+                  })}
                 </div>
               )}
 
@@ -313,7 +319,7 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
                     onChange={(e) =>
                       setRewards({
                         ...rewards,
-                        switch: e.target.checked ? { value: 6, unit: 'hours' } : null,
+                        switch: e.target.checked ? { value: 1, unit: 'days' } : null,
                       })
                     }
                     className="w-4 h-4"
@@ -344,7 +350,6 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
                       }
                       className="bg-discord-light border border-discord-lighter rounded px-2 py-1 text-white text-sm"
                     >
-                      <option value="hours">Hours</option>
                       <option value="days">Days</option>
                       <option value="months">Months</option>
                     </select>
@@ -363,7 +368,7 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
                       setRewards({
                         ...rewards,
                         playtime: e.target.checked
-                          ? { value: 12, unit: 'hours', thresholdMinutes: 30 }
+                          ? { value: 1, unit: 'days', thresholdMinutes: 30 }
                           : null,
                       })
                     }
@@ -396,7 +401,6 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
                         }
                         className="bg-discord-light border border-discord-lighter rounded px-2 py-1 text-white text-sm"
                       >
-                        <option value="hours">Hours</option>
                         <option value="days">Days</option>
                         <option value="months">Months</option>
                       </select>
@@ -435,7 +439,7 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
                     onChange={(e) =>
                       setRewards({
                         ...rewards,
-                        completion: e.target.checked ? { value: 6, unit: 'hours' } : null,
+                        completion: e.target.checked ? { value: 1, unit: 'days' } : null,
                       })
                     }
                     className="w-4 h-4"
@@ -466,7 +470,6 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
                       }
                       className="bg-discord-light border border-discord-lighter rounded px-2 py-1 text-white text-sm"
                     >
-                      <option value="hours">Hours</option>
                       <option value="days">Days</option>
                       <option value="months">Months</option>
                     </select>
@@ -476,7 +479,7 @@ export default function CreateSessionModal({ onClose, onSuccess }: CreateSession
 
               <div className="bg-discord-blurple/10 border border-discord-blurple/30 rounded-lg p-3">
                 <div className="text-discord-blurple text-sm font-medium">
-                  Total possible reward: {totalRewardHours} hours whitelist
+                  Total possible reward: {totalRewardDays} days whitelist
                 </div>
               </div>
             </div>

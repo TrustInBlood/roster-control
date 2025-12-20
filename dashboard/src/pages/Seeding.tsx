@@ -36,22 +36,19 @@ function ActiveSessionCard({ session, onRefresh }: { session: SeedingSessionWith
   const cancelSession = useCancelSession()
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
 
-  const totalRewardHours = (() => {
+  const totalRewardDays = (() => {
     let total = 0
     if (session.switch_reward_value && session.switch_reward_unit) {
-      total += session.switch_reward_unit === 'hours' ? session.switch_reward_value :
-               session.switch_reward_unit === 'days' ? session.switch_reward_value * 24 :
-               session.switch_reward_value * 24 * 30
+      total += session.switch_reward_unit === 'days' ? session.switch_reward_value :
+               session.switch_reward_value * 30
     }
     if (session.playtime_reward_value && session.playtime_reward_unit) {
-      total += session.playtime_reward_unit === 'hours' ? session.playtime_reward_value :
-               session.playtime_reward_unit === 'days' ? session.playtime_reward_value * 24 :
-               session.playtime_reward_value * 24 * 30
+      total += session.playtime_reward_unit === 'days' ? session.playtime_reward_value :
+               session.playtime_reward_value * 30
     }
     if (session.completion_reward_value && session.completion_reward_unit) {
-      total += session.completion_reward_unit === 'hours' ? session.completion_reward_value :
-               session.completion_reward_unit === 'days' ? session.completion_reward_value * 24 :
-               session.completion_reward_value * 24 * 30
+      total += session.completion_reward_unit === 'days' ? session.completion_reward_value :
+               session.completion_reward_value * 30
     }
     return total
   })()
@@ -93,9 +90,9 @@ function ActiveSessionCard({ session, onRefresh }: { session: SeedingSessionWith
           <button
             onClick={handleClose}
             disabled={closeSession.isPending}
-            className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors"
+            className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors"
           >
-            {closeSession.isPending ? 'Closing...' : 'Close Session'}
+            {closeSession.isPending ? 'Completing...' : 'Complete Session'}
           </button>
           {showCancelConfirm ? (
             <div className="flex gap-2">
@@ -168,7 +165,7 @@ function ActiveSessionCard({ session, onRefresh }: { session: SeedingSessionWith
             <Clock className="w-3 h-3" />
             Max Reward
           </div>
-          <div className="text-white font-semibold">{totalRewardHours}h</div>
+          <div className="text-white font-semibold">{totalRewardDays}d</div>
         </div>
       </div>
 
