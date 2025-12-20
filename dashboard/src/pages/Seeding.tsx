@@ -1,14 +1,16 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, RefreshCw, Users, Clock, Target, Award, X, FlaskConical } from 'lucide-react'
+import { Plus, RefreshCw, Users, Clock, Target, Award, X, FlaskConical, AlertTriangle, RotateCcw } from 'lucide-react'
 import {
   useActiveSession,
   useSessionsList,
   useCloseSession,
   useCancelSession,
+  useClosePreview,
+  useReverseSessionRewards,
 } from '../hooks/useSeeding'
 import CreateSessionModal from '../components/seeding/CreateSessionModal'
-import type { SeedingSession, SeedingSessionWithStats } from '../types/seeding'
+import type { SeedingSession, SeedingSessionWithStats, ClosePreviewResponse } from '../types/seeding'
 
 function formatDuration(value: number, unit: string): string {
   return `${value}${unit.charAt(0)}`
@@ -34,7 +36,10 @@ function getStatusColor(status: string): string {
 function ActiveSessionCard({ session, onRefresh }: { session: SeedingSessionWithStats; onRefresh: () => void }) {
   const closeSession = useCloseSession()
   const cancelSession = useCancelSession()
+  const closePreviewMutation = useClosePreview()
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+  const [showCompleteConfirm, setShowCompleteConfirm] = useState(false)
+  const [closePreview, setClosePreview] = useState<ClosePreviewResponse | null>(null)
 
   const totalRewardDays = (() => {
     let total = 0
@@ -55,8 +60,20 @@ function ActiveSessionCard({ session, onRefresh }: { session: SeedingSessionWith
 
   const progressPercent = Math.min((session.stats.currentlyOnTarget / session.player_threshold) * 100, 100)
 
-  const handleClose = async () => {
+  const handleCompleteClick = async () => {
+    try {
+      const response = await closePreviewMutation.mutateAsync(session.id)
+      setClosePreview(response.data)
+      setShowCompleteConfirm(true)
+    } catch (error) {
+      console.error('Failed to fetch close preview:', error)
+    }
+  }
+
+  const handleConfirmComplete = async () => {
     await closeSession.mutateAsync(session.id)
+    setShowCompleteConfirm(false)
+    setClosePreview(null)
     onRefresh()
   }
 
@@ -88,11 +105,11 @@ function ActiveSessionCard({ session, onRefresh }: { session: SeedingSessionWith
         </div>
         <div className="flex gap-2">
           <button
-            onClick={handleClose}
-            disabled={closeSession.isPending}
+            onClick={handleCompleteClick}
+            disabled={closePreviewMutation.isPending || closeSession.isPending}
             className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors"
           >
-            {closeSession.isPending ? 'Completing...' : 'Complete Session'}
+            {closePreviewMutation.isPending ? 'Loading...' : closeSession.isPending ? 'Completing...' : 'Complete Session'}
           </button>
           {showCancelConfirm ? (
             <div className="flex gap-2">
@@ -196,38 +213,185 @@ function ActiveSessionCard({ session, onRefresh }: { session: SeedingSessionWith
           View Participants &rarr;
         </Link>
       </div>
+
+      {/* Complete Session Confirmation Modal */}
+      {showCompleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-discord-dark rounded-lg p-6 max-w-md w-full mx-4 border border-discord-lighter">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-yellow-500/20 rounded-full">
+                <AlertTriangle className="w-6 h-6 text-yellow-500" />
+              </div>
+              <h3 className="text-lg font-semibold text-white">Complete Session?</h3>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              <p className="text-gray-300">
+                This will finalize the seeding session and grant completion rewards.
+              </p>
+
+              {closePreview && (
+                <div className="bg-discord-lighter rounded p-3 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Participants to reward:</span>
+                    <span className="text-white font-medium">{closePreview.participantsToReward}</span>
+                  </div>
+                  {closePreview.sessionConfig.completionReward && (
+                    <>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-400">Completion reward:</span>
+                        <span className="text-white font-medium">{closePreview.sessionConfig.completionReward}</span>
+                      </div>
+                      <div className="flex justify-between text-sm border-t border-discord-light pt-2">
+                        <span className="text-gray-400">Total whitelist days:</span>
+                        <span className="text-green-400 font-semibold">{closePreview.totalWhitelistDaysToGrant.toFixed(1)}</span>
+                      </div>
+                    </>
+                  )}
+                  {!closePreview.sessionConfig.completionReward && (
+                    <p className="text-gray-400 text-sm italic">No completion reward configured</p>
+                  )}
+                </div>
+              )}
+
+              <p className="text-yellow-400 text-sm">
+                This action can be reversed using the "Reverse Rewards" option after completion.
+              </p>
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowCompleteConfirm(false)
+                  setClosePreview(null)
+                }}
+                className="bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmComplete}
+                disabled={closeSession.isPending}
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm font-medium transition-colors"
+              >
+                {closeSession.isPending ? 'Completing...' : 'Confirm Complete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-function SessionHistoryRow({ session }: { session: SeedingSession }) {
+function SessionHistoryRow({ session, onRefresh }: { session: SeedingSession; onRefresh: () => void }) {
+  const reverseRewards = useReverseSessionRewards()
+  const [showReverseConfirm, setShowReverseConfirm] = useState(false)
+
+  const canReverse = session.status !== 'active' && session.rewards_granted_count > 0
+
+  const handleReverseRewards = async () => {
+    await reverseRewards.mutateAsync({ id: session.id, reason: 'Manual reversal from dashboard' })
+    setShowReverseConfirm(false)
+    onRefresh()
+  }
+
   return (
-    <tr className="border-b border-discord-lighter hover:bg-discord-lighter/50">
-      <td className="px-4 py-3">
-        <Link to={`/seeding/${session.id}`} className="text-white hover:text-discord-blurple">
-          {session.target_server_name || session.target_server_id}
-        </Link>
-      </td>
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-1.5">
-          <span className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(session.status)}`}>
-            {session.status.toUpperCase()}
-          </span>
-          {session.metadata?.testMode && (
-            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-500/20 text-yellow-500">
-              <FlaskConical className="w-2.5 h-2.5" />
+    <>
+      <tr className="border-b border-discord-lighter hover:bg-discord-lighter/50">
+        <td className="px-4 py-3">
+          <Link to={`/seeding/${session.id}`} className="text-white hover:text-discord-blurple">
+            {session.target_server_name || session.target_server_id}
+          </Link>
+        </td>
+        <td className="px-4 py-3">
+          <div className="flex items-center gap-1.5">
+            <span className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(session.status)}`}>
+              {session.status.toUpperCase()}
             </span>
+            {session.metadata?.testMode && (
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-500/20 text-yellow-500">
+                <FlaskConical className="w-2.5 h-2.5" />
+              </span>
+            )}
+          </div>
+        </td>
+        <td className="px-4 py-3 text-gray-400">{session.participants_count}</td>
+        <td className="px-4 py-3 text-gray-400">{session.rewards_granted_count}</td>
+        <td className="px-4 py-3 text-gray-400 text-sm">{formatDate(session.started_at)}</td>
+        <td className="px-4 py-3 text-gray-400 text-sm">
+          {session.closed_at ? formatDate(session.closed_at) : '-'}
+        </td>
+        <td className="px-4 py-3 text-gray-400 text-sm">{session.started_by_name || '-'}</td>
+        <td className="px-4 py-3">
+          {canReverse && (
+            <button
+              onClick={() => setShowReverseConfirm(true)}
+              className="inline-flex items-center gap-1 text-red-400 hover:text-red-300 text-xs font-medium transition-colors"
+              title="Reverse all rewards granted in this session"
+            >
+              <RotateCcw className="w-3 h-3" />
+              Reverse
+            </button>
           )}
-        </div>
-      </td>
-      <td className="px-4 py-3 text-gray-400">{session.participants_count}</td>
-      <td className="px-4 py-3 text-gray-400">{session.rewards_granted_count}</td>
-      <td className="px-4 py-3 text-gray-400 text-sm">{formatDate(session.started_at)}</td>
-      <td className="px-4 py-3 text-gray-400 text-sm">
-        {session.closed_at ? formatDate(session.closed_at) : '-'}
-      </td>
-      <td className="px-4 py-3 text-gray-400 text-sm">{session.started_by_name || '-'}</td>
-    </tr>
+        </td>
+      </tr>
+
+      {/* Reverse Rewards Confirmation Modal */}
+      {showReverseConfirm && (
+        <tr>
+          <td colSpan={8} className="p-0">
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+              <div className="bg-discord-dark rounded-lg p-6 max-w-md w-full mx-4 border border-discord-lighter">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-red-500/20 rounded-full">
+                    <AlertTriangle className="w-6 h-6 text-red-500" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-white">Reverse All Rewards?</h3>
+                </div>
+
+                <div className="space-y-3 mb-6">
+                  <p className="text-gray-300">
+                    This will revoke all whitelist rewards granted during this seeding session.
+                  </p>
+
+                  <div className="bg-discord-lighter rounded p-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">Session:</span>
+                      <span className="text-white font-medium">{session.target_server_name}</span>
+                    </div>
+                    <div className="flex justify-between text-sm mt-1">
+                      <span className="text-gray-400">Rewards to revoke:</span>
+                      <span className="text-red-400 font-medium">{session.rewards_granted_count}</span>
+                    </div>
+                  </div>
+
+                  <p className="text-red-400 text-sm">
+                    This action cannot be undone. Affected players will lose their whitelist time.
+                  </p>
+                </div>
+
+                <div className="flex gap-3 justify-end">
+                  <button
+                    onClick={() => setShowReverseConfirm(false)}
+                    className="bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded text-sm font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleReverseRewards}
+                    disabled={reverseRewards.isPending}
+                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-sm font-medium transition-colors"
+                  >
+                    {reverseRewards.isPending ? 'Reversing...' : 'Confirm Reverse'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   )
 }
 
@@ -324,11 +488,12 @@ export default function Seeding() {
                   <th className="px-4 py-2 font-medium">Started</th>
                   <th className="px-4 py-2 font-medium">Closed</th>
                   <th className="px-4 py-2 font-medium">Started By</th>
+                  <th className="px-4 py-2 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {historyData.sessions.map((session) => (
-                  <SessionHistoryRow key={session.id} session={session} />
+                  <SessionHistoryRow key={session.id} session={session} onRefresh={handleRefresh} />
                 ))}
               </tbody>
             </table>

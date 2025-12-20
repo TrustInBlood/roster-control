@@ -114,3 +114,32 @@ export interface ParticipantsListResponse {
   limit: number
   pages: number
 }
+
+// Close preview response - shows what will happen when completing a session
+export interface ClosePreviewResponse {
+  sessionId: number
+  participantsToReward: number
+  completionRewardDays: number
+  totalWhitelistDaysToGrant: number
+  sessionConfig: {
+    completionReward: string | null
+  }
+}
+
+// Response when reversing all rewards for a session
+export interface ReverseRewardsResponse {
+  revokedCount: number
+  participantsAffected: number
+  message: string
+}
+
+// Response when revoking rewards for a single participant
+export interface RevokeParticipantRewardsResponse {
+  revokedCount: number
+  rewardsCleared: {
+    switch: boolean
+    playtime: boolean
+    completion: boolean
+  }
+  message: string
+}

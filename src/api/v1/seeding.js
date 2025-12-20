@@ -314,5 +314,100 @@ router.post('/sessions/:id/cancel', requireAuth, requirePermission('MANAGE_SEEDI
   }
 });
 
+// GET /api/v1/seeding/sessions/:id/close-preview - Get preview of what completion will do
+router.get('/sessions/:id/close-preview', requireAuth, requirePermission('MANAGE_SEEDING'), async (req, res) => {
+  try {
+    if (!seedingService) {
+      return res.status(503).json({ error: 'Seeding service not initialized' });
+    }
+
+    const { id } = req.params;
+    const preview = await seedingService.getClosePreview(parseInt(id));
+
+    res.json({
+      success: true,
+      data: preview
+    });
+  } catch (error) {
+    logger.error('Error getting close preview:', error.message);
+
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+
+    res.status(500).json({ error: 'Failed to get close preview' });
+  }
+});
+
+// POST /api/v1/seeding/sessions/:id/reverse-rewards - Reverse all rewards for a session
+router.post('/sessions/:id/reverse-rewards', requireAuth, requirePermission('MANAGE_SEEDING'), async (req, res) => {
+  try {
+    if (!seedingService) {
+      return res.status(503).json({ error: 'Seeding service not initialized' });
+    }
+
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    const result = await seedingService.reverseSessionRewards(
+      parseInt(id),
+      req.user.id,
+      reason || 'Manual reversal via dashboard'
+    );
+
+    logger.info(`Session ${id} rewards reversed by ${req.user.username}: ${result.revokedCount} entries revoked`);
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    logger.error('Error reversing session rewards:', error.message);
+
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+    if (error.message.includes('active session')) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    res.status(500).json({ error: 'Failed to reverse session rewards' });
+  }
+});
+
+// POST /api/v1/seeding/sessions/:id/participants/:participantId/revoke-rewards - Revoke rewards for a participant
+router.post('/sessions/:id/participants/:participantId/revoke-rewards', requireAuth, requirePermission('MANAGE_SEEDING'), async (req, res) => {
+  try {
+    if (!seedingService) {
+      return res.status(503).json({ error: 'Seeding service not initialized' });
+    }
+
+    const { id, participantId } = req.params;
+    const { reason } = req.body;
+
+    const result = await seedingService.revokeParticipantRewards(
+      parseInt(id),
+      parseInt(participantId),
+      req.user.id,
+      reason || 'Manual revocation via dashboard'
+    );
+
+    logger.info(`Participant ${participantId} rewards revoked in session ${id} by ${req.user.username}`);
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    logger.error('Error revoking participant rewards:', error.message);
+
+    if (error.message.includes('not found') || error.message.includes('does not belong')) {
+      return res.status(404).json({ error: error.message });
+    }
+
+    res.status(500).json({ error: 'Failed to revoke participant rewards' });
+  }
+});
+
 module.exports = router;
 module.exports.setSeedingService = setSeedingService;

@@ -618,6 +618,144 @@ class SeedingSessionService {
   }
 
   /**
+   * Get a preview of what will happen when closing a session
+   * Used for confirmation dialogs
+   * @param {number} sessionId - Session ID
+   * @returns {Promise<Object>} Preview data
+   */
+  async getClosePreview(sessionId) {
+    const session = await SeedingSession.findByPk(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+
+    // Get eligible participants for completion reward
+    const eligible = session.hasCompletionReward()
+      ? await SeedingParticipant.getEligibleForCompletionReward(sessionId)
+      : [];
+
+    // Calculate total reward in days
+    const completionRewardDays = session.hasCompletionReward()
+      ? session.rewardToMinutes(session.completion_reward_value, session.completion_reward_unit) / (60 * 24)
+      : 0;
+
+    const totalWhitelistDays = eligible.length * completionRewardDays;
+
+    return {
+      sessionId,
+      participantsToReward: eligible.length,
+      completionRewardDays,
+      totalWhitelistDaysToGrant: totalWhitelistDays,
+      sessionConfig: {
+        completionReward: session.hasCompletionReward()
+          ? `${session.completion_reward_value} ${session.completion_reward_unit}`
+          : null
+      }
+    };
+  }
+
+  /**
+   * Reverse all rewards for a completed/cancelled session
+   * @param {number} sessionId - Session ID
+   * @param {string} reversedBy - Discord ID of admin reversing
+   * @param {string} reason - Reason for reversal
+   * @returns {Promise<Object>} Result with counts
+   */
+  async reverseSessionRewards(sessionId, reversedBy, reason = 'Manual reversal') {
+    const session = await SeedingSession.findByPk(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+
+    if (session.status === 'active') {
+      throw new Error('Cannot reverse rewards for an active session');
+    }
+
+    // Revoke all whitelist entries for this session
+    const revokedCount = await Whitelist.revokeSeedingRewards(sessionId, reversedBy, reason);
+
+    // Clear participant reward timestamps
+    const participantsUpdated = await SeedingParticipant.clearRewardsForSession(sessionId);
+
+    // Reset session rewards count
+    await SeedingSession.update(
+      { rewards_granted_count: 0 },
+      { where: { id: sessionId } }
+    );
+
+    // Log audit
+    await this.logAuditAction('seeding_rewards_reversed', reversedBy, sessionId, {
+      reason,
+      revokedCount,
+      participantsUpdated
+    });
+
+    this.logger.info(`Reversed ${revokedCount} rewards for session ${sessionId}: ${reason}`);
+
+    return {
+      revokedCount,
+      participantsAffected: participantsUpdated,
+      message: `Revoked ${revokedCount} whitelist entries, cleared rewards for ${participantsUpdated} participants`
+    };
+  }
+
+  /**
+   * Revoke rewards for a specific participant
+   * @param {number} sessionId - Session ID
+   * @param {number} participantId - Participant ID
+   * @param {string} revokedBy - Discord ID of admin revoking
+   * @param {string} reason - Reason for revocation
+   * @returns {Promise<Object>} Result with details
+   */
+  async revokeParticipantRewards(sessionId, participantId, revokedBy, reason = 'Manual revocation') {
+    const participant = await SeedingParticipant.findByPk(participantId);
+    if (!participant) {
+      throw new Error(`Participant ${participantId} not found`);
+    }
+
+    if (participant.session_id !== sessionId) {
+      throw new Error('Participant does not belong to this session');
+    }
+
+    // Revoke whitelist entries for this participant
+    const revokedCount = await Whitelist.revokeSeedingRewardsForParticipant(
+      sessionId,
+      participant.steam_id,
+      revokedBy,
+      reason
+    );
+
+    // Clear participant reward timestamps
+    const { rewardsCleared } = await SeedingParticipant.clearParticipantRewards(participantId);
+
+    // Decrement session rewards count
+    const rewardsClearedCount = Object.values(rewardsCleared).filter(Boolean).length;
+    if (rewardsClearedCount > 0) {
+      await SeedingSession.decrement('rewards_granted_count', {
+        by: rewardsClearedCount,
+        where: { id: sessionId }
+      });
+    }
+
+    // Log audit
+    await this.logAuditAction('seeding_participant_rewards_revoked', revokedBy, sessionId, {
+      participantId,
+      steamId: participant.steam_id,
+      reason,
+      revokedCount,
+      rewardsCleared
+    });
+
+    this.logger.info(`Revoked ${revokedCount} rewards for participant ${participantId} in session ${sessionId}`);
+
+    return {
+      revokedCount,
+      rewardsCleared,
+      message: `Revoked ${revokedCount} whitelist entries for ${participant.username || participant.steam_id}`
+    };
+  }
+
+  /**
    * Grant switch reward to a participant
    */
   async grantSwitchReward(participant, session) {

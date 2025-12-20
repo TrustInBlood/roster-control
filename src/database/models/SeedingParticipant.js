@@ -464,4 +464,51 @@ SeedingParticipant.prototype.isEligibleForSwitchReward = function() {
          !this.hasReceivedSwitchReward();
 };
 
+/**
+ * Clear all reward timestamps for all participants in a session
+ * Used when reversing rewards for an entire session
+ * @param {number} sessionId - Session ID
+ * @returns {Promise<number>} Number of participants updated
+ */
+SeedingParticipant.clearRewardsForSession = async function(sessionId) {
+  const [updatedCount] = await this.update(
+    {
+      switch_rewarded_at: null,
+      playtime_rewarded_at: null,
+      completion_rewarded_at: null,
+      total_reward_minutes: 0
+    },
+    { where: { session_id: sessionId } }
+  );
+  return updatedCount;
+};
+
+/**
+ * Clear reward timestamps for a specific participant
+ * Used when revoking rewards for a single participant
+ * @param {number} participantId - Participant ID
+ * @returns {Promise<Object>} Object indicating which rewards were cleared
+ */
+SeedingParticipant.clearParticipantRewards = async function(participantId) {
+  const participant = await this.findByPk(participantId);
+  if (!participant) {
+    return { cleared: false, rewardsCleared: {} };
+  }
+
+  const rewardsCleared = {
+    switch: !!participant.switch_rewarded_at,
+    playtime: !!participant.playtime_rewarded_at,
+    completion: !!participant.completion_rewarded_at
+  };
+
+  await participant.update({
+    switch_rewarded_at: null,
+    playtime_rewarded_at: null,
+    completion_rewarded_at: null,
+    total_reward_minutes: 0
+  });
+
+  return { cleared: true, rewardsCleared };
+};
+
 module.exports = SeedingParticipant;

@@ -560,5 +560,97 @@ module.exports = (sequelize) => {
     });
   };
 
+  /**
+   * Revoke all seeding rewards for a specific session
+   * @param {number} sessionId - The seeding session ID
+   * @param {string} revokedBy - Discord ID of the admin revoking
+   * @param {string} reason - Reason for revocation
+   * @returns {Promise<number>} Number of entries revoked
+   */
+  Whitelist.revokeSeedingRewards = async function(sessionId, revokedBy, reason = 'Seeding rewards reversed') {
+    const revoked_at = new Date();
+
+    // Find all seeding entries for this session
+    const entries = await this.findAll({
+      where: {
+        granted_by: 'seeding-system',
+        revoked: false,
+        [Op.and]: sequelize.where(
+          sequelize.fn('JSON_EXTRACT', sequelize.col('metadata'), '$.seeding_session_id'),
+          sessionId
+        )
+      }
+    });
+
+    if (entries.length === 0) {
+      return 0;
+    }
+
+    // Revoke each entry
+    const entryIds = entries.map(e => e.id);
+    const [updatedCount] = await this.update(
+      {
+        revoked: true,
+        revoked_by: revokedBy,
+        revoked_reason: reason,
+        revoked_at
+      },
+      {
+        where: {
+          id: { [Op.in]: entryIds }
+        }
+      }
+    );
+
+    return updatedCount;
+  };
+
+  /**
+   * Revoke seeding rewards for a specific participant in a session
+   * @param {number} sessionId - The seeding session ID
+   * @param {string} steamId - The participant's Steam ID
+   * @param {string} revokedBy - Discord ID of the admin revoking
+   * @param {string} reason - Reason for revocation
+   * @returns {Promise<number>} Number of entries revoked
+   */
+  Whitelist.revokeSeedingRewardsForParticipant = async function(sessionId, steamId, revokedBy, reason = 'Seeding reward revoked') {
+    const revoked_at = new Date();
+
+    // Find seeding entries for this participant in this session
+    const entries = await this.findAll({
+      where: {
+        steamid64: steamId,
+        granted_by: 'seeding-system',
+        revoked: false,
+        [Op.and]: sequelize.where(
+          sequelize.fn('JSON_EXTRACT', sequelize.col('metadata'), '$.seeding_session_id'),
+          sessionId
+        )
+      }
+    });
+
+    if (entries.length === 0) {
+      return 0;
+    }
+
+    // Revoke each entry
+    const entryIds = entries.map(e => e.id);
+    const [updatedCount] = await this.update(
+      {
+        revoked: true,
+        revoked_by: revokedBy,
+        revoked_reason: reason,
+        revoked_at
+      },
+      {
+        where: {
+          id: { [Op.in]: entryIds }
+        }
+      }
+    );
+
+    return updatedCount;
+  };
+
   return Whitelist;
 };

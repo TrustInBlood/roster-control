@@ -111,3 +111,42 @@ export function useCancelSession() {
     },
   })
 }
+
+export function useClosePreview() {
+  return useMutation({
+    mutationFn: (id: number) => seedingApi.getClosePreview(id),
+  })
+}
+
+export function useReverseSessionRewards() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason?: string }) =>
+      seedingApi.reverseRewards(id, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['seeding'] })
+      queryClient.invalidateQueries({ queryKey: ['whitelist'] })
+    },
+  })
+}
+
+export function useRevokeParticipantRewards() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      sessionId,
+      participantId,
+      reason,
+    }: {
+      sessionId: number
+      participantId: number
+      reason?: string
+    }) => seedingApi.revokeParticipantRewards(sessionId, participantId, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['seeding'] })
+      queryClient.invalidateQueries({ queryKey: ['whitelist'] })
+    },
+  })
+}

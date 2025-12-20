@@ -54,6 +54,9 @@ import type {
   CreateSessionRequest,
   SessionsListResponse,
   ParticipantsListResponse,
+  ClosePreviewResponse,
+  ReverseRewardsResponse,
+  RevokeParticipantRewardsResponse,
 } from '../types/seeding'
 import type {
   StatsTemplatesListResponse,
@@ -468,6 +471,28 @@ export const seedingApi = {
 
   cancelSession: async (id: number, reason?: string): Promise<{ success: boolean; data: SeedingSession }> => {
     const { data } = await api.post<{ success: boolean; data: SeedingSession }>(`/seeding/sessions/${id}/cancel`, { reason })
+    return data
+  },
+
+  getClosePreview: async (id: number): Promise<{ success: boolean; data: ClosePreviewResponse }> => {
+    const { data } = await api.get<{ success: boolean; data: ClosePreviewResponse }>(`/seeding/sessions/${id}/close-preview`)
+    return data
+  },
+
+  reverseRewards: async (id: number, reason?: string): Promise<{ success: boolean; data: ReverseRewardsResponse }> => {
+    const { data } = await api.post<{ success: boolean; data: ReverseRewardsResponse }>(`/seeding/sessions/${id}/reverse-rewards`, { reason })
+    return data
+  },
+
+  revokeParticipantRewards: async (
+    sessionId: number,
+    participantId: number,
+    reason?: string
+  ): Promise<{ success: boolean; data: RevokeParticipantRewardsResponse }> => {
+    const { data } = await api.post<{ success: boolean; data: RevokeParticipantRewardsResponse }>(
+      `/seeding/sessions/${sessionId}/participants/${participantId}/revoke-rewards`,
+      { reason }
+    )
     return data
   },
 }
