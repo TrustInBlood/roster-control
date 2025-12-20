@@ -412,7 +412,9 @@ async function initializeWhitelist() {
 
     // Configure passport for Discord OAuth (dashboard authentication)
     const { configurePassport } = require('./api/passportConfig');
-    const dashboardEnabled = configurePassport(app, databaseManager.getSequelize(), client);
+    const passportConfig = configurePassport(app, databaseManager.getSequelize(), client);
+    const dashboardEnabled = passportConfig.enabled;
+    const sessionMiddleware = passportConfig.sessionMiddleware;
 
     if (dashboardEnabled) {
       // Mount dashboard API routes
@@ -476,6 +478,19 @@ async function initializeWhitelist() {
     global.whitelistServices = whitelistServices;
     global.httpServer = server;
 
+    // Initialize Dashboard Socket Service for real-time updates
+    if (dashboardEnabled && sessionMiddleware) {
+      try {
+        const DashboardSocketService = require('./services/DashboardSocketService');
+        const dashboardSocketService = new DashboardSocketService(server, sessionMiddleware);
+        await dashboardSocketService.initialize();
+        global.dashboardSocketService = dashboardSocketService;
+        loggerConsole.log('Dashboard Socket.IO service initialized');
+      } catch (error) {
+        loggerConsole.error('Failed to initialize Dashboard Socket.IO service:', error.message);
+      }
+    }
+
     loggerConsole.log('Whitelist integration initialized successfully');
     logger.info('Whitelist integration initialized successfully', {
       squadJSServers: whitelistServices.config.squadjs.servers.length,
@@ -518,6 +533,16 @@ async function gracefulShutdown(signal) {
       const { shutdown: shutdownStatsImage } = require('./services/StatsImageService');
       shutdownStatsImage();
     } catch (e) { /* ignore if not loaded */ }
+
+    // Shutdown dashboard socket service
+    if (global.dashboardSocketService) {
+      try {
+        await global.dashboardSocketService.shutdown();
+        loggerConsole.log('DashboardSocketService shutdown complete');
+      } catch (e) {
+        loggerConsole.error('DashboardSocketService shutdown error:', e.message);
+      }
+    }
 
     // Shutdown seeding session service first (depends on playtime tracking)
     if (global.seedingSessionService) {

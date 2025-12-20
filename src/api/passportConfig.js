@@ -22,7 +22,7 @@ function configurePassport(app, sequelize, discordClient) {
 
   if (!clientId || !clientSecret) {
     logger.warn('Discord OAuth not configured - DISCORD_CLIENT_ID or DISCORD_OAUTH_CLIENT_SECRET missing');
-    return false;
+    return { enabled: false, sessionMiddleware: null };
   }
 
   if (!sessionSecret) {
@@ -37,8 +37,8 @@ function configurePassport(app, sequelize, discordClient) {
     expiration: 14 * 24 * 60 * 60 * 1000 // Sessions expire after 2 weeks
   });
 
-  // Session middleware
-  app.use(session({
+  // Session middleware - store reference for socket.io
+  const sessionMiddleware = session({
     secret: sessionSecret || 'insecure-dev-secret-change-me',
     store: sessionStore,
     resave: false,
@@ -50,7 +50,8 @@ function configurePassport(app, sequelize, discordClient) {
       sameSite: 'lax'
     },
     name: 'roster.sid'
-  }));
+  });
+  app.use(sessionMiddleware);
 
   // Initialize passport
   app.use(passport.initialize());
@@ -145,7 +146,7 @@ function configurePassport(app, sequelize, discordClient) {
   sessionStore.sync();
 
   logger.info('Passport configured with Discord OAuth strategy');
-  return true;
+  return { enabled: true, sessionMiddleware };
 }
 
 module.exports = { configurePassport };

@@ -1,0 +1,235 @@
+const express = require('express');
+const router = express.Router();
+const { createServiceLogger } = require('../../utils/logger');
+const { requireAuth, requirePermission } = require('../middleware/auth');
+const { PlayerDiscordLink } = require('../../database/models');
+const { loadConfig } = require('../../utils/environment');
+
+const logger = createServiceLogger('ServersAPI');
+
+// Load Discord roles configuration
+const { DISCORD_ROLES, getAllStaffRoles } = loadConfig('discordRoles');
+
+/**
+ * Get admin role display name based on role ID
+ */
+function getAdminRoleName(roleId) {
+  const roleNames = {
+    [DISCORD_ROLES.SUPER_ADMIN]: 'Super Admin',
+    [DISCORD_ROLES.EXECUTIVE_ADMIN]: 'Executive Admin',
+    [DISCORD_ROLES.HEAD_ADMIN]: 'Head Admin',
+    [DISCORD_ROLES.SENIOR_ADMIN]: 'Senior Admin',
+    [DISCORD_ROLES.OG_ADMIN]: 'OG Admin',
+    [DISCORD_ROLES.SQUAD_ADMIN]: 'Squad Admin',
+    [DISCORD_ROLES.MODERATOR]: 'Moderator',
+    [DISCORD_ROLES.STAFF]: 'Staff',
+    [DISCORD_ROLES.TICKET_SUPPORT]: 'Ticket Support',
+    [DISCORD_ROLES.APPLICATIONS]: 'Applications'
+  };
+  return roleNames[roleId] || 'Staff';
+}
+
+/**
+ * Get the highest priority admin role from an array of roles
+ */
+function getHighestAdminRole(userRoles) {
+  const rolePriority = [
+    DISCORD_ROLES.SUPER_ADMIN,
+    DISCORD_ROLES.EXECUTIVE_ADMIN,
+    DISCORD_ROLES.HEAD_ADMIN,
+    DISCORD_ROLES.SENIOR_ADMIN,
+    DISCORD_ROLES.OG_ADMIN,
+    DISCORD_ROLES.SQUAD_ADMIN,
+    DISCORD_ROLES.MODERATOR,
+    DISCORD_ROLES.STAFF,
+    DISCORD_ROLES.TICKET_SUPPORT,
+    DISCORD_ROLES.APPLICATIONS
+  ];
+
+  for (const roleId of rolePriority) {
+    if (userRoles.includes(roleId)) {
+      return { roleId, roleName: getAdminRoleName(roleId) };
+    }
+  }
+  return null;
+}
+
+/**
+ * Look up online staff members for a given list of Steam IDs
+ * Returns an array of { discordId, displayName, role, steamId }
+ */
+async function getOnlineStaff(steamIds) {
+  if (!steamIds || steamIds.length === 0) {
+    return [];
+  }
+
+  const discordClient = global.discordClient;
+  if (!discordClient) {
+    return [];
+  }
+
+  // Get all Discord links for these Steam IDs
+  const links = await PlayerDiscordLink.findAll({
+    where: { steamid64: steamIds }
+  });
+
+  if (links.length === 0) {
+    return [];
+  }
+
+  const guildId = process.env.DISCORD_GUILD_ID;
+  const guild = await discordClient.guilds.fetch(guildId).catch(() => null);
+  if (!guild) {
+    return [];
+  }
+
+  const allStaffRoles = getAllStaffRoles();
+  const onlineStaff = [];
+
+  for (const link of links) {
+    try {
+      const member = await guild.members.fetch(link.discord_user_id).catch(() => null);
+      if (!member) continue;
+
+      const memberRoles = member.roles.cache.map(r => r.id);
+      const isStaff = memberRoles.some(roleId => allStaffRoles.includes(roleId));
+
+      if (isStaff) {
+        const highestRole = getHighestAdminRole(memberRoles);
+        onlineStaff.push({
+          discordId: link.discord_user_id,
+          steamId: link.steamid64,
+          displayName: member.displayName || member.user.username,
+          role: highestRole?.roleName || 'Staff'
+        });
+      }
+    } catch (error) {
+      logger.debug('Failed to fetch member for staff check', {
+        discordId: link.discord_user_id,
+        error: error.message
+      });
+    }
+  }
+
+  return onlineStaff;
+}
+
+/**
+ * Get player list directly from SquadJS socket
+ * @param {Socket} socket - Socket.io connection
+ * @returns {Promise<Array>} - Array of player objects
+ */
+function getPlayerListFromSocket(socket) {
+  return new Promise((resolve) => {
+    if (!socket || !socket.connected) {
+      resolve([]);
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      resolve([]);
+    }, 5000);
+
+    socket.emit('players', (playerList) => {
+      clearTimeout(timeout);
+      resolve(playerList || []);
+    });
+  });
+}
+
+/**
+ * Get active Steam IDs for a specific server - tries direct socket query first
+ * Falls back to PlaytimeTrackingService cache if socket fails
+ */
+async function getActiveSteamIdsForServer(playtimeService, serverId, socket) {
+  // Try direct socket query first (most accurate)
+  if (socket && socket.connected) {
+    const playerList = await getPlayerListFromSocket(socket);
+    if (playerList.length > 0) {
+      const steamIds = playerList
+        .filter(p => p.steamID)
+        .map(p => p.steamID);
+      return steamIds;
+    }
+  }
+
+  // Fallback to PlaytimeTrackingService cache
+  if (!playtimeService) {
+    return [];
+  }
+
+  const activeSessions = playtimeService.getActiveSessions();
+  const steamIds = [];
+
+  for (const [sessionKey] of activeSessions) {
+    // Key format is "serverId:steamId"
+    if (sessionKey.startsWith(`${serverId}:`)) {
+      const steamId = sessionKey.split(':')[1];
+      if (steamId) {
+        steamIds.push(steamId);
+      }
+    }
+  }
+
+  return steamIds;
+}
+
+/**
+ * Get current status of all servers including player count and online staff
+ */
+async function getServersStatus() {
+  const whitelistServices = global.whitelistServices;
+  const playtimeService = global.playtimeTrackingService;
+
+  if (!whitelistServices || !whitelistServices.connectionManager) {
+    return [];
+  }
+
+  const connectionManager = whitelistServices.connectionManager;
+  const connections = connectionManager.getConnections();
+  const servers = [];
+
+  for (const [serverId, connectionData] of connections) {
+    const { server, socket, state } = connectionData;
+
+    // Get active Steam IDs for this server (try socket first, then cache)
+    const activeSteamIds = await getActiveSteamIdsForServer(playtimeService, serverId, socket);
+    const playerCount = activeSteamIds.length;
+
+    // Get online staff for this server
+    const onlineStaff = await getOnlineStaff(activeSteamIds);
+
+    servers.push({
+      id: serverId,
+      name: server.name,
+      connected: socket && socket.connected,
+      state: state || 'unknown',
+      playerCount,
+      maxPlayers: 100,
+      onlineStaff,
+      lastUpdate: new Date().toISOString()
+    });
+  }
+
+  return servers;
+}
+
+// GET /api/v1/servers/status - Get status of all servers
+router.get('/status', requireAuth, requirePermission('VIEW_SEEDING'), async (req, res) => {
+  try {
+    const servers = await getServersStatus();
+
+    res.json({
+      success: true,
+      data: servers
+    });
+  } catch (error) {
+    logger.error('Error getting server status:', error.message);
+    res.status(500).json({ error: 'Failed to get server status' });
+  }
+});
+
+// Export the getServersStatus function for use by socket service
+module.exports = router;
+module.exports.getServersStatus = getServersStatus;
+module.exports.getOnlineStaff = getOnlineStaff;
