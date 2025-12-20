@@ -82,6 +82,10 @@ class SeedingSessionService {
       // Rebuild potential switchers map from participants
       await this.rebuildPotentialSwitchersMap(activeSession.id);
 
+      // Sync participants with current players on target server
+      // This catches any players who joined during bot downtime
+      await this.syncParticipantsWithServer(activeSession.id, activeSession.target_server_id);
+
       // Resume broadcast reminders for the active session
       this.startBroadcastReminders();
     }
@@ -260,6 +264,65 @@ class SeedingSessionService {
     await SeedingSession.updateParticipantCount(sessionId, enrolledCount);
 
     this.logger.info(`Enrolled ${enrolledCount} existing players as seeders`);
+  }
+
+  /**
+   * Sync participants with current players on server
+   * Used during session recovery to catch players who joined during bot downtime
+   */
+  async syncParticipantsWithServer(sessionId, targetServerId) {
+    const activeSessions = this.playtimeTrackingService.getActiveSessions();
+
+    // Get current steam IDs on target server
+    const currentSteamIds = [];
+    for (const [sessionKey] of activeSessions) {
+      const [serverId, steamId] = sessionKey.split(':');
+      if (serverId === targetServerId) {
+        currentSteamIds.push(steamId);
+      }
+    }
+
+    if (currentSteamIds.length === 0) {
+      this.logger.info('No players on target server to sync');
+      return;
+    }
+
+    // Update is_on_target for all matching participants
+    await SeedingParticipant.updateOnTargetStatus(sessionId, currentSteamIds);
+
+    // Check for players on server who aren't enrolled as participants
+    let newEnrollments = 0;
+    for (const [sessionKey, sessionData] of activeSessions) {
+      const [serverId, steamId] = sessionKey.split(':');
+      if (serverId !== targetServerId) continue;
+
+      // Check if already a participant
+      const existing = await SeedingParticipant.findBySessionAndSteamId(sessionId, steamId);
+      if (existing) continue;
+
+      // Enroll as seeder
+      try {
+        await SeedingParticipant.createSeeder({
+          sessionId,
+          playerId: sessionData.playerId,
+          steamId,
+          username: sessionData.username
+        });
+        newEnrollments++;
+        this.logger.info(`Late enrollment during recovery: ${sessionData.username} (${steamId})`);
+      } catch (error) {
+        this.logger.error(`Error enrolling ${steamId} during recovery:`, error.message);
+      }
+    }
+
+    if (newEnrollments > 0) {
+      // Update participant count
+      const count = await SeedingParticipant.count({ where: { session_id: sessionId } });
+      await SeedingSession.updateParticipantCount(sessionId, count);
+      this.logger.info(`Recovery sync: enrolled ${newEnrollments} new participants, updated ${currentSteamIds.length} on-target statuses`);
+    } else {
+      this.logger.info(`Recovery sync: updated ${currentSteamIds.length} on-target statuses, no new enrollments needed`);
+    }
   }
 
   /**
@@ -463,7 +526,7 @@ class SeedingSessionService {
       // Check threshold
       await this.checkThreshold(serverId, playerCount);
     } catch (error) {
-      this.logger.error(`Error handling playerCountUpdate:`, error.message);
+      this.logger.error('Error handling playerCountUpdate:', error.message);
     }
   }
 
@@ -580,6 +643,8 @@ class SeedingSessionService {
     // Log audit
     await this.logAuditAction('seeding_session_closed', 'system', sessionId, {
       reason,
+      targetServerName: session.target_server_name,
+      playerThreshold: session.player_threshold,
       participantsCount: session.participants_count,
       rewardsGrantedCount: session.rewards_granted_count
     });
@@ -611,7 +676,9 @@ class SeedingSessionService {
 
     // Log audit
     await this.logAuditAction('seeding_session_cancelled', cancelledBy, sessionId, {
-      reason
+      reason,
+      targetServerName: session.target_server_name,
+      playerThreshold: session.player_threshold
     });
 
     this.logger.info(`Seeding session ${sessionId} cancelled: ${reason}`);
@@ -688,6 +755,8 @@ class SeedingSessionService {
     // Log audit
     await this.logAuditAction('seeding_rewards_reversed', reversedBy, sessionId, {
       reason,
+      targetServerName: session.target_server_name,
+      playerThreshold: session.player_threshold,
       revokedCount,
       participantsUpdated
     });
@@ -719,6 +788,9 @@ class SeedingSessionService {
       throw new Error('Participant does not belong to this session');
     }
 
+    // Fetch session for audit logging
+    const session = await SeedingSession.findByPk(sessionId);
+
     // Revoke whitelist entries for this participant
     const revokedCount = await Whitelist.revokeSeedingRewardsForParticipant(
       sessionId,
@@ -743,7 +815,9 @@ class SeedingSessionService {
     await this.logAuditAction('seeding_participant_rewards_revoked', revokedBy, sessionId, {
       participantId,
       steamId: participant.steam_id,
+      username: participant.username,
       reason,
+      targetServerName: session?.target_server_name,
       revokedCount,
       rewardsCleared
     });
@@ -1098,17 +1172,48 @@ class SeedingSessionService {
    */
   async logAuditAction(actionType, actorId, sessionId, details) {
     try {
+      // Build a descriptive message based on action type and details
+      let description = this.buildAuditDescription(actionType, details);
+
+      // Use server name as target for display, with session ID in metadata
+      const targetName = details.targetServerName || details.serverName || `Session #${sessionId}`;
+
       await AuditLog.logAction({
         actionType,
         actorType: actorId === 'system' ? 'system' : 'discord_user',
-        actorId: actorId === 'system' ? null : actorId,
+        actorId: actorId === 'system' ? 'SEEDING SYSTEM' : actorId,
         targetType: 'seeding_session',
-        targetId: String(sessionId),
-        description: `Seeding session action: ${actionType}`,
-        metadata: details
+        targetId: targetName,
+        description,
+        metadata: { ...details, sessionId }
       });
     } catch (error) {
       this.logger.error('Error logging audit action:', error.message);
+    }
+  }
+
+  /**
+   * Build descriptive audit log message
+   */
+  buildAuditDescription(actionType, details) {
+    const serverName = details.targetServerName || details.serverName || 'Unknown Server';
+    const threshold = details.playerThreshold;
+
+    switch (actionType) {
+    case 'seeding_session_started':
+      return `Seeding session started for ${serverName} (target: ${threshold} players)`;
+    case 'seeding_session_closed':
+      return `Seeding session closed for ${serverName}: ${details.reason || 'Completed'}`;
+    case 'seeding_session_cancelled':
+      return `Seeding session cancelled for ${serverName}: ${details.reason || 'No reason provided'}`;
+    case 'seeding_rewards_reversed':
+      return `Seeding rewards reversed for ${serverName}: ${details.reason || 'No reason provided'}`;
+    case 'seeding_participant_rewards_revoked': {
+      const playerName = details.username || details.steamId || 'Unknown';
+      return `Participant rewards revoked (${playerName}) for ${serverName} session: ${details.reason || 'No reason provided'}`;
+    }
+    default:
+      return `Seeding session action: ${actionType}`;
     }
   }
 

@@ -385,12 +385,12 @@ SeedingSession.prototype.getTotalPossibleRewardMinutes = function() {
  */
 SeedingSession.prototype.rewardToMinutes = function(value, unit) {
   switch (unit) {
-    case 'days':
-      return value * 60 * 24;
-    case 'months':
-      return value * 60 * 24 * 30;
-    default:
-      return 0;
+  case 'days':
+    return value * 60 * 24;
+  case 'months':
+    return value * 60 * 24 * 30;
+  default:
+    return 0;
   }
 };
 
