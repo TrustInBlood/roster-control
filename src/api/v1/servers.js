@@ -31,12 +31,14 @@ function getAdminRoleName(roleId) {
 }
 
 /**
- * Get the highest priority admin role from an array of roles
+ * Get the highest priority staff role from an array of roles
+ * Only considers actual staff category roles from discordRoles.js
  * Returns roleId, roleName, and priority (higher = more senior)
  */
-function getHighestAdminRole(userRoles) {
+function getHighestStaffRole(userRoles) {
+  // Staff roles in priority order (highest first)
+  // Only includes roles from getAllStaffRoles() - no SUPER_ADMIN/Discord op
   const rolePriority = [
-    { id: DISCORD_ROLES.SUPER_ADMIN, priority: 1000 },
     { id: DISCORD_ROLES.EXECUTIVE_ADMIN, priority: 900 },
     { id: DISCORD_ROLES.HEAD_ADMIN, priority: 800 },
     { id: DISCORD_ROLES.SENIOR_ADMIN, priority: 700 },
@@ -45,8 +47,7 @@ function getHighestAdminRole(userRoles) {
     { id: DISCORD_ROLES.MODERATOR_T2, priority: 400 },
     { id: DISCORD_ROLES.MODERATOR_T1, priority: 300 },
     { id: DISCORD_ROLES.STAFF, priority: 200 },
-    { id: DISCORD_ROLES.TICKET_SUPPORT, priority: 100 },
-    { id: DISCORD_ROLES.APPLICATIONS, priority: 50 }
+    { id: DISCORD_ROLES.TICKET_SUPPORT, priority: 100 }
   ];
 
   for (const role of rolePriority) {
@@ -99,7 +100,7 @@ async function getOnlineStaff(steamIds) {
 
       if (isStaff) {
         // Get the highest priority staff role and use its actual Discord name and color
-        const highestRole = getHighestAdminRole(memberRoleIds);
+        const highestRole = getHighestStaffRole(memberRoleIds);
         let roleName = 'Staff';
         let roleColor = null;
         let rolePriority = 0;
