@@ -113,12 +113,12 @@ class PlayerProfileService {
     const { hasWhitelist, whitelistStatus, isStaff, sortBy = 'lastSeen', sortOrder = 'DESC' } = filters;
 
     try {
-      // Build search conditions
-      const searchConditions = query ? {
+      // Build search conditions for whitelist - only search steamid64 and username (in-game name)
+      // We don't search discord_username here because it's unreliable (may be granting admin's name)
+      const whitelistSearchConditions = query ? {
         [Op.or]: [
           { steamid64: { [Op.like]: `%${query}%` } },
-          { username: { [Op.like]: `%${query}%` } },
-          { discord_username: { [Op.like]: `%${query}%` } }
+          { username: { [Op.like]: `%${query}%` } }
         ]
       } : {};
 
@@ -126,7 +126,7 @@ class PlayerProfileService {
       const whitelistEntries = await Whitelist.findAll({
         where: {
           approved: true,
-          ...searchConditions
+          ...whitelistSearchConditions
         },
         order: [['steamid64', 'ASC'], ['granted_at', 'DESC']]
       });
@@ -154,6 +154,7 @@ class PlayerProfileService {
       if (query) {
         const links = await PlayerDiscordLink.findAll({
           where: {
+            is_primary: true, // Only search primary links
             [Op.or]: [
               { steamid64: { [Op.like]: `%${query}%` } },
               { username: { [Op.like]: `%${query}%` } }
@@ -173,6 +174,39 @@ class PlayerProfileService {
               source: null
             });
           }
+        }
+      }
+
+      // Search by Discord username - find linked players by searching actual Discord members
+      if (query && global.discordClient) {
+        try {
+          const guildId = process.env.DISCORD_GUILD_ID;
+          const guild = await global.discordClient.guilds.fetch(guildId);
+          if (guild) {
+            // Fetch members that match the query (Discord API search)
+            const members = await guild.members.fetch({ query, limit: 20 }).catch(() => new Map());
+
+            // For each matching Discord member, check if they have a linked Steam account
+            for (const [memberId] of members) {
+              const link = await PlayerDiscordLink.findOne({
+                where: { discord_user_id: memberId, is_primary: true }
+              });
+
+              if (link && link.steamid64 && !playerMap.has(link.steamid64)) {
+                playerMap.set(link.steamid64, {
+                  steamid64: link.steamid64,
+                  username: link.username,
+                  discord_username: null,
+                  discord_user_id: link.discord_user_id,
+                  eosID: link.eosID,
+                  entries: [],
+                  source: null
+                });
+              }
+            }
+          }
+        } catch {
+          // Discord search failed, continue without it
         }
       }
 

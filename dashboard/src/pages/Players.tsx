@@ -157,6 +157,8 @@ export default function Players() {
               onChange={(e) => setSearchInput(e.target.value)}
               className="w-full bg-discord-darker border border-discord-lighter rounded-md pl-12 pr-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-discord-blurple text-lg"
               autoFocus
+              autoComplete="off"
+              name="player-search"
             />
           </div>
           <button

@@ -1,12 +1,11 @@
 import { useState } from 'react'
-import { Plus, Trash2, Pencil, TrendingUp } from 'lucide-react'
+import { Plus, Trash2, Pencil } from 'lucide-react'
 import { usePlayerWhitelistHistory } from '../../hooks/usePlayers'
 import {
   useExtendWhitelist,
   useRevokeWhitelist,
   useRevokeWhitelistEntry,
-  useEditWhitelistEntry,
-  useUpgradeConfidence
+  useEditWhitelistEntry
 } from '../../hooks/useWhitelist'
 import type { PlayerProfile, PlayerWhitelistEntry } from '../../types/player'
 import type { ExtendWhitelistRequest, RevokeWhitelistRequest, EditWhitelistRequest } from '../../types/whitelist'
@@ -24,7 +23,6 @@ export default function PlayerWhitelistSection({ steamid64, profile }: PlayerWhi
   const [showRevokeModal, setShowRevokeModal] = useState(false)
   const [showRevokeEntryModal, setShowRevokeEntryModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
-  const [showUpgradeConfidenceModal, setShowUpgradeConfidenceModal] = useState(false)
   const [selectedEntry, setSelectedEntry] = useState<PlayerWhitelistEntry | null>(null)
 
   if (isLoading) {
@@ -42,22 +40,10 @@ export default function PlayerWhitelistSection({ steamid64, profile }: PlayerWhi
     <div className="space-y-4">
       {/* Actions Bar */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <h3 className="text-lg font-medium text-white">
-            Whitelist History
-            <span className="text-sm text-gray-400 ml-2">({entries.length} entries)</span>
-          </h3>
-          {profile.discordLink && profile.discordLink.confidence_score < 1.0 && (
-            <button
-              onClick={() => setShowUpgradeConfidenceModal(true)}
-              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center gap-1"
-              title="Upgrade to 100% confidence"
-            >
-              <TrendingUp className="w-4 h-4" />
-              Upgrade Confidence
-            </button>
-          )}
-        </div>
+        <h3 className="text-lg font-medium text-white">
+          Whitelist History
+          <span className="text-sm text-gray-400 ml-2">({entries.length} entries)</span>
+        </h3>
         <div className="flex gap-2">
           <button
             onClick={() => {
@@ -219,14 +205,6 @@ export default function PlayerWhitelistSection({ steamid64, profile }: PlayerWhi
         <RevokeModal
           steamid64={steamid64}
           onClose={() => setShowRevokeModal(false)}
-        />
-      )}
-
-      {showUpgradeConfidenceModal && profile.discordLink && (
-        <UpgradeConfidenceModal
-          steamid64={steamid64}
-          currentConfidence={profile.discordLink.confidence_score}
-          onClose={() => setShowUpgradeConfidenceModal(false)}
         />
       )}
     </div>
@@ -474,58 +452,3 @@ function RevokeModal({ steamid64, onClose }: { steamid64: string; onClose: () =>
   )
 }
 
-function UpgradeConfidenceModal({
-  steamid64,
-  currentConfidence,
-  onClose,
-}: {
-  steamid64: string
-  currentConfidence: number
-  onClose: () => void
-}) {
-  const upgradeMutation = useUpgradeConfidence()
-  const [reason, setReason] = useState('')
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!reason.trim()) return
-    try {
-      await upgradeMutation.mutateAsync({ steamid64, reason })
-      onClose()
-    } catch {
-      // Error handled by mutation
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-discord-light rounded-lg w-full max-w-md mx-4 p-4">
-        <h3 className="text-lg font-semibold text-white mb-4">Upgrade Confidence</h3>
-        <p className="text-sm text-gray-400 mb-4">
-          Upgrade from <span className="text-yellow-400">{(currentConfidence * 100).toFixed(0)}%</span> to{' '}
-          <span className="text-green-400">100%</span>
-        </p>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <textarea
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder="Reason (required)"
-            rows={2}
-            required
-            className="w-full bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 resize-none"
-          />
-          <div className="flex justify-end gap-3">
-            <button type="button" onClick={onClose} className="text-gray-400 hover:text-white">Cancel</button>
-            <button
-              type="submit"
-              disabled={upgradeMutation.isPending || !reason.trim()}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
-            >
-              {upgradeMutation.isPending ? 'Upgrading...' : 'Upgrade'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  )
-}

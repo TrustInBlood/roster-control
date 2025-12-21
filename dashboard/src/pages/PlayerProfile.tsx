@@ -203,7 +203,7 @@ export default function PlayerProfile() {
       {/* Tab Content */}
       <div className="min-h-[400px]">
         {activeTab === 'overview' && (
-          <PlayerOverview profile={profile} onTabChange={setActiveTab} />
+          <PlayerOverview profile={profile} steamid64={steamid64!} onTabChange={setActiveTab} />
         )}
         {activeTab === 'activity' && (
           <PlayerActivitySection steamid64={steamid64!} />

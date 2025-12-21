@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Link2, Shield, Clock, AlertTriangle, CheckCircle, History, User, Calendar, Users } from 'lucide-react'
+import { Link2, Shield, Clock, AlertTriangle, CheckCircle, History, User, Calendar, Users, TrendingUp } from 'lucide-react'
 import type { PlayerProfile } from '../../types/player'
 import { usePlayerUnlinkHistory, usePlayerLinkedAccounts } from '../../hooks/usePlayers'
+import { useUpgradeConfidence } from '../../hooks/useWhitelist'
 import { formatDateTime, formatRelativeTime } from '../../lib/utils'
 import { cn } from '../../lib/utils'
 import CopyButton from '../ui/CopyButton'
@@ -16,6 +17,8 @@ export default function PlayerAccountSection({ steamid64, profile }: PlayerAccou
   const navigate = useNavigate()
   const [showUnlinkHistory, setShowUnlinkHistory] = useState(false)
   const [showLinkedAccounts, setShowLinkedAccounts] = useState(false)
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false)
+  const [upgradeReason, setUpgradeReason] = useState('')
   const { data: unlinkData, isLoading: unlinkLoading } = usePlayerUnlinkHistory(
     steamid64,
     showUnlinkHistory
@@ -24,6 +27,7 @@ export default function PlayerAccountSection({ steamid64, profile }: PlayerAccou
     steamid64,
     showLinkedAccounts
   )
+  const upgradeMutation = useUpgradeConfidence()
 
   const getConfidenceColor = (score: number) => {
     if (score >= 1) return 'text-green-400'
@@ -80,10 +84,22 @@ export default function PlayerAccountSection({ steamid64, profile }: PlayerAccou
     <div className="space-y-6">
       {/* Primary Link Card */}
       <div className="bg-discord-light rounded-lg p-6">
-        <h3 className="text-lg font-medium text-white mb-4 flex items-center gap-2">
-          <Link2 className="w-5 h-5 text-discord-blurple" />
-          Primary Account Link
-        </h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium text-white flex items-center gap-2">
+            <Link2 className="w-5 h-5 text-discord-blurple" />
+            Primary Account Link
+          </h3>
+          {profile.discordLink && profile.discordLink.confidence_score < 1.0 && (
+            <button
+              onClick={() => setShowUpgradeModal(true)}
+              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center gap-1"
+              title="Upgrade to 100% confidence"
+            >
+              <TrendingUp className="w-4 h-4" />
+              Upgrade Confidence
+            </button>
+          )}
+        </div>
 
         {profile.discordLink ? (
           <div className="space-y-4">
@@ -467,6 +483,61 @@ export default function PlayerAccountSection({ steamid64, profile }: PlayerAccou
           </div>
         )}
       </div>
+
+      {/* Upgrade Confidence Modal */}
+      {showUpgradeModal && profile.discordLink && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-discord-light rounded-lg w-full max-w-md mx-4 p-4">
+            <h3 className="text-lg font-semibold text-white mb-4">Upgrade Confidence</h3>
+            <p className="text-sm text-gray-400 mb-4">
+              Upgrade from <span className="text-yellow-400">{(profile.discordLink.confidence_score * 100).toFixed(0)}%</span> to{' '}
+              <span className="text-green-400">100%</span>
+            </p>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault()
+                if (!upgradeReason.trim()) return
+                try {
+                  await upgradeMutation.mutateAsync({ steamid64, reason: upgradeReason })
+                  setShowUpgradeModal(false)
+                  setUpgradeReason('')
+                } catch {
+                  // Error handled by mutation
+                }
+              }}
+              className="space-y-4"
+            >
+              <textarea
+                value={upgradeReason}
+                onChange={(e) => setUpgradeReason(e.target.value)}
+                placeholder="Reason (required)"
+                rows={2}
+                required
+                className="w-full bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 resize-none"
+              />
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUpgradeModal(false)
+                    setUpgradeReason('')
+                  }}
+                  className="text-gray-400 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={upgradeMutation.isPending || !upgradeReason.trim()}
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
+                >
+                  {upgradeMutation.isPending ? 'Upgrading...' : 'Upgrade'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   )

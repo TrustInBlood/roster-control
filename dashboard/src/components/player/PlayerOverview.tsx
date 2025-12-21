@@ -1,9 +1,12 @@
-import { Activity, Shield, History, Link2, ExternalLink } from 'lucide-react'
+import { useState } from 'react'
+import { Activity, Shield, History, Link2, ExternalLink, TrendingUp } from 'lucide-react'
 import type { PlayerProfile } from '../../types/player'
 import { cn, formatRelativeTime } from '../../lib/utils'
+import { useUpgradeConfidence } from '../../hooks/useWhitelist'
 
 interface PlayerOverviewProps {
   profile: PlayerProfile
+  steamid64: string
   onTabChange: (tab: 'activity' | 'whitelist' | 'audit' | 'seeding' | 'account') => void
 }
 
@@ -16,7 +19,11 @@ function formatPlaytime(minutes: number): string {
   return `${hours}h ${mins}m`
 }
 
-export default function PlayerOverview({ profile, onTabChange }: PlayerOverviewProps) {
+export default function PlayerOverview({ profile, steamid64, onTabChange }: PlayerOverviewProps) {
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false)
+  const upgradeMutation = useUpgradeConfidence()
+  const [upgradeReason, setUpgradeReason] = useState('')
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active':
@@ -100,40 +107,57 @@ export default function PlayerOverview({ profile, onTabChange }: PlayerOverviewP
       </button>
 
       {/* Account Link Card */}
-      <button
-        onClick={() => onTabChange('account')}
-        className="bg-discord-light rounded-lg p-4 text-left hover:bg-discord-lighter transition-colors"
-      >
-        <div className="flex items-center gap-2 mb-3">
-          <Link2 className="w-5 h-5 text-purple-400" />
-          <h3 className="font-medium text-white">Account Link</h3>
+      <div className="bg-discord-light rounded-lg p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Link2 className="w-5 h-5 text-purple-400" />
+            <h3 className="font-medium text-white">Account Link</h3>
+          </div>
+          {profile.discordLink && profile.discordLink.confidence_score < 1.0 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowUpgradeModal(true)
+              }}
+              className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs font-medium transition-colors flex items-center gap-1"
+              title="Upgrade to 100% confidence"
+            >
+              <TrendingUp className="w-3 h-3" />
+              Upgrade
+            </button>
+          )}
         </div>
-        {profile.discordLink ? (
-          <dl className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-gray-400">Confidence</dt>
-              <dd className={cn(
-                'font-medium',
-                profile.discordLink.confidence_score >= 1 ? 'text-green-400' :
-                profile.discordLink.confidence_score >= 0.7 ? 'text-yellow-400' : 'text-red-400'
-              )}>
-                {(profile.discordLink.confidence_score * 100).toFixed(0)}%
-              </dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-gray-400">Source</dt>
-              <dd className="text-white capitalize">{profile.discordLink.link_source}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-gray-400">Linked Accounts</dt>
-              <dd className="text-white">{profile.allLinks.length}</dd>
-            </div>
-          </dl>
-        ) : (
-          <p className="text-sm text-gray-400">No account linked</p>
-        )}
-        <p className="text-xs text-discord-blurple mt-3">View account details</p>
-      </button>
+        <button
+          onClick={() => onTabChange('account')}
+          className="w-full text-left"
+        >
+          {profile.discordLink ? (
+            <dl className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <dt className="text-gray-400">Confidence</dt>
+                <dd className={cn(
+                  'font-medium',
+                  profile.discordLink.confidence_score >= 1 ? 'text-green-400' :
+                  profile.discordLink.confidence_score >= 0.7 ? 'text-yellow-400' : 'text-red-400'
+                )}>
+                  {(profile.discordLink.confidence_score * 100).toFixed(0)}%
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-gray-400">Source</dt>
+                <dd className="text-white capitalize">{profile.discordLink.link_source}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-gray-400">Linked Accounts</dt>
+                <dd className="text-white">{profile.allLinks.length}</dd>
+              </div>
+            </dl>
+          ) : (
+            <p className="text-sm text-gray-400">No account linked</p>
+          )}
+          <p className="text-xs text-discord-blurple mt-3 hover:underline">View account details</p>
+        </button>
+      </div>
 
       {/* BattleMetrics Card */}
       <div className="bg-discord-light rounded-lg p-4">
@@ -203,6 +227,61 @@ export default function PlayerOverview({ profile, onTabChange }: PlayerOverviewP
             <h3 className="font-medium text-white">Admin Notes</h3>
           </div>
           <p className="text-sm text-gray-300 whitespace-pre-wrap">{profile.notes}</p>
+        </div>
+      )}
+
+      {/* Upgrade Confidence Modal */}
+      {showUpgradeModal && profile.discordLink && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-discord-light rounded-lg w-full max-w-md mx-4 p-4">
+            <h3 className="text-lg font-semibold text-white mb-4">Upgrade Confidence</h3>
+            <p className="text-sm text-gray-400 mb-4">
+              Upgrade from <span className="text-yellow-400">{(profile.discordLink.confidence_score * 100).toFixed(0)}%</span> to{' '}
+              <span className="text-green-400">100%</span>
+            </p>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault()
+                if (!upgradeReason.trim()) return
+                try {
+                  await upgradeMutation.mutateAsync({ steamid64, reason: upgradeReason })
+                  setShowUpgradeModal(false)
+                  setUpgradeReason('')
+                } catch {
+                  // Error handled by mutation
+                }
+              }}
+              className="space-y-4"
+            >
+              <textarea
+                value={upgradeReason}
+                onChange={(e) => setUpgradeReason(e.target.value)}
+                placeholder="Reason (required)"
+                rows={2}
+                required
+                className="w-full bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 resize-none"
+              />
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUpgradeModal(false)
+                    setUpgradeReason('')
+                  }}
+                  className="text-gray-400 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={upgradeMutation.isPending || !upgradeReason.trim()}
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
+                >
+                  {upgradeMutation.isPending ? 'Upgrading...' : 'Upgrade'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
