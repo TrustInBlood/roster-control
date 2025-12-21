@@ -147,18 +147,23 @@ export default function Players() {
 
       {/* Search */}
       <div className="bg-discord-light rounded-lg p-6">
-        <form onSubmit={handleSearch} className="flex gap-4">
+        <form onSubmit={handleSearch} className="flex gap-4" autoComplete="off">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
-              type="text"
+              type="search"
               placeholder="Enter Steam64 ID, username, or Discord username..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               className="w-full bg-discord-darker border border-discord-lighter rounded-md pl-12 pr-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-discord-blurple text-lg"
               autoFocus
               autoComplete="off"
-              name="player-search"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              data-form-type="other"
+              data-lpignore="true"
+              data-1p-ignore="true"
             />
           </div>
           <button
