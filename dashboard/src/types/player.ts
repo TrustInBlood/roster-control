@@ -6,6 +6,8 @@ export interface PlayerListItem {
   username: string | null
   discord_username: string | null
   discord_user_id: string | null
+  avatar_url: string | null
+  isLinked: boolean
   eosID: string | null
   hasWhitelist: boolean
   whitelistStatus: 'active' | 'expired' | 'revoked' | 'permanent' | 'none'

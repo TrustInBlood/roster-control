@@ -1,4 +1,3 @@
-export { default as PlayerTable } from './PlayerTable'
 export { default as PlayerOverview } from './PlayerOverview'
 export { default as PlayerActivitySection } from './PlayerActivitySection'
 export { default as PlayerWhitelistSection } from './PlayerWhitelistSection'

@@ -206,25 +206,68 @@ class PlayerProfileService {
       // Calculate status and enrich each player
       let players = [];
 
+      // Get Discord client for avatar lookups
+      const discordClient = global.discordClient;
+      const guildId = process.env.DISCORD_GUILD_ID;
+      let guild = null;
+      if (discordClient && guildId) {
+        try {
+          guild = await discordClient.guilds.fetch(guildId);
+        } catch {
+          // Guild not available
+        }
+      }
+
       for (const [steamid64, playerData] of playerMap) {
         const whitelistInfo = calculateWhitelistStatus(playerData.entries);
 
-        // Get Player record for activity data
+        // Get Player record for activity data (this has the most recent in-game name)
         let activityData = playerData.playerData;
         if (!activityData) {
           activityData = await Player.findOne({ where: { steamId: steamid64 } });
         }
 
-        // Get Discord link for enrichment
+        // Get primary Discord link - only show as "linked" if there's a primary link
         const link = await PlayerDiscordLink.findOne({
           where: { steamid64, is_primary: true }
         });
 
+        // isLinked means they have a primary Discord link
+        const isLinked = !!link;
+
+        // Get Discord avatar and display name ONLY if linked (has primary link)
+        let avatarUrl = null;
+        let discordDisplayName = null;
+        let discordUserId = null;
+
+        if (isLinked && link.discord_user_id) {
+          discordUserId = link.discord_user_id;
+          if (guild) {
+            try {
+              const member = await guild.members.fetch(discordUserId).catch(() => null);
+              if (member) {
+                avatarUrl = member.user.displayAvatarURL({ size: 64 });
+                discordDisplayName = member.displayName !== member.user.username
+                  ? `${member.displayName} (${member.user.username})`
+                  : member.user.username;
+              }
+            } catch {
+              // Member not found or error
+            }
+          }
+        }
+
+        // In-game name priority: Player model (most recent from actual gameplay) > link username > whitelist entry username
+        // Note: activityData comes from Player model which tracks actual game joins via SquadJS
+        const inGameName = activityData?.username || link?.username || playerData.username || null;
+
         players.push({
           steamid64,
-          username: link?.username || playerData.username,
-          discord_username: playerData.discord_username,
-          discord_user_id: link?.discord_user_id || playerData.discord_user_id,
+          username: inGameName,
+          discord_username: discordDisplayName,
+          discord_user_id: discordUserId,
+          avatar_url: avatarUrl,
+          isLinked,
           eosID: link?.eosID || playerData.eosID,
           hasWhitelist: whitelistInfo.hasWhitelist,
           whitelistStatus: whitelistInfo.status,
@@ -388,9 +431,9 @@ class PlayerProfileService {
         battlemetrics = { found: false, error: bmError.message };
       }
 
-      // Get latest username from whitelist or link
+      // Get latest username - prioritize Player model (updated on game join) over stored values
       const latestEntry = whitelistEntries[0];
-      const username = discordLink?.username || latestEntry?.username || player?.username || null;
+      const username = player?.username || discordLink?.username || latestEntry?.username || null;
 
       return {
         steamid64,
