@@ -14,7 +14,7 @@ interface NavItem {
 
 const navigation: NavItem[] = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Players', href: '/players', icon: UserSearch, permission: 'VIEW_WHITELIST' },
+  { name: 'Players', href: '/players', icon: UserSearch, permission: 'VIEW_PLAYERS' },
   { name: 'Members', href: '/members', icon: Users, permission: 'VIEW_MEMBERS' },
   { name: 'Seeding', href: '/seeding', icon: Sprout, permission: 'VIEW_SEEDING' },
   { name: 'Duty Stats', href: '/duty', icon: Clock, disabled: true, permission: 'VIEW_DUTY' },

@@ -35,3 +35,4 @@ export type Permission =
   | 'MANAGE_STATS_TEMPLATES'
   | 'VIEW_SEEDING'
   | 'MANAGE_SEEDING'
+  | 'VIEW_PLAYERS'

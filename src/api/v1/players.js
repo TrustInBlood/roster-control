@@ -7,7 +7,7 @@ const PlayerProfileService = require('../../services/PlayerProfileService');
 const logger = createServiceLogger('PlayersAPI');
 
 // GET /api/v1/players - Search/list players
-router.get('/', requireAuth, requirePermission('VIEW_WHITELIST'), async (req, res) => {
+router.get('/', requireAuth, requirePermission('VIEW_PLAYERS'), async (req, res) => {
   try {
     const {
       search,
@@ -34,7 +34,7 @@ router.get('/', requireAuth, requirePermission('VIEW_WHITELIST'), async (req, re
 });
 
 // GET /api/v1/players/:steamid64 - Get full player profile
-router.get('/:steamid64', requireAuth, requirePermission('VIEW_WHITELIST'), async (req, res) => {
+router.get('/:steamid64', requireAuth, requirePermission('VIEW_PLAYERS'), async (req, res) => {
   try {
     const { steamid64 } = req.params;
 
@@ -53,7 +53,7 @@ router.get('/:steamid64', requireAuth, requirePermission('VIEW_WHITELIST'), asyn
 });
 
 // GET /api/v1/players/:steamid64/sessions - Session history (lazy load)
-router.get('/:steamid64/sessions', requireAuth, requirePermission('VIEW_WHITELIST'), async (req, res) => {
+router.get('/:steamid64/sessions', requireAuth, requirePermission('VIEW_PLAYERS'), async (req, res) => {
   try {
     const { steamid64 } = req.params;
     const { page = 1, limit = 10 } = req.query;
@@ -138,7 +138,7 @@ router.get('/:steamid64/duty', requireAuth, requirePermission('VIEW_DUTY'), asyn
 });
 
 // GET /api/v1/players/:steamid64/whitelist - Whitelist entries
-router.get('/:steamid64/whitelist', requireAuth, requirePermission('VIEW_WHITELIST'), async (req, res) => {
+router.get('/:steamid64/whitelist', requireAuth, requirePermission('VIEW_PLAYERS'), async (req, res) => {
   try {
     const { steamid64 } = req.params;
 
@@ -152,7 +152,7 @@ router.get('/:steamid64/whitelist', requireAuth, requirePermission('VIEW_WHITELI
 });
 
 // GET /api/v1/players/:steamid64/unlinks - Unlink history
-router.get('/:steamid64/unlinks', requireAuth, requirePermission('VIEW_WHITELIST'), async (req, res) => {
+router.get('/:steamid64/unlinks', requireAuth, requirePermission('VIEW_PLAYERS'), async (req, res) => {
   try {
     const { steamid64 } = req.params;
 
@@ -176,7 +176,7 @@ router.get('/:steamid64/unlinks', requireAuth, requirePermission('VIEW_WHITELIST
 });
 
 // GET /api/v1/players/:steamid64/linked-accounts - All Steam accounts linked to the same Discord user
-router.get('/:steamid64/linked-accounts', requireAuth, requirePermission('VIEW_WHITELIST'), async (req, res) => {
+router.get('/:steamid64/linked-accounts', requireAuth, requirePermission('VIEW_PLAYERS'), async (req, res) => {
   try {
     const { steamid64 } = req.params;
 

@@ -84,6 +84,10 @@ const PERMISSION_DEFINITIONS = {
   MANAGE_SEEDING: {
     description: 'Create, close, and cancel seeding sessions',
     critical: false
+  },
+  VIEW_PLAYERS: {
+    description: 'View player profiles and search',
+    critical: false
   }
 };
 
@@ -150,6 +154,10 @@ function getDefaultPermissions() {
     ],
     MANAGE_SEEDING: [
       ...getAllAdminRoles(),
+      DISCORD_ROLES.SUPER_ADMIN
+    ],
+    VIEW_PLAYERS: [
+      ...getAllStaffRoles(),
       DISCORD_ROLES.SUPER_ADMIN
     ]
   };
