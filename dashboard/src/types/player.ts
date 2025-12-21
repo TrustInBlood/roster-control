@@ -67,6 +67,28 @@ export interface BattleMetricsInfo {
   error?: string | null
 }
 
+// Community Ban List active ban info
+export interface CommunityBanListBan {
+  id: string
+  reason: string
+  created: string
+  expires: string | null
+  banList: string
+  organisation: string
+}
+
+// Community Ban List player info
+export interface CommunityBanListInfo {
+  found: boolean
+  reputationPoints?: number
+  riskRating?: number
+  activeBansCount?: number
+  expiredBansCount?: number
+  activeBans?: CommunityBanListBan[]
+  profileUrl?: string
+  error?: string | null
+}
+
 // Activity summary from Player model
 export interface PlayerActivity {
   totalPlaytimeMinutes: number
@@ -95,6 +117,7 @@ export interface PlayerProfile {
   discordInfo: DiscordInfo | null
   discordRoles: DiscordRole[]
   battlemetrics: BattleMetricsInfo | null
+  communityBanList: CommunityBanListInfo | null
   activity: PlayerActivity
   whitelist: PlayerWhitelistSummary
   isStaff: boolean

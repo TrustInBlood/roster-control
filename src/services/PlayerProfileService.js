@@ -1,6 +1,7 @@
 const { Op } = require('sequelize');
 const { createServiceLogger } = require('../utils/logger');
 const BattleMetricsService = require('./BattleMetricsService');
+const CommunityBanListService = require('./CommunityBanListService');
 
 const logger = createServiceLogger('PlayerProfileService');
 
@@ -446,23 +447,40 @@ class PlayerProfileService {
         }
       }
 
-      // Get BattleMetrics data if Steam ID is available
+      // Get BattleMetrics and CBL data in parallel
       let battlemetrics = null;
-      try {
-        const result = await BattleMetricsService.searchPlayerBySteamId(steamid64, 5000);
-        if (result.found && result.playerData) {
-          battlemetrics = {
-            found: true,
-            playerId: result.playerData.id,
-            playerName: result.playerData.name || null,
-            profileUrl: result.profileUrl
-          };
-        } else {
-          battlemetrics = { found: false, error: result.error || null };
-        }
-      } catch (bmError) {
-        logger.warn(`Failed to fetch BattleMetrics data for ${steamid64}:`, bmError.message);
-        battlemetrics = { found: false, error: bmError.message };
+      let communityBanList = null;
+
+      const [bmResult, cblResult] = await Promise.all([
+        BattleMetricsService.searchPlayerBySteamId(steamid64, 5000).catch(err => ({ found: false, error: err.message })),
+        CommunityBanListService.searchPlayer(steamid64, 5000).catch(err => ({ found: false, error: err.message }))
+      ]);
+
+      // Process BattleMetrics result
+      if (bmResult.found && bmResult.playerData) {
+        battlemetrics = {
+          found: true,
+          playerId: bmResult.playerData.id,
+          playerName: bmResult.playerData.name || null,
+          profileUrl: bmResult.profileUrl
+        };
+      } else {
+        battlemetrics = { found: false, error: bmResult.error || null };
+      }
+
+      // Process CBL result
+      if (cblResult.found && cblResult.playerData) {
+        communityBanList = {
+          found: true,
+          reputationPoints: cblResult.playerData.reputationPoints || 0,
+          riskRating: cblResult.playerData.riskRating || 0,
+          activeBansCount: cblResult.playerData.activeBansCount || 0,
+          expiredBansCount: cblResult.playerData.expiredBansCount || 0,
+          activeBans: cblResult.playerData.activeBans || [],
+          profileUrl: cblResult.profileUrl
+        };
+      } else {
+        communityBanList = { found: false, error: cblResult.error || null };
       }
 
       // Get latest username - prioritize Player model (updated on game join) over stored values
@@ -494,6 +512,7 @@ class PlayerProfileService {
         discordInfo,
         discordRoles,
         battlemetrics,
+        communityBanList,
         activity: {
           totalPlaytimeMinutes: player?.totalPlayTime || 0,
           joinCount: player?.joinCount || 0,

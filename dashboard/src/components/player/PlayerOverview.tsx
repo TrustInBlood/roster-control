@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Activity, Shield, History, Link2, ExternalLink, TrendingUp } from 'lucide-react'
+import { Activity, Shield, History, Link2, ExternalLink, TrendingUp, AlertTriangle } from 'lucide-react'
 import type { PlayerProfile } from '../../types/player'
 import { cn, formatRelativeTime } from '../../lib/utils'
 import { useUpgradeConfidence } from '../../hooks/useWhitelist'
@@ -195,6 +195,75 @@ export default function PlayerOverview({ profile, steamid64, onTabChange }: Play
         ) : (
           <p className="text-sm text-gray-400">
             {profile.battlemetrics?.error || 'Player not found in BattleMetrics'}
+          </p>
+        )}
+      </div>
+
+      {/* Community Ban List Card */}
+      <div className="bg-discord-light rounded-lg p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <AlertTriangle className={cn(
+            'w-5 h-5',
+            profile.communityBanList?.found && (profile.communityBanList.reputationPoints ?? 0) >= 3
+              ? 'text-red-400'
+              : profile.communityBanList?.found && (profile.communityBanList.reputationPoints ?? 0) >= 1
+                ? 'text-yellow-400'
+                : 'text-green-400'
+          )} />
+          <h3 className="font-medium text-white">Community Ban List</h3>
+        </div>
+        {profile.communityBanList?.found ? (
+          <div className="space-y-3">
+            <dl className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <dt className="text-gray-400">Reputation Points</dt>
+                <dd className={cn(
+                  'font-medium',
+                  (profile.communityBanList.reputationPoints ?? 0) >= 3
+                    ? 'text-red-400'
+                    : (profile.communityBanList.reputationPoints ?? 0) >= 1
+                      ? 'text-yellow-400'
+                      : 'text-green-400'
+                )}>
+                  {profile.communityBanList.reputationPoints ?? 0}
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-gray-400">Risk Rating</dt>
+                <dd className="text-white">{(profile.communityBanList.riskRating ?? 0).toFixed(1)}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-gray-400">Active Bans</dt>
+                <dd className={cn(
+                  'font-medium',
+                  (profile.communityBanList.activeBansCount ?? 0) > 0 ? 'text-red-400' : 'text-green-400'
+                )}>
+                  {profile.communityBanList.activeBansCount ?? 0}
+                </dd>
+              </div>
+              {(profile.communityBanList.expiredBansCount ?? 0) > 0 && (
+                <div className="flex justify-between">
+                  <dt className="text-gray-400">Expired Bans</dt>
+                  <dd className="text-gray-300">{profile.communityBanList.expiredBansCount}</dd>
+                </div>
+              )}
+            </dl>
+            {profile.communityBanList.profileUrl && (
+              <a
+                href={profile.communityBanList.profileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 bg-discord-blurple hover:bg-discord-blurple/80 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <ExternalLink className="w-3 h-3" />
+                View Profile
+              </a>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-400">
+            {profile.communityBanList?.error || 'Player not found in Community Ban List'}
           </p>
         )}
       </div>
