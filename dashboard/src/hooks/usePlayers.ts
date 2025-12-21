@@ -74,3 +74,12 @@ export function usePlayerUnlinkHistory(steamid64: string, enabled = true) {
     enabled: !!user && !!steamid64 && enabled,
   })
 }
+
+export function usePlayerLinkedAccounts(steamid64: string, enabled = true) {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['players', 'linked-accounts', steamid64],
+    queryFn: () => playersApi.getLinkedAccounts(steamid64),
+    enabled: !!user && !!steamid64 && enabled,
+  })
+}

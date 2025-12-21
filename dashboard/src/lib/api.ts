@@ -67,6 +67,7 @@ import type {
   PlayerDutyResponse,
   PlayerWhitelistResponse,
   PlayerUnlinkResponse,
+  LinkedAccountsResponse,
   PlayerFilters,
 } from '../types/player'
 import type {
@@ -488,6 +489,11 @@ export const playersApi = {
 
   getUnlinkHistory: async (steamid64: string): Promise<PlayerUnlinkResponse> => {
     const { data } = await api.get<PlayerUnlinkResponse>(`/players/${steamid64}/unlinks`)
+    return data
+  },
+
+  getLinkedAccounts: async (steamid64: string): Promise<LinkedAccountsResponse> => {
+    const { data } = await api.get<LinkedAccountsResponse>(`/players/${steamid64}/linked-accounts`)
     return data
   },
 }

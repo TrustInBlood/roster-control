@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Link2, Shield, Clock, AlertTriangle, CheckCircle, History } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Link2, Shield, Clock, AlertTriangle, CheckCircle, History, User, Calendar, Users } from 'lucide-react'
 import type { PlayerProfile } from '../../types/player'
-import { usePlayerUnlinkHistory } from '../../hooks/usePlayers'
-import { formatDateTime } from '../../lib/utils'
+import { usePlayerUnlinkHistory, usePlayerLinkedAccounts } from '../../hooks/usePlayers'
+import { formatDateTime, formatRelativeTime } from '../../lib/utils'
 import { cn } from '../../lib/utils'
 import CopyButton from '../ui/CopyButton'
 
@@ -12,10 +13,16 @@ interface PlayerAccountSectionProps {
 }
 
 export default function PlayerAccountSection({ steamid64, profile }: PlayerAccountSectionProps) {
+  const navigate = useNavigate()
   const [showUnlinkHistory, setShowUnlinkHistory] = useState(false)
+  const [showLinkedAccounts, setShowLinkedAccounts] = useState(false)
   const { data: unlinkData, isLoading: unlinkLoading } = usePlayerUnlinkHistory(
     steamid64,
     showUnlinkHistory
+  )
+  const { data: linkedAccountsData, isLoading: linkedAccountsLoading } = usePlayerLinkedAccounts(
+    steamid64,
+    showLinkedAccounts
   )
 
   const getConfidenceColor = (score: number) => {
@@ -43,6 +50,30 @@ export default function PlayerAccountSection({ steamid64, profile }: PlayerAccou
       default:
         return source
     }
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active':
+        return 'bg-green-500/20 text-green-400 border-green-500/30'
+      case 'permanent':
+        return 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+      case 'expired':
+        return 'bg-gray-500/20 text-gray-400 border-gray-500/30'
+      case 'revoked':
+        return 'bg-red-500/20 text-red-400 border-red-500/30'
+      default:
+        return 'bg-gray-500/20 text-gray-400 border-gray-500/30'
+    }
+  }
+
+  const formatPlaytime = (minutes: number): string => {
+    if (minutes === 0) return '0h'
+    const hours = Math.floor(minutes / 60)
+    const mins = minutes % 60
+    if (hours === 0) return `${mins}m`
+    if (mins === 0) return `${hours}h`
+    return `${hours}h ${mins}m`
   }
 
   return (
@@ -152,88 +183,208 @@ export default function PlayerAccountSection({ steamid64, profile }: PlayerAccou
         )}
       </div>
 
-      {/* All Linked Accounts */}
-      {profile.allLinks.length > 1 && (
+      {/* Discord Account Information */}
+      {profile.discordInfo && (
         <div className="bg-discord-light rounded-lg p-6">
           <h3 className="text-lg font-medium text-white mb-4 flex items-center gap-2">
-            <Shield className="w-5 h-5 text-purple-400" />
-            All Linked Accounts ({profile.allLinks.length})
+            <User className="w-5 h-5 text-discord-blurple" />
+            Discord Account
           </h3>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-discord-lighter">
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                    Steam ID
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                    Username
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                    Confidence
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                    Source
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                    Primary
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                    Linked
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-discord-lighter">
-                {profile.allLinks.map((link) => (
-                  <tr key={link.id} className="hover:bg-discord-lighter/50">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <code className="text-sm text-blue-400 font-mono">
-                          {link.steamid64}
-                        </code>
-                        <CopyButton text={link.steamid64} size={3} />
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-sm text-gray-300">
-                        {link.username || '-'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={cn(
-                        'text-sm font-medium',
-                        getConfidenceColor(link.confidence_score)
-                      )}>
-                        {(link.confidence_score * 100).toFixed(0)}%
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={cn(
-                        'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border',
-                        link.link_source === 'squadjs'
-                          ? 'bg-green-500/20 text-green-400 border-green-500/30'
-                          : 'bg-gray-500/20 text-gray-300 border-gray-500/30'
-                      )}>
-                        {getLinkSourceLabel(link.link_source)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {link.is_primary ? (
-                        <CheckCircle className="w-4 h-4 text-green-400" />
-                      ) : (
-                        <span className="text-gray-500">-</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-sm text-gray-300">
-                        {formatDateTime(link.created_at)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-discord-darker rounded-lg p-4">
+              <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Username</p>
+              <span className="text-gray-300">{profile.discordInfo.discord_username}</span>
+            </div>
+
+            {profile.discordInfo.globalName && (
+              <div className="bg-discord-darker rounded-lg p-4">
+                <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Global Name</p>
+                <span className="text-gray-300">{profile.discordInfo.globalName}</span>
+              </div>
+            )}
+
+            {profile.discordInfo.nickname && (
+              <div className="bg-discord-darker rounded-lg p-4">
+                <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Server Nickname</p>
+                <span className="text-gray-300">{profile.discordInfo.nickname}</span>
+              </div>
+            )}
+
+            {profile.discordInfo.joinedAt && (
+              <div className="bg-discord-darker rounded-lg p-4">
+                <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Joined Server</p>
+                <span className="text-gray-300 flex items-center gap-1">
+                  <Calendar className="w-3 h-3" />
+                  {formatRelativeTime(profile.discordInfo.joinedAt)}
+                </span>
+              </div>
+            )}
+
+            {profile.discordInfo.createdAt && (
+              <div className="bg-discord-darker rounded-lg p-4">
+                <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Account Created</p>
+                <span className="text-gray-300">
+                  {new Date(profile.discordInfo.createdAt).toLocaleDateString()}
+                </span>
+              </div>
+            )}
           </div>
+        </div>
+      )}
+
+      {/* Discord Roles */}
+      {profile.discordRoles && profile.discordRoles.length > 0 && (
+        <div className="bg-discord-light rounded-lg p-6">
+          <h3 className="text-lg font-medium text-white mb-4 flex items-center gap-2">
+            <Shield className="w-5 h-5 text-discord-blurple" />
+            Discord Roles
+          </h3>
+          <div className="flex flex-wrap gap-2">
+            {profile.discordRoles.map((role) => (
+              <span
+                key={role.id}
+                className="px-3 py-1 rounded-full text-sm font-medium"
+                style={{
+                  backgroundColor: role.color !== '#000000' ? `${role.color}20` : 'rgba(255,255,255,0.1)',
+                  color: role.color !== '#000000' ? role.color : '#9ca3af',
+                  border: `1px solid ${role.color !== '#000000' ? role.color : 'rgba(255,255,255,0.2)'}`,
+                }}
+              >
+                {role.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* All Steam Accounts Linked to this Discord User */}
+      {profile.discordLink && (
+        <div className="bg-discord-light rounded-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium text-white flex items-center gap-2">
+              <Users className="w-5 h-5 text-purple-400" />
+              All Linked Steam Accounts
+            </h3>
+            {!showLinkedAccounts && (
+              <button
+                onClick={() => setShowLinkedAccounts(true)}
+                className="text-sm text-discord-blurple hover:underline"
+              >
+                Load accounts
+              </button>
+            )}
+          </div>
+
+          {!showLinkedAccounts ? (
+            <p className="text-gray-400 text-sm">
+              Click &quot;Load accounts&quot; to view all Steam accounts linked to this Discord user
+            </p>
+          ) : linkedAccountsLoading ? (
+            <div className="flex items-center justify-center h-24">
+              <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-discord-blurple"></div>
+            </div>
+          ) : !linkedAccountsData?.accounts.length ? (
+            <p className="text-gray-400 text-sm">No linked accounts found</p>
+          ) : linkedAccountsData.accounts.length === 1 ? (
+            <p className="text-gray-400 text-sm">This is the only Steam account linked to this Discord user</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-discord-lighter">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                      Steam ID
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                      Username
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                      Playtime
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                      Whitelist
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                      Confidence
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                      Primary
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-discord-lighter">
+                  {linkedAccountsData.accounts.map((account) => (
+                    <tr
+                      key={account.steamid64}
+                      className={cn(
+                        'hover:bg-discord-lighter/50 transition-colors',
+                        account.steamid64 !== steamid64 && 'cursor-pointer'
+                      )}
+                      onClick={() => {
+                        if (account.steamid64 !== steamid64) {
+                          navigate(`/players/${account.steamid64}`)
+                        }
+                      }}
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <code className={cn(
+                            'text-sm font-mono',
+                            account.steamid64 === steamid64 ? 'text-white font-bold' : 'text-blue-400'
+                          )}>
+                            {account.steamid64}
+                          </code>
+                          {account.steamid64 === steamid64 && (
+                            <span className="text-xs text-gray-400">(current)</span>
+                          )}
+                          <span onClick={(e) => e.stopPropagation()}>
+                            <CopyButton text={account.steamid64} size={3} />
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-sm text-gray-300">
+                          {account.username || '-'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-sm text-gray-300">
+                          {formatPlaytime(account.totalPlaytimeMinutes)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {account.hasWhitelist ? (
+                          <span className={cn(
+                            'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border',
+                            getStatusColor(account.whitelistStatus)
+                          )}>
+                            {account.whitelistStatus}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-500">None</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={cn(
+                          'text-sm font-medium',
+                          getConfidenceColor(account.confidence_score)
+                        )}>
+                          {(account.confidence_score * 100).toFixed(0)}%
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {account.is_primary ? (
+                          <CheckCircle className="w-4 h-4 text-green-400" />
+                        ) : (
+                          <span className="text-gray-500">-</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -317,25 +468,6 @@ export default function PlayerAccountSection({ steamid64, profile }: PlayerAccou
         )}
       </div>
 
-      {/* Staff Roles Section - if staff */}
-      {profile.isStaff && profile.staffRoles.length > 0 && (
-        <div className="bg-discord-light rounded-lg p-6">
-          <h3 className="text-lg font-medium text-white mb-4 flex items-center gap-2">
-            <Shield className="w-5 h-5 text-discord-blurple" />
-            Staff Roles
-          </h3>
-          <div className="flex flex-wrap gap-2">
-            {profile.staffRoles.map((role) => (
-              <span
-                key={role}
-                className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-discord-blurple/20 text-discord-blurple border border-discord-blurple/30"
-              >
-                {role}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 }

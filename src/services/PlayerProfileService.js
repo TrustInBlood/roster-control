@@ -1,5 +1,6 @@
 const { Op } = require('sequelize');
 const { createServiceLogger } = require('../utils/logger');
+const BattleMetricsService = require('./BattleMetricsService');
 
 const logger = createServiceLogger('PlayerProfileService');
 
@@ -333,6 +334,7 @@ class PlayerProfileService {
 
       // Get Discord info if available
       let discordInfo = null;
+      let discordRoles = [];
       if (discordLink?.discord_user_id && global.discordClient) {
         try {
           const guildId = process.env.DISCORD_GUILD_ID;
@@ -344,12 +346,46 @@ class PlayerProfileService {
               discord_username: member.displayName !== member.user.username
                 ? `${member.displayName} (${member.user.username})`
                 : member.user.username,
-              avatar_url: member.user.displayAvatarURL({ size: 128 })
+              avatar_url: member.user.displayAvatarURL({ size: 128 }),
+              globalName: member.user.globalName || null,
+              nickname: member.nickname || null,
+              joinedAt: member.joinedAt?.toISOString() || null,
+              createdAt: member.user.createdAt?.toISOString() || null,
+              bannerColor: member.user.accentColor ? `#${member.user.accentColor.toString(16)}` : null
             };
+
+            // Get all Discord roles
+            discordRoles = member.roles.cache
+              .filter(role => role.id !== guild.id) // Exclude @everyone
+              .sort((a, b) => b.position - a.position) // Sort by position (highest first)
+              .map(role => ({
+                id: role.id,
+                name: role.name,
+                color: role.hexColor
+              }));
           }
         } catch {
           // Failed to fetch Discord member
         }
+      }
+
+      // Get BattleMetrics data if Steam ID is available
+      let battlemetrics = null;
+      try {
+        const result = await BattleMetricsService.searchPlayerBySteamId(steamid64, 5000);
+        if (result.found && result.playerData) {
+          battlemetrics = {
+            found: true,
+            playerId: result.playerData.id,
+            playerName: result.playerData.name || null,
+            profileUrl: result.profileUrl
+          };
+        } else {
+          battlemetrics = { found: false, error: result.error || null };
+        }
+      } catch (bmError) {
+        logger.warn(`Failed to fetch BattleMetrics data for ${steamid64}:`, bmError.message);
+        battlemetrics = { found: false, error: bmError.message };
       }
 
       // Get latest username from whitelist or link
@@ -379,6 +415,8 @@ class PlayerProfileService {
           created_at: l.created_at
         })),
         discordInfo,
+        discordRoles,
+        battlemetrics,
         activity: {
           totalPlaytimeMinutes: player?.totalPlayTime || 0,
           joinCount: player?.joinCount || 0,
@@ -656,6 +694,57 @@ class PlayerProfileService {
       };
     } catch (error) {
       logger.error('Error getting player unlink history', { error: error.message, discordUserId });
+      throw error;
+    }
+  }
+
+  /**
+   * Get all Steam accounts linked to a Discord user (for showing linked accounts on profile)
+   */
+  async getLinkedAccountsByDiscord(discordUserId) {
+    const { PlayerDiscordLink, Player, Whitelist } = require('../database/models');
+
+    try {
+      if (!discordUserId) {
+        return { accounts: [] };
+      }
+
+      // Get all links for this Discord user
+      const links = await PlayerDiscordLink.findAll({
+        where: { discord_user_id: discordUserId },
+        order: [['is_primary', 'DESC'], ['created_at', 'DESC']]
+      });
+
+      // Enrich each link with player activity data
+      const accounts = [];
+      for (const link of links) {
+        const player = await Player.findOne({ where: { steamId: link.steamid64 } });
+
+        // Get whitelist status for this account
+        const whitelistEntries = await Whitelist.findAll({
+          where: { steamid64: link.steamid64, approved: true }
+        });
+        const whitelistStatus = calculateWhitelistStatus(whitelistEntries);
+
+        accounts.push({
+          steamid64: link.steamid64,
+          eosID: link.eosID,
+          username: link.username || player?.username || null,
+          confidence_score: parseFloat(link.confidence_score),
+          link_source: link.link_source,
+          is_primary: link.is_primary,
+          created_at: link.created_at,
+          totalPlaytimeMinutes: player?.totalPlayTime || 0,
+          lastSeen: player?.lastSeen || null,
+          joinCount: player?.joinCount || 0,
+          hasWhitelist: whitelistStatus.hasWhitelist,
+          whitelistStatus: whitelistStatus.status
+        });
+      }
+
+      return { accounts };
+    } catch (error) {
+      logger.error('Error getting linked accounts by Discord', { error: error.message, discordUserId });
       throw error;
     }
   }

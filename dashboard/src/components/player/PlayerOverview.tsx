@@ -1,4 +1,4 @@
-import { Activity, Shield, History, Link2 } from 'lucide-react'
+import { Activity, Shield, History, Link2, ExternalLink } from 'lucide-react'
 import type { PlayerProfile } from '../../types/player'
 import { cn, formatRelativeTime } from '../../lib/utils'
 
@@ -134,6 +134,46 @@ export default function PlayerOverview({ profile, onTabChange }: PlayerOverviewP
         )}
         <p className="text-xs text-discord-blurple mt-3">View account details</p>
       </button>
+
+      {/* BattleMetrics Card */}
+      <div className="bg-discord-light rounded-lg p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <ExternalLink className="w-5 h-5 text-orange-400" />
+          <h3 className="font-medium text-white">BattleMetrics</h3>
+        </div>
+        {profile.battlemetrics?.found ? (
+          <div className="space-y-3">
+            <dl className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <dt className="text-gray-400">Player Name</dt>
+                <dd className="text-white">{profile.battlemetrics.playerName || 'Unknown'}</dd>
+              </div>
+              {profile.battlemetrics.playerId && (
+                <div className="flex justify-between">
+                  <dt className="text-gray-400">Player ID</dt>
+                  <dd className="text-gray-300 font-mono text-xs">{profile.battlemetrics.playerId}</dd>
+                </div>
+              )}
+            </dl>
+            {profile.battlemetrics.profileUrl && (
+              <a
+                href={profile.battlemetrics.profileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 bg-discord-blurple hover:bg-discord-blurple/80 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <ExternalLink className="w-3 h-3" />
+                View Profile
+              </a>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-400">
+            {profile.battlemetrics?.error || 'Player not found in BattleMetrics'}
+          </p>
+        )}
+      </div>
 
       {/* Staff Roles Card (if applicable) */}
       {profile.isStaff && profile.staffRoles.length > 0 && (

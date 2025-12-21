@@ -175,4 +175,28 @@ router.get('/:steamid64/unlinks', requireAuth, requirePermission('VIEW_WHITELIST
   }
 });
 
+// GET /api/v1/players/:steamid64/linked-accounts - All Steam accounts linked to the same Discord user
+router.get('/:steamid64/linked-accounts', requireAuth, requirePermission('VIEW_WHITELIST'), async (req, res) => {
+  try {
+    const { steamid64 } = req.params;
+
+    // First, get the Discord user ID for this Steam ID
+    const { PlayerDiscordLink } = require('../../database/models');
+    const link = await PlayerDiscordLink.findOne({
+      where: { steamid64, is_primary: true }
+    });
+
+    if (!link?.discord_user_id) {
+      return res.json({ accounts: [] });
+    }
+
+    const result = await PlayerProfileService.getLinkedAccountsByDiscord(link.discord_user_id);
+
+    res.json(result);
+  } catch (error) {
+    logger.error('Error getting linked accounts', { error: error.message, steamid64: req.params.steamid64 });
+    res.status(500).json({ error: 'Failed to get linked accounts' });
+  }
+});
+
 module.exports = router;

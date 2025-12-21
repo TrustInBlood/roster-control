@@ -42,6 +42,27 @@ export interface DiscordInfo {
   discord_user_id: string
   discord_username: string
   avatar_url?: string
+  globalName?: string | null
+  nickname?: string | null
+  joinedAt?: string | null
+  createdAt?: string | null
+  bannerColor?: string | null
+}
+
+// Discord role info
+export interface DiscordRole {
+  id: string
+  name: string
+  color: string
+}
+
+// BattleMetrics player info
+export interface BattleMetricsInfo {
+  found: boolean
+  playerId?: string
+  playerName?: string | null
+  profileUrl?: string
+  error?: string | null
 }
 
 // Activity summary from Player model
@@ -70,11 +91,29 @@ export interface PlayerProfile {
   discordLink: PlayerAccountLink | null
   allLinks: PlayerLink[]
   discordInfo: DiscordInfo | null
+  discordRoles: DiscordRole[]
+  battlemetrics: BattleMetricsInfo | null
   activity: PlayerActivity
   whitelist: PlayerWhitelistSummary
   isStaff: boolean
   staffRoles: string[]
   notes: string | null
+}
+
+// Linked account from Discord user (all Steam accounts linked to one Discord user)
+export interface LinkedAccount {
+  steamid64: string
+  eosID: string | null
+  username: string | null
+  confidence_score: number
+  link_source: string
+  is_primary: boolean
+  created_at: string
+  totalPlaytimeMinutes: number
+  lastSeen: string | null
+  joinCount: number
+  hasWhitelist: boolean
+  whitelistStatus: 'active' | 'expired' | 'revoked' | 'permanent' | 'none'
 }
 
 // Session record
@@ -197,6 +236,10 @@ export interface PlayerWhitelistResponse {
 
 export interface PlayerUnlinkResponse {
   history: UnlinkHistoryEntry[]
+}
+
+export interface LinkedAccountsResponse {
+  accounts: LinkedAccount[]
 }
 
 // Filter types for player search
