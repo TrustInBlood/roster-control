@@ -32,25 +32,26 @@ function getAdminRoleName(roleId) {
 
 /**
  * Get the highest priority admin role from an array of roles
+ * Returns roleId, roleName, and priority (higher = more senior)
  */
 function getHighestAdminRole(userRoles) {
   const rolePriority = [
-    DISCORD_ROLES.SUPER_ADMIN,
-    DISCORD_ROLES.EXECUTIVE_ADMIN,
-    DISCORD_ROLES.HEAD_ADMIN,
-    DISCORD_ROLES.SENIOR_ADMIN,
-    DISCORD_ROLES.OG_ADMIN,
-    DISCORD_ROLES.SQUAD_ADMIN,
-    DISCORD_ROLES.MODERATOR_T2,
-    DISCORD_ROLES.MODERATOR_T1,
-    DISCORD_ROLES.STAFF,
-    DISCORD_ROLES.TICKET_SUPPORT,
-    DISCORD_ROLES.APPLICATIONS
+    { id: DISCORD_ROLES.SUPER_ADMIN, priority: 1000 },
+    { id: DISCORD_ROLES.EXECUTIVE_ADMIN, priority: 900 },
+    { id: DISCORD_ROLES.HEAD_ADMIN, priority: 800 },
+    { id: DISCORD_ROLES.SENIOR_ADMIN, priority: 700 },
+    { id: DISCORD_ROLES.OG_ADMIN, priority: 600 },
+    { id: DISCORD_ROLES.SQUAD_ADMIN, priority: 500 },
+    { id: DISCORD_ROLES.MODERATOR_T2, priority: 400 },
+    { id: DISCORD_ROLES.MODERATOR_T1, priority: 300 },
+    { id: DISCORD_ROLES.STAFF, priority: 200 },
+    { id: DISCORD_ROLES.TICKET_SUPPORT, priority: 100 },
+    { id: DISCORD_ROLES.APPLICATIONS, priority: 50 }
   ];
 
-  for (const roleId of rolePriority) {
-    if (userRoles.includes(roleId)) {
-      return { roleId, roleName: getAdminRoleName(roleId) };
+  for (const role of rolePriority) {
+    if (userRoles.includes(role.id)) {
+      return { roleId: role.id, roleName: getAdminRoleName(role.id), priority: role.priority };
     }
   }
   return null;
@@ -101,6 +102,7 @@ async function getOnlineStaff(steamIds) {
         const highestRole = getHighestAdminRole(memberRoleIds);
         let roleName = 'Staff';
         let roleColor = null;
+        let rolePriority = 0;
 
         if (highestRole?.roleId) {
           const discordRole = member.roles.cache.get(highestRole.roleId);
@@ -111,6 +113,7 @@ async function getOnlineStaff(steamIds) {
               roleColor = '#' + discordRole.color.toString(16).padStart(6, '0');
             }
           }
+          rolePriority = highestRole.priority || 0;
         }
 
         onlineStaff.push({
@@ -118,7 +121,8 @@ async function getOnlineStaff(steamIds) {
           steamId: link.steamid64,
           displayName: member.displayName || member.user.username,
           role: roleName,
-          roleColor
+          roleColor,
+          rolePriority
         });
       }
     } catch (error) {
@@ -128,6 +132,9 @@ async function getOnlineStaff(steamIds) {
       });
     }
   }
+
+  // Sort by role priority (highest first)
+  onlineStaff.sort((a, b) => b.rolePriority - a.rolePriority);
 
   return onlineStaff;
 }

@@ -7,6 +7,7 @@ export interface OnlineStaff {
   displayName: string
   role: string
   roleColor?: string // Hex color from Discord role
+  rolePriority: number // Higher = more senior role, used for sorting
 }
 
 /**
