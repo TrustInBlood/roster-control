@@ -209,7 +209,7 @@ export default function PlayerProfile() {
           <PlayerActivitySection steamid64={steamid64!} />
         )}
         {activeTab === 'whitelist' && (
-          <PlayerWhitelistSection steamid64={steamid64!} profile={profile} />
+          <PlayerWhitelistSection steamid64={steamid64!} />
         )}
         {activeTab === 'audit' && (
           <PlayerAuditSection steamid64={steamid64!} />

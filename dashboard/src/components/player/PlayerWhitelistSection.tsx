@@ -7,16 +7,15 @@ import {
   useRevokeWhitelistEntry,
   useEditWhitelistEntry
 } from '../../hooks/useWhitelist'
-import type { PlayerProfile, PlayerWhitelistEntry } from '../../types/player'
+import type { PlayerWhitelistEntry } from '../../types/player'
 import type { ExtendWhitelistRequest, RevokeWhitelistRequest, EditWhitelistRequest } from '../../types/whitelist'
 import { cn, formatDateTime, getStatusColor, getSourceColor } from '../../lib/utils'
 
 interface PlayerWhitelistSectionProps {
   steamid64: string
-  profile: PlayerProfile
 }
 
-export default function PlayerWhitelistSection({ steamid64, profile }: PlayerWhitelistSectionProps) {
+export default function PlayerWhitelistSection({ steamid64 }: PlayerWhitelistSectionProps) {
   const { data, isLoading } = usePlayerWhitelistHistory(steamid64)
 
   const [showAddModal, setShowAddModal] = useState(false)
