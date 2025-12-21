@@ -4,7 +4,6 @@ import { useAuth } from './useAuth'
 import type {
   WhitelistFilters,
   GrantWhitelistRequest,
-  ExtendWhitelistRequest,
   RevokeWhitelistRequest,
   EditWhitelistRequest,
 } from '../types/whitelist'
@@ -43,18 +42,8 @@ export function useGrantWhitelist() {
     mutationFn: (request: GrantWhitelistRequest) => whitelistApi.grant(request),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['whitelist'] })
-    },
-  })
-}
-
-export function useExtendWhitelist() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: ({ id, request }: { id: number; request: ExtendWhitelistRequest }) =>
-      whitelistApi.extend(id, request),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['whitelist'] })
+      queryClient.invalidateQueries({ queryKey: ['players', 'whitelist'] })
+      queryClient.invalidateQueries({ queryKey: ['players', 'profile'] })
     },
   })
 }
@@ -67,6 +56,8 @@ export function useRevokeWhitelist() {
       whitelistApi.revoke(steamid64, request),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['whitelist'] })
+      queryClient.invalidateQueries({ queryKey: ['players', 'whitelist'] })
+      queryClient.invalidateQueries({ queryKey: ['players', 'profile'] })
     },
   })
 }
@@ -79,6 +70,8 @@ export function useRevokeWhitelistEntry() {
       whitelistApi.revokeEntry(id, reason),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['whitelist'] })
+      queryClient.invalidateQueries({ queryKey: ['players', 'whitelist'] })
+      queryClient.invalidateQueries({ queryKey: ['players', 'profile'] })
     },
   })
 }
@@ -91,6 +84,8 @@ export function useEditWhitelistEntry() {
       whitelistApi.editEntry(id, request),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['whitelist'] })
+      queryClient.invalidateQueries({ queryKey: ['players', 'whitelist'] })
+      queryClient.invalidateQueries({ queryKey: ['players', 'profile'] })
     },
   })
 }
@@ -103,6 +98,8 @@ export function useUpgradeConfidence() {
       whitelistApi.upgradeConfidence(steamid64, reason),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['whitelist'] })
+      queryClient.invalidateQueries({ queryKey: ['players', 'whitelist'] })
+      queryClient.invalidateQueries({ queryKey: ['players', 'profile'] })
     },
   })
 }

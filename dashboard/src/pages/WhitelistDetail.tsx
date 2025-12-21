@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Plus, Trash2, Clock, User, Shield, History, Pencil, TrendingUp } from 'lucide-react'
-import { useWhitelistDetail, useExtendWhitelist, useRevokeWhitelist, useRevokeWhitelistEntry, useEditWhitelistEntry, useUpgradeConfidence } from '../hooks/useWhitelist'
+import { useWhitelistDetail, useGrantWhitelist, useRevokeWhitelist, useRevokeWhitelistEntry, useEditWhitelistEntry, useUpgradeConfidence } from '../hooks/useWhitelist'
 import { cn, formatDateTime, formatRelativeTime, getStatusColor, getSourceColor } from '../lib/utils'
 import CopyButton from '../components/ui/CopyButton'
-import type { ExtendWhitelistRequest, RevokeWhitelistRequest, EditWhitelistRequest, WhitelistEntry } from '../types/whitelist'
+import type { RevokeWhitelistRequest, EditWhitelistRequest, WhitelistEntry } from '../types/whitelist'
 
 export default function WhitelistDetail() {
   const { steamid64 } = useParams<{ steamid64: string }>()
@@ -288,15 +288,8 @@ export default function WhitelistDetail() {
       {showAddModal && (
         <AddWhitelistModal
           steamid64={steamid64!}
-          existingEntry={selectedEntry}
-          onClose={() => {
-            setShowAddModal(false)
-            setSelectedEntry(null)
-          }}
-          onSuccess={() => {
-            setShowAddModal(false)
-            setSelectedEntry(null)
-          }}
+          onClose={() => setShowAddModal(false)}
+          onSuccess={() => setShowAddModal(false)}
         />
       )}
 
@@ -356,39 +349,35 @@ export default function WhitelistDetail() {
   )
 }
 
-// Add Whitelist Modal Component (renamed from Extend)
+// Add Whitelist Modal Component
 function AddWhitelistModal({
   steamid64,
-  existingEntry,
   onClose,
   onSuccess,
 }: {
   steamid64: string
-  existingEntry: WhitelistEntry | null
   onClose: () => void
   onSuccess: () => void
 }) {
-  const extendMutation = useExtendWhitelist()
+  const grantMutation = useGrantWhitelist()
   const [duration, setDuration] = useState<{ value: number; type: 'days' | 'months' | 'hours' }>({ value: 1, type: 'months' })
-  const [note, setNote] = useState('')
+  const [reason, setReason] = useState('')
   const [isPermanent, setIsPermanent] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!reason.trim()) return
 
-    // If we have an existing entry, use extend endpoint
-    if (existingEntry) {
-      const request: ExtendWhitelistRequest = {
-        duration_value: isPermanent ? 0 : duration.value,
-        duration_type: isPermanent ? 'days' : duration.type,
-        note: note || undefined,
-      }
-      try {
-        await extendMutation.mutateAsync({ id: existingEntry.id, request })
-        onSuccess()
-      } catch {
-        // Error handled by mutation state
-      }
+    try {
+      await grantMutation.mutateAsync({
+        steamid64,
+        reason,
+        duration_value: isPermanent ? null : duration.value,
+        duration_type: isPermanent ? null : duration.type,
+      })
+      onSuccess()
+    } catch {
+      // Error handled by mutation state
     }
   }
 
@@ -397,10 +386,18 @@ function AddWhitelistModal({
       <div className="bg-discord-light rounded-lg w-full max-w-md mx-4 p-4">
         <h3 className="text-lg font-semibold text-white mb-4">Add Whitelist</h3>
         <p className="text-sm text-gray-400 mb-4">
-          Add additional whitelist time for {steamid64}
+          Grant whitelist access for {steamid64}
         </p>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="flex items-center gap-2 mb-2">
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Reason (required)"
+            rows={2}
+            required
+            className="w-full bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 resize-none"
+          />
+          <div className="flex items-center gap-2">
             <input
               type="checkbox"
               id="permanent"
@@ -430,17 +427,10 @@ function AddWhitelistModal({
               </select>
             </div>
           )}
-          <textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Reason (optional)"
-            rows={2}
-            className="w-full bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 resize-none"
-          />
-          {extendMutation.error && (
+          {grantMutation.error && (
             <p className="text-sm text-red-400">
-              {(extendMutation.error as { response?: { data?: { error?: string } } }).response?.data?.error
-                || (extendMutation.error as Error).message}
+              {(grantMutation.error as { response?: { data?: { error?: string } } }).response?.data?.error
+                || (grantMutation.error as Error).message}
             </p>
           )}
           <div className="flex justify-end gap-3">
@@ -449,10 +439,10 @@ function AddWhitelistModal({
             </button>
             <button
               type="submit"
-              disabled={extendMutation.isPending}
+              disabled={grantMutation.isPending || !reason.trim()}
               className="bg-discord-blurple hover:bg-discord-blurple/80 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
             >
-              {extendMutation.isPending ? 'Adding...' : 'Add Whitelist'}
+              {grantMutation.isPending ? 'Adding...' : 'Add Whitelist'}
             </button>
           </div>
         </form>
