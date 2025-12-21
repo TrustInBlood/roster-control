@@ -81,7 +81,7 @@ const INFO_POSTS = {
     embed: {
       color: 0xff0000,
       title: 'SERVICE MEMBERS AND FIRST RESPONDERS REWARD',
-      description: 'The Bloody Bucket is now offering FREE whitelist **FOR LIFE** to Military and First Responders. (**6-MONTH** verification required)',
+      description: 'The Bloody Bucket is now offering FREE whitelist **FOR LIFE** to Military and First Responders. (**1-YEAR** verification required)',
       fields: [
         {
           name: 'How to Apply',

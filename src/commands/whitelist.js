@@ -621,13 +621,13 @@ async function showReasonSelectionButtons(interaction, grantData) {
     .addOptions([
       {
         label: 'Service Member',
-        description: 'Military service member (6 months default)',
+        description: 'Military service member (1 year default)',
         value: 'service-member',
         emoji: '🎖️'
       },
       {
         label: 'First Responder',
-        description: 'Emergency service personnel (6 months default)',
+        description: 'Emergency service personnel (1 year default)',
         value: 'first-responder',
         emoji: '🚑'
       },
@@ -751,12 +751,12 @@ async function handleDurationSelection(interaction, grantData) {
   switch (reason) {
   case 'service-member':
   case 'first-responder':
-    // Skip duration selection, go straight to confirmation (auto 6 months)
+    // Skip duration selection, go straight to confirmation (auto 1 year)
     await handleConfirmation(interaction, {
       ...grantData,
-      durationValue: 6,
+      durationValue: 12,
       durationType: 'months',
-      durationText: '6 months'
+      durationText: '1 year'
     });
     break;
 
