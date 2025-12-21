@@ -79,7 +79,11 @@ const TICKET_CONFIG = {
   BATTLEMETRICS_LOOKUP_ENABLED: true,  // Enable automatic BM profile lookup for Steam IDs
   LOOKUP_ALL_STEAMIDS: true,            // If false, only lookup first Steam ID in ticket
   PROMPT_MISSING_STEAMID: true,         // Ask user for Steam ID if none provided
-  BATTLEMETRICS_TIMEOUT_MS: 5000        // Timeout for BM API calls in milliseconds
+  BATTLEMETRICS_TIMEOUT_MS: 5000,       // Timeout for BM API calls in milliseconds
+
+  // Community Ban List integration settings
+  CBL_LOOKUP_ENABLED: true,             // Enable automatic CBL lookup for Steam IDs
+  CBL_TIMEOUT_MS: 5000                  // Timeout for CBL API calls in milliseconds
 };
 
 /**

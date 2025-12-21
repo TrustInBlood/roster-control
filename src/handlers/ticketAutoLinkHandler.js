@@ -13,6 +13,7 @@ const { TICKET_CONFIG } = channels;
 const { logAccountLink } = require('../utils/discordLogger');
 const { console: loggerConsole } = require('../utils/logger');
 const battlemetricsService = require('../services/BattleMetricsService');
+const cblService = require('../services/CommunityBanListService');
 
 // Track which tickets we've already handled (either found Steam ID or prompted)
 // Populated on bot startup by scanning message history, cleaned up on channel delete
@@ -488,7 +489,7 @@ async function processTicketSteamId(message, steamId, targetUser) {
 const TICKET_LINK_BUTTON_PREFIX = 'ticket_link_';
 
 /**
- * Post BattleMetrics profile link to ticket channel
+ * Post BattleMetrics and Community Ban List profile info to ticket channel
  * Also shows link status and provides a Link button if not linked
  * @param {Message} message - Discord message object
  * @param {string} steamId - Valid Steam ID64
@@ -496,9 +497,15 @@ const TICKET_LINK_BUTTON_PREFIX = 'ticket_link_';
  */
 async function postBattleMetricsProfile(message, steamId, targetUser) {
   try {
-    // Call BattleMetrics API with configured timeout
-    const timeout = TICKET_CONFIG.BATTLEMETRICS_TIMEOUT_MS || 5000;
-    const result = await battlemetricsService.searchPlayerBySteamId(steamId, timeout);
+    // Fetch BattleMetrics and CBL data in parallel
+    const bmTimeout = TICKET_CONFIG.BATTLEMETRICS_TIMEOUT_MS || 5000;
+    const cblTimeout = TICKET_CONFIG.CBL_TIMEOUT_MS || 5000;
+    const cblEnabled = TICKET_CONFIG.CBL_LOOKUP_ENABLED !== false;
+
+    const [bmResult, cblResult] = await Promise.all([
+      battlemetricsService.searchPlayerBySteamId(steamId, bmTimeout),
+      cblEnabled ? cblService.searchPlayer(steamId, cblTimeout) : Promise.resolve({ found: false })
+    ]);
 
     // Check if this Steam ID is linked to the target user
     const existingLink = await PlayerDiscordLink.findOne({
@@ -540,45 +547,51 @@ async function postBattleMetricsProfile(message, steamId, targetUser) {
       linkStatusValue = `Not linked to <@${targetUser.id}>`;
     }
 
+    // Build CBL fields if data available
+    const cblFields = buildCblFields(cblResult);
+
+    // Create components array (Link button only if user doesn't have any verified link)
+    const components = [];
+    if (!userHasVerifiedAccount) {
+      const buttonLabel = isLinked ? 'Verify Link' : 'Link Account';
+      const linkButton = new ButtonBuilder()
+        .setCustomId(`${TICKET_LINK_BUTTON_PREFIX}${targetUser.id}_${steamId}`)
+        .setLabel(buttonLabel)
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji('🔗');
+
+      const row = new ActionRowBuilder().addComponents(linkButton);
+      components.push(row);
+    }
+
     // Post result based on whether player was found
-    if (result.found && result.profileUrl) {
+    if (bmResult.found && bmResult.profileUrl) {
       const embed = new EmbedBuilder()
         .setColor(0x00AE86) // BattleMetrics green color
         .setTitle('🔍 BattleMetrics Profile Found')
         .setDescription(`Player profile for Steam ID: \`${steamId}\``)
         .addFields(
-          { name: 'Player Name', value: result.playerData.name || 'Unknown', inline: true },
-          { name: 'BM Profile', value: `[View Profile](${result.profileUrl})`, inline: true },
+          { name: 'Player Name', value: bmResult.playerData.name || 'Unknown', inline: true },
+          { name: 'BM Profile', value: `[View Profile](${bmResult.profileUrl})`, inline: true },
+          ...cblFields,
           { name: `${linkStatusEmoji} Account Link`, value: linkStatusValue, inline: false }
         )
         .setTimestamp()
-        .setFooter({ text: 'BattleMetrics Profile Lookup' });
-
-      // Create components array (Link button only if user doesn't have any verified link)
-      const components = [];
-      if (!userHasVerifiedAccount) {
-        const buttonLabel = isLinked ? 'Verify Link' : 'Link Account';
-        const linkButton = new ButtonBuilder()
-          .setCustomId(`${TICKET_LINK_BUTTON_PREFIX}${targetUser.id}_${steamId}`)
-          .setLabel(buttonLabel)
-          .setStyle(ButtonStyle.Primary)
-          .setEmoji('🔗');
-
-        const row = new ActionRowBuilder().addComponents(linkButton);
-        components.push(row);
-      }
+        .setFooter({ text: 'BattleMetrics & Community Ban List Lookup' });
 
       await message.channel.send({ embeds: [embed], components });
 
       loggerConsole.log('Posted BattleMetrics profile to ticket:', {
         channelId: message.channel.id,
         steamId,
-        playerName: result.playerData.name,
+        playerName: bmResult.playerData.name,
         isLinked,
         linkConfidence,
-        userHasVerifiedAccount
+        userHasVerifiedAccount,
+        cblFound: cblResult.found,
+        cblReputationPoints: cblResult.found ? cblResult.playerData?.reputationPoints : null
       });
-    } else if (!result.found && !result.error) {
+    } else if (!bmResult.found && !bmResult.error) {
       // Player not found in BattleMetrics - post notification
       const embed = new EmbedBuilder()
         .setColor(0xFF6B6B) // Red color for not found
@@ -590,24 +603,11 @@ async function postBattleMetricsProfile(message, steamId, targetUser) {
             value: 'This player has not been seen on any servers tracked by BattleMetrics, or their profile is private.',
             inline: false
           },
+          ...cblFields,
           { name: `${linkStatusEmoji} Account Link`, value: linkStatusValue, inline: false }
         )
         .setTimestamp()
-        .setFooter({ text: 'BattleMetrics Profile Lookup' });
-
-      // Create components array (Link button only if user doesn't have any verified link)
-      const components = [];
-      if (!userHasVerifiedAccount) {
-        const buttonLabel = isLinked ? 'Verify Link' : 'Link Account';
-        const linkButton = new ButtonBuilder()
-          .setCustomId(`${TICKET_LINK_BUTTON_PREFIX}${targetUser.id}_${steamId}`)
-          .setLabel(buttonLabel)
-          .setStyle(ButtonStyle.Primary)
-          .setEmoji('🔗');
-
-        const row = new ActionRowBuilder().addComponents(linkButton);
-        components.push(row);
-      }
+        .setFooter({ text: 'BattleMetrics & Community Ban List Lookup' });
 
       await message.channel.send({ embeds: [embed], components });
 
@@ -616,19 +616,89 @@ async function postBattleMetricsProfile(message, steamId, targetUser) {
         steamId,
         isLinked,
         linkConfidence,
-        userHasVerifiedAccount
+        userHasVerifiedAccount,
+        cblFound: cblResult.found
       });
-    } else if (result.error) {
+    } else if (bmResult.error) {
       // Log errors but don't spam the channel with error messages
       loggerConsole.warn('BattleMetrics lookup failed:', {
         steamId,
-        error: result.error
+        error: bmResult.error
       });
     }
   } catch (error) {
-    // Non-blocking - don't crash the handler if BM lookup fails
-    loggerConsole.error('Error posting BattleMetrics profile:', error);
+    // Non-blocking - don't crash the handler if lookup fails
+    loggerConsole.error('Error posting player profile:', error);
   }
+}
+
+/**
+ * Build CBL embed fields from CBL result
+ * @param {Object} cblResult - Result from CBL service
+ * @returns {Array} Array of embed fields for CBL data
+ */
+function buildCblFields(cblResult) {
+  if (!cblResult.found) {
+    return [];
+  }
+
+  const { playerData, profileUrl } = cblResult;
+  const fields = [];
+
+  // Reputation and risk info
+  const reputationPoints = playerData.reputationPoints || 0;
+  const riskRating = playerData.riskRating || 0;
+  const activeBansCount = playerData.activeBansCount || 0;
+  const expiredBansCount = playerData.expiredBansCount || 0;
+
+  // Determine warning emoji based on reputation points
+  let repEmoji = '✅';
+  if (reputationPoints >= 3) {
+    repEmoji = '🚨';
+  } else if (reputationPoints >= 1) {
+    repEmoji = '⚠️';
+  }
+
+  // Build reputation value string
+  let repValue = `**${reputationPoints}** reputation point${reputationPoints !== 1 ? 's' : ''}`;
+  if (activeBansCount > 0) {
+    repValue += ` | **${activeBansCount}** active ban${activeBansCount !== 1 ? 's' : ''}`;
+  }
+  if (expiredBansCount > 0) {
+    repValue += ` | ${expiredBansCount} expired`;
+  }
+
+  // Add risk rating description
+  const riskDesc = cblService.getRiskDescription(riskRating);
+  repValue += `\nRisk: ${riskDesc} (${riskRating.toFixed(1)})`;
+
+  fields.push({
+    name: `${repEmoji} Community Ban List`,
+    value: `${repValue}\n[View CBL Profile](${profileUrl})`,
+    inline: false
+  });
+
+  // If there are active bans, list them
+  if (activeBansCount > 0 && playerData.activeBans && playerData.activeBans.length > 0) {
+    const banList = playerData.activeBans.slice(0, 3).map(ban => {
+      const org = ban.organisation !== 'Unknown' ? ` (${ban.organisation})` : '';
+      const reason = ban.reason.length > 50 ? ban.reason.substring(0, 47) + '...' : ban.reason;
+      return `- ${ban.banList}${org}: ${reason}`;
+    }).join('\n');
+
+    let banFieldValue = banList;
+    if (activeBansCount > 3) {
+      banFieldValue += `\n*...and ${activeBansCount - 3} more*`;
+    }
+
+    fields.push({
+      name: '🚫 Active Bans',
+      value: banFieldValue,
+      inline: false
+    });
+  }
+
+  return fields;
 }
 
 /**
