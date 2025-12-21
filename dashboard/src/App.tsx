@@ -1,10 +1,10 @@
-import { Routes, Route, Navigate, Outlet } from 'react-router-dom'
+import { Routes, Route, Navigate, Outlet, useParams } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import Layout from './components/layout/Layout'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
-import Whitelist from './pages/Whitelist'
-import WhitelistDetail from './pages/WhitelistDetail'
+import Players from './pages/Players'
+import PlayerProfile from './pages/PlayerProfile'
 import Members from './pages/Members'
 import MemberDetail from './pages/MemberDetail'
 import AuditLogs from './pages/AuditLogs'
@@ -41,6 +41,12 @@ function ProtectedRoute() {
   return <Outlet />
 }
 
+// Redirect component for whitelist/:steamid64 -> players/:steamid64
+function WhitelistRedirect() {
+  const { steamid64 } = useParams()
+  return <Navigate to={`/players/${steamid64}`} replace />
+}
+
 function App() {
   return (
     <Routes>
@@ -50,8 +56,11 @@ function App() {
         <Route path="/" element={<Layout />}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
-          <Route path="whitelist" element={<Whitelist />} />
-          <Route path="whitelist/:steamid64" element={<WhitelistDetail />} />
+          <Route path="players" element={<Players />} />
+          <Route path="players/:steamid64" element={<PlayerProfile />} />
+          {/* Backward compatibility redirects */}
+          <Route path="whitelist" element={<Navigate to="/players" replace />} />
+          <Route path="whitelist/:steamid64" element={<WhitelistRedirect />} />
           <Route path="members" element={<Members />} />
           <Route path="members/:discordId" element={<MemberDetail />} />
           <Route path="audit" element={<AuditLogs />} />

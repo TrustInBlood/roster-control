@@ -59,6 +59,17 @@ import type {
   RevokeParticipantRewardsResponse,
 } from '../types/seeding'
 import type {
+  PlayerListResponse,
+  PlayerProfile,
+  PlayerSessionsResponse,
+  PlayerAuditLogsResponse,
+  PlayerSeedingResponse,
+  PlayerDutyResponse,
+  PlayerWhitelistResponse,
+  PlayerUnlinkResponse,
+  PlayerFilters,
+} from '../types/player'
+import type {
   StatsTemplatesListResponse,
   StatsTemplateDetailResponse,
   RoleMappingsListResponse,
@@ -424,6 +435,59 @@ export const statsTemplatesApi = {
 
   seed: async (): Promise<SeedTemplatesResponse> => {
     const { data } = await api.post<SeedTemplatesResponse>('/stats-templates/seed')
+    return data
+  },
+}
+
+// Players API
+export const playersApi = {
+  list: async (filters: PlayerFilters = {}): Promise<PlayerListResponse> => {
+    const { data } = await api.get<PlayerListResponse>('/players', {
+      params: filters,
+    })
+    return data
+  },
+
+  getProfile: async (steamid64: string): Promise<PlayerProfile> => {
+    const { data } = await api.get<PlayerProfile>(`/players/${steamid64}`)
+    return data
+  },
+
+  getSessions: async (steamid64: string, page = 1, limit = 10): Promise<PlayerSessionsResponse> => {
+    const { data } = await api.get<PlayerSessionsResponse>(`/players/${steamid64}/sessions`, {
+      params: { page, limit },
+    })
+    return data
+  },
+
+  getAuditLogs: async (steamid64: string, page = 1, limit = 10): Promise<PlayerAuditLogsResponse> => {
+    const { data } = await api.get<PlayerAuditLogsResponse>(`/players/${steamid64}/audit`, {
+      params: { page, limit },
+    })
+    return data
+  },
+
+  getSeedingActivity: async (steamid64: string, page = 1, limit = 10): Promise<PlayerSeedingResponse> => {
+    const { data } = await api.get<PlayerSeedingResponse>(`/players/${steamid64}/seeding`, {
+      params: { page, limit },
+    })
+    return data
+  },
+
+  getDutyHistory: async (steamid64: string, page = 1, limit = 10): Promise<PlayerDutyResponse> => {
+    const { data } = await api.get<PlayerDutyResponse>(`/players/${steamid64}/duty`, {
+      params: { page, limit },
+    })
+    return data
+  },
+
+  getWhitelistHistory: async (steamid64: string): Promise<PlayerWhitelistResponse> => {
+    const { data } = await api.get<PlayerWhitelistResponse>(`/players/${steamid64}/whitelist`)
+    return data
+  },
+
+  getUnlinkHistory: async (steamid64: string): Promise<PlayerUnlinkResponse> => {
+    const { data } = await api.get<PlayerUnlinkResponse>(`/players/${steamid64}/unlinks`)
     return data
   },
 }
