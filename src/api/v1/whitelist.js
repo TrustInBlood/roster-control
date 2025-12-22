@@ -892,7 +892,10 @@ router.post('/:steamid64/upgrade-confidence', requireAuth, requirePermission('GR
 
     // Trigger role sync to upgrade any security-blocked whitelist entries
     try {
-      await triggerUserRoleSync(accountLink.discord_user_id, 'confidence_upgrade');
+      await triggerUserRoleSync(global.discordClient, accountLink.discord_user_id, {
+        source: 'confidence_upgrade',
+        skipNotification: true
+      });
     } catch (syncError) {
       logger.warn('Role sync after confidence upgrade failed (non-blocking)', {
         error: syncError.message,
