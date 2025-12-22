@@ -74,8 +74,13 @@ export default function Members() {
 
   const MemberRow = ({ member }: { member: Member }) => (
     <tr
-      className="border-b border-discord-lighter hover:bg-discord-darker/50 transition-colors cursor-pointer"
-      onClick={() => navigate(`/members/${member.discord_user_id}`)}
+      className={`border-b border-discord-lighter transition-colors ${
+        member.steamid64
+          ? 'hover:bg-discord-darker/50 cursor-pointer'
+          : 'opacity-75'
+      }`}
+      onClick={() => member.steamid64 && navigate(`/players/${member.steamid64}`)}
+      title={member.steamid64 ? 'View player profile' : 'No Steam account linked'}
     >
       {/* User */}
       <td className="px-4 py-3">

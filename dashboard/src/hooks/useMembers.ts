@@ -64,20 +64,6 @@ export function useMembersList(filters: MemberFilters = {}) {
 }
 
 /**
- * Hook to get member details by Discord ID
- */
-export function useMemberDetail(discordId: string | undefined) {
-  const { user } = useAuth()
-
-  return useQuery({
-    queryKey: ['members', 'detail', discordId],
-    queryFn: () => membersApi.getDetail(discordId!),
-    enabled: !!user && !!discordId,
-    staleTime: 1000 * 60 * 2, // 2 minutes
-  })
-}
-
-/**
  * Hook to add a new member
  */
 export function useAddMember() {

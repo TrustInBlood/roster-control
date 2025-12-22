@@ -26,7 +26,6 @@ import type {
   AddMemberResponse,
   MembersListResponse,
   MemberFilters,
-  MemberDetail,
 } from '../types/members'
 import type {
   PermissionsListResponse,
@@ -272,11 +271,6 @@ export const membersApi = {
     const { data } = await api.get<MembersListResponse>('/members', {
       params: filters,
     })
-    return data
-  },
-
-  getDetail: async (discordId: string): Promise<MemberDetail> => {
-    const { data } = await api.get<MemberDetail>(`/members/${discordId}`)
     return data
   },
 

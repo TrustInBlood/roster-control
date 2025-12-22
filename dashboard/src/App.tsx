@@ -6,7 +6,6 @@ import Dashboard from './pages/Dashboard'
 import Players from './pages/Players'
 import PlayerProfile from './pages/PlayerProfile'
 import Members from './pages/Members'
-import MemberDetail from './pages/MemberDetail'
 import AuditLogs from './pages/AuditLogs'
 import UnlinkedStaff from './pages/UnlinkedStaff'
 import Permissions from './pages/Permissions'
@@ -62,7 +61,8 @@ function App() {
           <Route path="whitelist" element={<Navigate to="/players" replace />} />
           <Route path="whitelist/:steamid64" element={<WhitelistRedirect />} />
           <Route path="members" element={<Members />} />
-          <Route path="members/:discordId" element={<MemberDetail />} />
+          {/* Legacy member detail route - redirect to members list */}
+          <Route path="members/:discordId" element={<Navigate to="/members" replace />} />
           <Route path="audit" element={<AuditLogs />} />
           <Route path="security/unlinked-staff" element={<UnlinkedStaff />} />
           <Route path="admin/permissions" element={<Permissions />} />
