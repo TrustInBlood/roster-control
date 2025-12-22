@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { Op } = require('sequelize');
 const { createServiceLogger } = require('../../utils/logger');
 const { requireAuth, requirePermission } = require('../middleware/auth');
 const { PlayerDiscordLink } = require('../../database/models');
@@ -72,9 +73,13 @@ async function getOnlineStaff(steamIds) {
     return [];
   }
 
-  // Get all Discord links for these Steam IDs
+  // Get all Discord links for these Steam IDs with high confidence only
+  // Staff identification requires confidence >= 1.0 (same as whitelist system)
   const links = await PlayerDiscordLink.findAll({
-    where: { steamid64: steamIds }
+    where: {
+      steamid64: steamIds,
+      confidence_score: { [Op.gte]: 1.0 }
+    }
   });
 
   if (links.length === 0) {
