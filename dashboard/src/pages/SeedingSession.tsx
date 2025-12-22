@@ -413,7 +413,7 @@ export default function SeedingSession() {
       </div>
 
       {/* Stats Overview */}
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-6 gap-4">
         <div className="bg-discord-light rounded-lg p-4">
           <div className="flex items-center gap-2 text-gray-400 text-sm mb-1">
             <Target className="w-4 h-4" />
@@ -424,9 +424,16 @@ export default function SeedingSession() {
         <div className="bg-discord-light rounded-lg p-4">
           <div className="flex items-center gap-2 text-gray-400 text-sm mb-1">
             <Users className="w-4 h-4" />
-            Participants
+            Tracked
           </div>
           <div className="text-2xl font-bold text-white">{session.participants_count}</div>
+        </div>
+        <div className="bg-discord-light rounded-lg p-4">
+          <div className="flex items-center gap-2 text-gray-400 text-sm mb-1">
+            <Users className="w-4 h-4" />
+            Participants
+          </div>
+          <div className="text-2xl font-bold text-white">{session.stats?.actualParticipants ?? '-'}</div>
         </div>
         <div className="bg-discord-light rounded-lg p-4">
           <div className="flex items-center gap-2 text-gray-400 text-sm mb-1">
@@ -442,14 +449,16 @@ export default function SeedingSession() {
           </div>
           <div className="text-2xl font-bold text-white">{totalRewardDays}d</div>
         </div>
-        <div className="bg-discord-light rounded-lg p-4">
-          <div className="flex items-center gap-2 text-gray-400 text-sm mb-1">
-            On Target Now
+        {isActive && (
+          <div className="bg-discord-light rounded-lg p-4">
+            <div className="flex items-center gap-2 text-gray-400 text-sm mb-1">
+              On Target Now
+            </div>
+            <div className="text-2xl font-bold text-green-400">
+              {session.stats?.currentlyOnTarget ?? '-'}
+            </div>
           </div>
-          <div className="text-2xl font-bold text-green-400">
-            {session.stats?.currentlyOnTarget ?? '-'}
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Rewards Config */}

@@ -322,11 +322,20 @@ SeedingSession.getSessionWithStats = async function(sessionId) {
     where: { session_id: sessionId, is_on_target: true }
   });
 
+  // Count actual participants (those who joined target server, not just tracked on source)
+  const actualParticipants = await SeedingParticipant.count({
+    where: {
+      session_id: sessionId,
+      status: { [Op.ne]: 'on_source' }
+    }
+  });
+
   return {
     ...session.toJSON(),
     stats: {
       byTypeAndStatus: stats,
-      currentlyOnTarget: onTargetCount
+      currentlyOnTarget: onTargetCount,
+      actualParticipants: actualParticipants
     }
   };
 };
