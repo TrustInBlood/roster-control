@@ -96,10 +96,14 @@ export function useUpgradeConfidence() {
   return useMutation({
     mutationFn: ({ steamid64, reason }: { steamid64: string; reason: string }) =>
       whitelistApi.upgradeConfidence(steamid64, reason),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      // Invalidate the specific player profile to update confidence display
+      queryClient.invalidateQueries({ queryKey: ['players', 'profile', variables.steamid64] })
+      // Invalidate related queries
+      queryClient.invalidateQueries({ queryKey: ['players', 'whitelist', variables.steamid64] })
+      queryClient.invalidateQueries({ queryKey: ['players', 'linked-accounts', variables.steamid64] })
+      // Also invalidate general whitelist queries
       queryClient.invalidateQueries({ queryKey: ['whitelist'] })
-      queryClient.invalidateQueries({ queryKey: ['players', 'whitelist'] })
-      queryClient.invalidateQueries({ queryKey: ['players', 'profile'] })
     },
   })
 }
