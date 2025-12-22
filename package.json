@@ -15,8 +15,6 @@
     "deploy:commands:prod": "NODE_ENV=production node scripts/deploy-commands.js",
     "test:db": "node scripts/test-db-connection.js",
     "test:player": "node scripts/test-player-model.js",
-    "test:db:full": "node scripts/test-new-database-setup.js",
-    "test:models": "node scripts/test-all-new-models.js",
     "test:env": "node scripts/test-environment-detection.js",
     "db:migrate": "node scripts/migrate-database.js",
     "db:migrate:dev": "NODE_ENV=development node scripts/migrate-database.js",
