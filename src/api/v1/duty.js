@@ -2,8 +2,10 @@ const express = require('express');
 const router = express.Router();
 const { createServiceLogger } = require('../../utils/logger');
 const { requireAuth, requirePermission } = require('../middleware/auth');
-const { DutyStatusChange } = require('../../database/models');
+const { DutyStatusChange, DutySession } = require('../../database/models');
 const { getMemberCacheService } = require('../../services/MemberCacheService');
+const { getDutyConfigService } = require('../../services/DutyConfigService');
+const { getDutySessionService } = require('../../services/DutySessionService');
 
 const logger = createServiceLogger('DutyAPI');
 
@@ -299,6 +301,244 @@ router.get('/user/:discordId', requireAuth, requirePermission('VIEW_DUTY'), asyn
   } catch (error) {
     logger.error('Error getting user duty stats', { error: error.message, discordId: req.params.discordId });
     res.status(500).json({ error: 'Failed to get user duty stats' });
+  }
+});
+
+// ============================================
+// Settings Endpoints (Transparency)
+// ============================================
+
+// GET /api/v1/duty/settings - Get duty tracking settings (all staff can view)
+router.get('/settings', requireAuth, requirePermission('VIEW_DUTY'), async (req, res) => {
+  try {
+    const guildId = process.env.DISCORD_GUILD_ID;
+    const configService = getDutyConfigService();
+
+    const { config, categories } = await configService.getConfigForApi(guildId);
+
+    res.json({
+      success: true,
+      data: {
+        config,
+        categories
+      }
+    });
+  } catch (error) {
+    logger.error('Error getting duty settings', { error: error.message });
+    res.status(500).json({ error: 'Failed to get duty settings' });
+  }
+});
+
+// PUT /api/v1/duty/settings - Update duty tracking settings (super admin only)
+router.put('/settings', requireAuth, requirePermission('MANAGE_DUTY_SETTINGS'), async (req, res) => {
+  try {
+    const guildId = process.env.DISCORD_GUILD_ID;
+    const configService = getDutyConfigService();
+    const { updates } = req.body;
+
+    if (!updates || typeof updates !== 'object') {
+      return res.status(400).json({ error: 'Invalid updates object' });
+    }
+
+    const changedBy = req.user.discordId;
+    const changedByName = req.user.username;
+
+    const results = await configService.updateMultiple(guildId, updates, changedBy, changedByName);
+
+    res.json({
+      success: true,
+      data: {
+        results,
+        updatedCount: results.filter(r => r.success).length
+      }
+    });
+  } catch (error) {
+    logger.error('Error updating duty settings', { error: error.message });
+    res.status(500).json({ error: 'Failed to update duty settings' });
+  }
+});
+
+// GET /api/v1/duty/settings/audit - Get settings change history
+router.get('/settings/audit', requireAuth, requirePermission('VIEW_DUTY'), async (req, res) => {
+  try {
+    const guildId = process.env.DISCORD_GUILD_ID;
+    const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+    const configService = getDutyConfigService();
+
+    const auditLog = await configService.getAuditLog(guildId, limit);
+
+    res.json({
+      success: true,
+      data: auditLog.map(entry => ({
+        id: entry.id,
+        configKey: entry.configKey,
+        oldValue: entry.oldValue,
+        newValue: entry.newValue,
+        changedBy: entry.changedBy,
+        changedByName: entry.changedByName,
+        changeType: entry.changeType,
+        createdAt: entry.createdAt
+      }))
+    });
+  } catch (error) {
+    logger.error('Error getting settings audit log', { error: error.message });
+    res.status(500).json({ error: 'Failed to get settings audit log' });
+  }
+});
+
+// ============================================
+// Sessions Endpoints
+// ============================================
+
+// GET /api/v1/duty/sessions - Get active/recent sessions
+router.get('/sessions', requireAuth, requirePermission('VIEW_DUTY'), async (req, res) => {
+  try {
+    const guildId = process.env.DISCORD_GUILD_ID;
+    const { status = 'all', type, limit = 50 } = req.query;
+
+    const parsedLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
+
+    let sessions;
+    if (status === 'active') {
+      sessions = await DutySession.getActiveSessions(guildId, type);
+    } else {
+      // Get recent sessions
+      const where = { guildId };
+      if (type && type !== 'both') {
+        where.dutyType = type;
+      }
+
+      sessions = await DutySession.findAll({
+        where,
+        order: [['sessionStart', 'DESC']],
+        limit: parsedLimit
+      });
+    }
+
+    // Fetch Discord member info
+    const discordClient = global.discordClient;
+    let memberMap = new Map();
+
+    if (discordClient) {
+      try {
+        const guild = await discordClient.guilds.fetch(guildId).catch(() => null);
+        if (guild) {
+          const cacheService = getMemberCacheService();
+          const userIds = [...new Set(sessions.map(s => s.discordUserId))];
+
+          const memberPromises = userIds.map(id =>
+            cacheService.getMember(guild, id).catch(() => null)
+          );
+          const members = await Promise.all(memberPromises);
+
+          members.forEach((member, index) => {
+            if (member) {
+              memberMap.set(userIds[index], {
+                displayName: member.displayName || member.user.username,
+                avatarUrl: member.user.displayAvatarURL({ size: 64 })
+              });
+            }
+          });
+        }
+      } catch (err) {
+        logger.warn('Failed to fetch Discord member info for sessions', { error: err.message });
+      }
+    }
+
+    res.json({
+      success: true,
+      data: sessions.map(session => {
+        const memberInfo = memberMap.get(session.discordUserId);
+        return {
+          id: session.id,
+          discordUserId: session.discordUserId,
+          discordUsername: session.discordUsername,
+          displayName: memberInfo?.displayName || session.discordUsername,
+          avatarUrl: memberInfo?.avatarUrl || null,
+          dutyType: session.dutyType,
+          sessionStart: session.sessionStart,
+          sessionEnd: session.sessionEnd,
+          durationMinutes: session.isActive ? session.getDurationMinutes() : session.durationMinutes,
+          isActive: session.isActive,
+          endReason: session.endReason,
+          totalPoints: session.totalPoints,
+          voiceMinutes: session.voiceMinutes,
+          ticketResponses: session.ticketResponses
+        };
+      })
+    });
+  } catch (error) {
+    logger.error('Error getting duty sessions', { error: error.message });
+    res.status(500).json({ error: 'Failed to get duty sessions' });
+  }
+});
+
+// GET /api/v1/duty/sessions/:id - Get session details
+router.get('/sessions/:id', requireAuth, requirePermission('VIEW_DUTY'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const session = await DutySession.findByPk(id);
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        id: session.id,
+        discordUserId: session.discordUserId,
+        discordUsername: session.discordUsername,
+        dutyType: session.dutyType,
+        guildId: session.guildId,
+        sessionStart: session.sessionStart,
+        sessionEnd: session.sessionEnd,
+        durationMinutes: session.isActive ? session.getDurationMinutes() : session.durationMinutes,
+        isActive: session.isActive,
+        endReason: session.endReason,
+        basePoints: session.basePoints,
+        bonusPoints: session.bonusPoints,
+        totalPoints: session.totalPoints,
+        voiceMinutes: session.voiceMinutes,
+        ticketResponses: session.ticketResponses,
+        adminCamEvents: session.adminCamEvents,
+        ingameChatMessages: session.ingameChatMessages,
+        warningSentAt: session.warningSentAt,
+        timeoutExtendedAt: session.timeoutExtendedAt,
+        metadata: session.metadata,
+        createdAt: session.createdAt,
+        updatedAt: session.updatedAt
+      }
+    });
+  } catch (error) {
+    logger.error('Error getting session details', { error: error.message, sessionId: req.params.id });
+    res.status(500).json({ error: 'Failed to get session details' });
+  }
+});
+
+// POST /api/v1/duty/sessions/:id/extend - Extend session timeout
+router.post('/sessions/:id/extend', requireAuth, requirePermission('VIEW_DUTY'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const sessionService = getDutySessionService();
+
+    if (!sessionService) {
+      return res.status(503).json({ error: 'Session service not available' });
+    }
+
+    const result = await sessionService.extendSession(parseInt(id));
+
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    res.json({
+      success: true,
+      message: 'Session timeout extended'
+    });
+  } catch (error) {
+    logger.error('Error extending session', { error: error.message, sessionId: req.params.id });
+    res.status(500).json({ error: 'Failed to extend session' });
   }
 });
 

@@ -26,6 +26,7 @@ export type Permission =
   | 'ADD_MEMBER'
   | 'BULK_IMPORT'
   | 'VIEW_DUTY'
+  | 'MANAGE_DUTY_SETTINGS'
   | 'VIEW_AUDIT'
   | 'VIEW_SECURITY'
   | 'MANAGE_SESSIONS'

@@ -10,6 +10,10 @@ const PlayerSession = require('./PlayerSession');
 const SeedingSession = require('./SeedingSession');
 const SeedingParticipant = require('./SeedingParticipant');
 
+// Import new duty tracking models
+const DutySession = require('./DutySession');
+const { DutyTrackingConfig, DutyTrackingConfigAudit } = require('./DutyTrackingConfig');
+
 // Import and initialize whitelist models (factory functions)
 const GroupFactory = require('./Group');
 const WhitelistFactory = require('./Whitelist');
@@ -69,5 +73,8 @@ module.exports = {
   StatsTemplate,
   StatsTemplateRoleMapping,
   SeedingSession,
-  SeedingParticipant
+  SeedingParticipant,
+  DutySession,
+  DutyTrackingConfig,
+  DutyTrackingConfigAudit
 };

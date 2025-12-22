@@ -3,12 +3,21 @@ const { sendDutyNotification } = require('../utils/dutyNotifications');
 const { DutyStatusChange } = require('../database/models');
 const notificationService = require('./NotificationService');
 const { console: loggerConsole } = require('../utils/logger');
+const { getDutySessionService } = require('./DutySessionService');
 
 class DutyStatusFactory {
   constructor() {
     this.onDutyRoleId = ON_DUTY_ROLE_ID;
     this.tutorOnDutyRoleId = TUTOR_ON_DUTY_ROLE_ID;
     this.roleChangeHandler = null; // Will be set by the handler
+    this.dutySessionService = null; // Will be initialized lazily
+  }
+
+  getDutySessionService() {
+    if (!this.dutySessionService) {
+      this.dutySessionService = getDutySessionService();
+    }
+    return this.dutySessionService;
   }
     
   setRoleChangeHandler(handler) {
@@ -235,7 +244,11 @@ class DutyStatusFactory {
     try {
       const dutyType = options.dutyType || 'admin';
       loggerConsole.log(`📝 Logging ${dutyType} duty status change: ${member.user.tag} -> ${isOnDuty ? 'ON' : 'OFF'} duty (${options.source || 'command'})`);
-            
+
+      // Create/end duty session (new session-based tracking)
+      await this._handleDutySession(member, isOnDuty, dutyType, options);
+
+      // Also log to DutyStatusChange for backward compatibility
       const changeRecord = await DutyStatusChange.create({
         discordUserId: member.user.id,
         discordUsername: member.user.username,
@@ -256,7 +269,7 @@ class DutyStatusFactory {
         },
         success: true
       });
-            
+
       return { success: true, record: changeRecord };
     } catch (error) {
       loggerConsole.error('❌ Failed to log duty status change:', error);
@@ -264,6 +277,53 @@ class DutyStatusFactory {
         success: false,
         error: error.message
       };
+    }
+  }
+
+  async _handleDutySession(member, isOnDuty, dutyType, options) {
+    try {
+      const sessionService = this.getDutySessionService();
+      if (!sessionService) {
+        loggerConsole.warn('DutySessionService not available - skipping session tracking');
+        return;
+      }
+
+      if (isOnDuty) {
+        // Start a new session
+        const result = await sessionService.startSession(
+          member.user.id,
+          member.user.username,
+          dutyType,
+          member.guild.id,
+          {
+            source: options.source || 'command',
+            displayName: member.displayName
+          }
+        );
+
+        if (result.created) {
+          loggerConsole.log(`📊 Started duty session #${result.session.id} for ${member.user.tag}`);
+        } else if (result.error) {
+          loggerConsole.warn(`⚠️ Could not start session: ${result.error}`);
+        }
+      } else {
+        // End active session
+        const endReason = options.source === 'external' ? 'role_removed' : 'manual';
+        const result = await sessionService.endSessionByUser(
+          member.user.id,
+          dutyType,
+          endReason
+        );
+
+        if (result.success) {
+          loggerConsole.log(`📊 Ended duty session for ${member.user.tag} (${result.session?.durationMinutes || 0} min, ${result.session?.totalPoints || 0} pts)`);
+        } else if (result.error && result.error !== 'No active session found') {
+          loggerConsole.warn(`⚠️ Could not end session: ${result.error}`);
+        }
+      }
+    } catch (error) {
+      // Don't let session tracking errors break the main duty flow
+      loggerConsole.error('❌ Error in duty session handling:', error.message);
     }
   }
 

@@ -142,6 +142,15 @@ client.on('ready', async () => {
     await whitelistPostService.initialize();
     loggerConsole.log('WhitelistPostService initialized');
 
+    // Initialize DutySessionService (session-based tracking with auto-timeout)
+    try {
+      const { initializeDutySessionService } = require('./services/DutySessionService');
+      await initializeDutySessionService(client);
+      loggerConsole.log('DutySessionService initialized with auto-timeout checker');
+    } catch (error) {
+      loggerConsole.error('Failed to initialize DutySessionService:', error.message);
+    }
+
     // Initialize ticket prompt tracking after startup sync
     await initializeTicketPromptTracking(client);
 

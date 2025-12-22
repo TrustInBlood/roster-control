@@ -49,6 +49,10 @@ const PERMISSION_DEFINITIONS = {
     description: 'View duty statistics',
     critical: false
   },
+  MANAGE_DUTY_SETTINGS: {
+    description: 'Manage duty tracking settings',
+    critical: true
+  },
   VIEW_AUDIT: {
     description: 'View audit logs',
     critical: false
