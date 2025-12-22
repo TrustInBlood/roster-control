@@ -141,57 +141,8 @@ async function handleButtonInteraction(interaction) {
  */
 async function handleLinkButton(interaction, source = LINK_SOURCES.COMMAND) {
   try {
-    const discordUserId = interaction.user.id;
-
-    // Check if user already has a high-confidence link
-    const existingLink = await PlayerDiscordLink.findOne({
-      where: {
-        discord_user_id: discordUserId,
-        is_primary: true
-      },
-      order: [['confidence_score', 'DESC'], ['created_at', 'DESC']]
-    });
-
-    // If user is already linked at 1.0 confidence, inform them with unlink option (goes through warning flow)
-    if (existingLink && existingLink.confidence_score >= 1.0) {
-      const alreadyLinkedEmbed = {
-        color: 0x00ff00,
-        title: 'Steam Account Linked',
-        description: 'Your Discord account is already linked to a Steam ID.',
-        fields: [
-          {
-            name: 'Steam ID',
-            value: `\`${existingLink.steamid64}\``,
-            inline: true
-          },
-          {
-            name: 'Linked Since',
-            value: `<t:${Math.floor(existingLink.created_at.getTime() / 1000)}:R>`,
-            inline: true
-          },
-        ],
-        timestamp: new Date().toISOString(),
-        footer: { text: 'Roster Control System' }
-      };
-
-      // Use the standard unlink button which goes through handleUnlinkButton -> warning flow
-      const unlinkRow = new ActionRowBuilder()
-        .addComponents(
-          new ButtonBuilder()
-            .setCustomId(BUTTON_IDS.UNLINK)
-            .setLabel('Unlink Steam ID')
-            .setStyle(ButtonStyle.Danger)
-        );
-
-      await interaction.reply({
-        embeds: [alreadyLinkedEmbed],
-        components: [unlinkRow],
-        flags: MessageFlags.Ephemeral
-      });
-      return;
-    }
-
-    // Show modal for Steam ID entry (unique ID per user and source to prevent cross-wiring)
+    // Show modal immediately to avoid Discord's 3-second timeout
+    // The "already linked" check is done in handleLinkModalSubmit instead
     const modalId = `${MODAL_ID_PREFIX}${source}_${interaction.user.id}`;
     const modal = new ModalBuilder()
       .setCustomId(modalId)
