@@ -40,6 +40,18 @@ const PROMOTION_TARGETS = {
       `And visit the <#${CHANNELS.ADMIN_ACADEMY}> to learn about and earn access to BattleMetrics controls and Ticket Support!`,
     auditActionType: 'MODERATOR_PROMOTED',
     logTitle: 'Moderator Added'
+  },
+  moderatort2: {
+    label: 'Moderator T2',
+    description: 'Promote to Moderator T2 (includes Member and Staff roles)',
+    roles: [DISCORD_ROLES.MEMBER, DISCORD_ROLES.MODERATOR_T2, DISCORD_ROLES.STAFF],
+    welcomeChannel: 'MODERATOR_CHAT',
+    welcomeMessage: (userId) =>
+      `**Congratulations on your promotion to Moderator T2!!!** <@${userId}>\n\n` +
+      `Just a reminder to review the rules in <#${CHANNELS.MOD_RULES}>\n` +
+      `And check out <#${CHANNELS.ADMIN_ACADEMY}> if you haven't already!`,
+    auditActionType: 'MODERATOR_T2_PROMOTED',
+    logTitle: 'Moderator T2 Added'
   }
 };
 
@@ -64,7 +76,8 @@ module.exports = {
         .setRequired(true)
         .addChoices(
           { name: 'Member', value: 'member' },
-          { name: 'Moderator T1', value: 'moderatort1' }
+          { name: 'Moderator T1', value: 'moderatort1' },
+          { name: 'Moderator T2', value: 'moderatort2' }
         ))
     .setContexts([InteractionContextType.Guild]),
 
