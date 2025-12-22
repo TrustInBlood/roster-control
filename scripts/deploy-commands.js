@@ -38,6 +38,7 @@ const rest = new REST().setToken(config.discord.token);
 
     loggerConsole.log(`Successfully reloaded ${data.length} application (/) commands for guild ${config.discord.guildId}.`);
     loggerConsole.log('Commands deployed successfully!');
+    process.exit(0);
   } catch (error) {
     loggerConsole.error('Error deploying commands:', error);
     process.exit(1);
