@@ -184,54 +184,43 @@ class DutyStatusSyncService {
 
   async _handleDiscrepancy(member, latestStatus, syncResults) {
     syncResults.discrepanciesFound++;
-        
+
     try {
       // Check how recent the off-duty record is
       const timeSinceChange = Date.now() - latestStatus.createdAt.getTime();
       const hoursAgo = timeSinceChange / (1000 * 60 * 60);
 
-      if (hoursAgo < 1) {
-        // Very recent change - might be a race condition, update database to match Discord
-        loggerConsole.log(`Recent discrepancy (${Math.round(hoursAgo * 60)} minutes ago), updating database to match Discord`);
-                
-        const result = await this.dutyFactory.setOnDuty(null, {
-          member,
-          source: 'startup_sync',
-          reason: 'Resolving discrepancy - user has role but recent database shows off-duty',
-          skipNotification: false,
-          metadata: {
-            syncType: 'discrepancy_recent',
-            previousChangeId: latestStatus.id,
-            hoursAgo: hoursAgo
-          }
-        });
+      // User has the role but database shows off-duty
+      // We need to create a database record directly (not through setOnDuty which would
+      // fail because the user already has the role)
+      const isRecent = hoursAgo < 1;
+      const reason = isRecent
+        ? 'Resolving discrepancy - user has role but recent database shows off-duty'
+        : `Discrepancy resolved: user has role but database showed off-duty (${Math.round(hoursAgo)}h ago)`;
 
-        if (result.success) {
-          syncResults.discrepanciesResolved++;
-        }
-      } else {
-        // Older discrepancy - log it but don't auto-resolve
-        loggerConsole.log(`Older discrepancy (${Math.round(hoursAgo)} hours ago), logging for manual review`);
-                
-        await DutyStatusChange.create({
-          discordUserId: member.user.id,
-          discordUsername: member.user.username,
-          status: true,
-          previousStatus: false,
-          source: 'startup_sync',
-          reason: `Discrepancy detected: user has role but database shows off-duty (${Math.round(hoursAgo)}h ago)`,
-          guildId: member.guild.id,
-          metadata: {
-            syncType: 'discrepancy_logged',
-            previousChangeId: latestStatus.id,
-            hoursAgo: hoursAgo,
-            requiresManualReview: true
-          },
-          success: true
-        });
-                
-        syncResults.discrepanciesFound++; // Count as unresolved
-      }
+      loggerConsole.log(`${isRecent ? 'Recent' : 'Older'} discrepancy (${isRecent ? Math.round(hoursAgo * 60) + ' minutes' : Math.round(hoursAgo) + ' hours'} ago), updating database to match Discord`);
+
+      await DutyStatusChange.create({
+        discordUserId: member.user.id,
+        discordUsername: member.user.username,
+        status: true,
+        previousStatus: false,
+        source: 'startup_sync',
+        reason,
+        guildId: member.guild.id,
+        metadata: {
+          syncType: isRecent ? 'discrepancy_recent' : 'discrepancy_resolved',
+          previousChangeId: latestStatus.id,
+          hoursAgo,
+          userTag: member.user.tag,
+          userDisplayName: member.displayName,
+          roleAlreadyPresent: true,
+          syncTimestamp: new Date().toISOString()
+        },
+        success: true
+      });
+
+      syncResults.discrepanciesResolved++;
     } catch (error) {
       loggerConsole.error(`Failed to handle discrepancy for ${member.user.tag}:`, error);
       syncResults.errors.push(`${member.user.tag}: Discrepancy handling failed - ${error.message}`);
@@ -297,15 +286,37 @@ class DutyStatusSyncService {
     const dbStatus = await this.getCurrentDutyStatus(member.user.id, member.guild.id);
 
     if (hasRole !== dbStatus) {
-            
-      const result = await this.dutyFactory._handleDutyStatusChange(null, hasRole, {
-        member,
-        source: 'manual_sync',
-        reason: 'Manual sync requested',
-        skipNotification: false
-      });
+      // Database doesn't match Discord role state - create a record to sync them
+      // We create directly instead of using dutyFactory because the role is already
+      // in the correct state, we just need to update the database
+      try {
+        await DutyStatusChange.create({
+          discordUserId: member.user.id,
+          discordUsername: member.user.username,
+          status: hasRole,
+          previousStatus: dbStatus,
+          source: 'manual_sync',
+          reason: 'Manual sync requested - updating database to match Discord role state',
+          guildId: member.guild.id,
+          metadata: {
+            syncType: 'manual_sync',
+            userTag: member.user.tag,
+            userDisplayName: member.displayName,
+            discordHasRole: hasRole,
+            databaseStatus: dbStatus,
+            syncTimestamp: new Date().toISOString()
+          },
+          success: true
+        });
 
-      return result;
+        return {
+          success: true,
+          message: `Synced ${member.user.tag}: database updated to ${hasRole ? 'on-duty' : 'off-duty'}`
+        };
+      } catch (error) {
+        loggerConsole.error(`Failed to sync user ${member.user.tag}:`, error);
+        return { success: false, error: error.message };
+      }
     }
 
     return { success: true, message: 'Already in sync' };

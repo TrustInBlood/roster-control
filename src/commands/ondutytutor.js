@@ -1,20 +1,21 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { permissionMiddleware } = require('../handlers/permissionHandler');
 const { sendSuccess, sendError } = require('../utils/messageHandler');
+const { getRoleChangeHandler } = require('../handlers/roleChangeHandler');
 const DutyStatusFactory = require('../services/DutyStatusFactory');
-const { TUTOR_ROLE_ID } = require('../../config/discord');
 const { console: loggerConsole } = require('../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('ondutytutor')
     .setDescription('Set yourself as an on-duty tutor'),
-    
+
   async execute(interaction) {
     await permissionMiddleware(interaction, async () => {
       try {
-
-        const dutyFactory = new DutyStatusFactory();
+        // Use the global duty factory from roleChangeHandler to prevent duplicate logging
+        const roleChangeHandler = getRoleChangeHandler();
+        const dutyFactory = roleChangeHandler?.dutyFactory || new DutyStatusFactory();
             
         // Attempt to set user on duty as tutor
         const result = await dutyFactory.setTutorOnDuty(interaction, {

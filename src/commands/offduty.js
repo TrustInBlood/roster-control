@@ -1,5 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { sendSuccess, sendError } = require('../utils/messageHandler');
+const { getRoleChangeHandler } = require('../handlers/roleChangeHandler');
 const DutyStatusFactory = require('../services/DutyStatusFactory');
 const { console: loggerConsole } = require('../utils/logger');
 
@@ -7,10 +8,12 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('offduty')
     .setDescription('Remove yourself from on-duty status'),
-    
+
   async execute(interaction) {
     try {
-      const dutyFactory = new DutyStatusFactory();
+      // Use the global duty factory from roleChangeHandler to prevent duplicate logging
+      const roleChangeHandler = getRoleChangeHandler();
+      const dutyFactory = roleChangeHandler?.dutyFactory || new DutyStatusFactory();
             
       // Attempt to set user off duty using the factory
       const result = await dutyFactory.setOffDuty(interaction, {
