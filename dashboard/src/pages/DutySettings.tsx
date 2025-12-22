@@ -93,11 +93,16 @@ function ConfigInput({ configKey, item, value, onChange, disabled }: ConfigInput
         </div>
         <input
           type="number"
+          id={`duty-config-${configKey}`}
+          name={`duty-config-${configKey}`}
           value={typeof value === 'number' ? value : 0}
           onChange={(e) => onChange(configKey, parseFloat(e.target.value) || 0)}
           disabled={disabled || isSquadJSRequired}
           step={configKey.includes('per_minute') ? 0.1 : 1}
           min={0}
+          autoComplete="off"
+          data-lpignore="true"
+          data-1p-ignore="true"
           className="w-24 bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-white text-right focus:outline-none focus:border-discord-blurple disabled:opacity-50"
         />
       </div>
@@ -112,9 +117,14 @@ function ConfigInput({ configKey, item, value, onChange, disabled }: ConfigInput
         </div>
         <input
           type="text"
+          id={`duty-config-${configKey}`}
+          name={`duty-config-${configKey}`}
           value={typeof value === 'string' ? value : ''}
           onChange={(e) => onChange(configKey, e.target.value)}
           disabled={disabled}
+          autoComplete="off"
+          data-lpignore="true"
+          data-1p-ignore="true"
           className="w-48 bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-white focus:outline-none focus:border-discord-blurple disabled:opacity-50"
         />
       </div>
