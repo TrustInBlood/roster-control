@@ -1,6 +1,7 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { dutyApi } from '../lib/api'
 import type { DutyPeriod, DutyType } from '../types/duty'
+import { useAuth } from './useAuth'
 
 export function useDutyLeaderboard(
   period: DutyPeriod = 'week',
@@ -35,5 +36,37 @@ export function useDutyUserStats(
     queryFn: () => dutyApi.getUserStats(discordId!, period, dutyType),
     enabled: !!discordId,
     staleTime: 60 * 1000, // 1 minute
+  })
+}
+
+export function useDutySessions(
+  status: 'all' | 'active' = 'all',
+  dutyType?: DutyType,
+  limit = 50
+) {
+  const { user, hasPermission } = useAuth()
+  const canView = hasPermission('VIEW_DUTY')
+
+  return useQuery({
+    queryKey: ['duty', 'sessions', status, dutyType, limit],
+    queryFn: () => dutyApi.getSessions(status, dutyType, limit),
+    enabled: !!user && canView,
+    staleTime: 30 * 1000, // 30 seconds for active sessions
+    refetchInterval: status === 'active' ? 60 * 1000 : false, // Auto-refresh active sessions
+  })
+}
+
+export function useActiveSessions(dutyType?: DutyType) {
+  return useDutySessions('active', dutyType, 100)
+}
+
+export function useExtendSession() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (sessionId: number) => dutyApi.extendSession(sessionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['duty', 'sessions'] })
+    },
   })
 }

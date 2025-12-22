@@ -89,6 +89,8 @@ import type {
   DutyLeaderboardResponse,
   DutySummaryResponse,
   DutyUserStatsResponse,
+  DutySessionsResponse,
+  DutySessionResponse,
 } from '../types/duty'
 import type {
   DutySettingsResponse,
@@ -620,6 +622,27 @@ export const dutyApi = {
     const { data } = await api.get<DutyUserStatsResponse>(`/duty/user/${discordId}`, {
       params: { period, type: dutyType },
     })
+    return data
+  },
+
+  getSessions: async (
+    status: 'all' | 'active' = 'all',
+    dutyType?: DutyType,
+    limit = 50
+  ): Promise<DutySessionsResponse> => {
+    const { data } = await api.get<DutySessionsResponse>('/duty/sessions', {
+      params: { status, type: dutyType, limit },
+    })
+    return data
+  },
+
+  getSession: async (id: number): Promise<DutySessionResponse> => {
+    const { data } = await api.get<DutySessionResponse>(`/duty/sessions/${id}`)
+    return data
+  },
+
+  extendSession: async (id: number): Promise<{ success: boolean; message: string }> => {
+    const { data } = await api.post<{ success: boolean; message: string }>(`/duty/sessions/${id}/extend`)
     return data
   },
 }

@@ -1,4 +1,4 @@
-import { Clock, TrendingUp, User } from 'lucide-react'
+import { Clock, TrendingUp, User, Star } from 'lucide-react'
 import type { DutyLeaderboardEntry } from '../../types/duty'
 import { formatDuration, getRankBadge } from '../../lib/dutyUtils'
 
@@ -65,6 +65,12 @@ export default function DutyLeaderboard({ entries, isLoading }: DutyLeaderboardP
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                 Longest
               </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                <div className="flex items-center gap-1">
+                  <Star className="w-3 h-3" />
+                  Points
+                </div>
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-discord-lighter">
@@ -115,6 +121,15 @@ export default function DutyLeaderboard({ entries, isLoading }: DutyLeaderboardP
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-gray-300">
                     {formatDuration(entry.longestSession, true)}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    {entry.totalPoints !== undefined ? (
+                      <span className="text-yellow-400 font-semibold">
+                        {entry.totalPoints.toLocaleString()}
+                      </span>
+                    ) : (
+                      <span className="text-gray-500">-</span>
+                    )}
                   </td>
                 </tr>
               )

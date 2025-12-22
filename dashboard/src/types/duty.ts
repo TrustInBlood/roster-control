@@ -23,6 +23,9 @@ export interface DutyLeaderboardEntry {
   averageSessionTime: number; // milliseconds
   longestSession: number; // milliseconds
   lastActive: string | null;
+  totalPoints?: number; // from new points system
+  voiceMinutes?: number;
+  ticketResponses?: number;
 }
 
 export interface DutyUserStats {
@@ -69,6 +72,36 @@ export interface DutySummaryResponse {
 export interface DutyUserStatsResponse {
   success: boolean;
   data: DutyUserStats;
+}
+
+// Session types from new duty_sessions table
+export type SessionEndReason = 'manual' | 'auto_timeout' | 'role_removed';
+
+export interface DutySessionEntry {
+  id: number;
+  discordUserId: string;
+  discordUsername: string;
+  displayName: string;
+  avatarUrl: string | null;
+  dutyType: 'admin' | 'tutor';
+  sessionStart: string;
+  sessionEnd: string | null;
+  durationMinutes: number;
+  isActive: boolean;
+  endReason: SessionEndReason | null;
+  totalPoints: number;
+  voiceMinutes: number;
+  ticketResponses: number;
+}
+
+export interface DutySessionsResponse {
+  success: boolean;
+  data: DutySessionEntry[];
+}
+
+export interface DutySessionResponse {
+  success: boolean;
+  data: DutySessionEntry;
 }
 
 // Filter state for UI
