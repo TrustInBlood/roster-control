@@ -26,8 +26,11 @@ const DEFAULT_CONFIG = {
   coverage_low_threshold: { value: 2, type: 'number', category: 'coverage', label: 'Low coverage threshold (admins)' },
   coverage_snapshot_interval_minutes: { value: 60, type: 'number', category: 'coverage', label: 'Snapshot interval (minutes)' },
 
-  // Tracked voice channels (array of channel IDs)
-  tracked_voice_channels: { value: [], type: 'json', category: 'channels', label: 'Tracked voice channels' },
+  // Tracked voice channels (array of channel IDs) - empty means track all
+  tracked_voice_channels: { value: [], type: 'json', category: 'channels', label: 'Tracked voice channels (empty = all)' },
+
+  // Excluded voice channels (array of channel IDs) - e.g., AFK channel
+  excluded_voice_channels: { value: [], type: 'json', category: 'channels', label: 'Excluded voice channels (e.g., AFK)' },
 
   // Ticket channel pattern
   ticket_channel_pattern: { value: 'ticket-*', type: 'string', category: 'channels', label: 'Ticket channel pattern' }

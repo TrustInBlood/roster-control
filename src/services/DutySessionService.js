@@ -1,4 +1,4 @@
-const { DutySession } = require('../database/models');
+const { DutySession, DutyLifetimeStats } = require('../database/models');
 const { getDutyConfigService } = require('./DutyConfigService');
 const { createServiceLogger } = require('../utils/logger');
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
@@ -87,6 +87,27 @@ class DutySessionService {
       const result = await DutySession.endSession(sessionId, endReason, pointsData);
 
       if (result.success) {
+        // Add session stats to lifetime totals (gracefully handle if table doesn't exist yet)
+        try {
+          await DutyLifetimeStats.addSessionStats(
+            session.discordUserId,
+            session.guildId,
+            {
+              durationMinutes: result.session.durationMinutes,
+              voiceMinutes: session.voiceMinutes,
+              ticketResponses: session.ticketResponses,
+              adminCamEvents: session.adminCamEvents,
+              ingameChatMessages: session.ingameChatMessages,
+              totalPoints: pointsData.basePoints + pointsData.bonusPoints
+            }
+          );
+        } catch (lifetimeError) {
+          // Table may not exist yet if migrations haven't run
+          logger.warn('Could not update lifetime stats (table may not exist yet)', {
+            error: lifetimeError.message
+          });
+        }
+
         logger.info('Duty session ended', {
           sessionId,
           endReason,
@@ -119,10 +140,65 @@ class DutySessionService {
   }
 
   /**
+   * End a session and remove the duty role (for button/manual endings)
+   * Uses DutyStatusFactory as the single traffic cop for all duty changes
+   */
+  async endSessionWithRole(sessionId, endReason = 'manual') {
+    // Get session first so we have the data for role removal
+    const session = await DutySession.findByPk(sessionId);
+    if (!session) {
+      return { success: false, error: 'Session not found' };
+    }
+
+    // End the session in database
+    const result = await this.endSession(sessionId, endReason);
+
+    if (result.success) {
+      // Remove the duty role first
+      await this.removeDutyRole(session);
+
+      // Use the factory to handle audit logging and notifications
+      // Factory is the single traffic cop for all duty status changes
+      try {
+        const guild = await this.client.guilds.fetch(session.guildId);
+        const member = await guild.members.fetch(session.discordUserId);
+
+        const DutyStatusFactory = require('./DutyStatusFactory');
+        const factory = new DutyStatusFactory();
+
+        await factory.endDutyViaButton(member, {
+          dutyType: session.dutyType,
+          metadata: {
+            sessionId: session.id,
+            durationMinutes: result.session.durationMinutes,
+            totalPoints: result.session.totalPoints
+          }
+        });
+      } catch (factoryError) {
+        logger.error('Failed to log via factory', {
+          sessionId,
+          error: factoryError.message
+        });
+      }
+    }
+
+    return result;
+  }
+
+  /**
    * Get active session for a user
    */
   async getActiveSession(discordUserId, dutyType = null) {
     return DutySession.getActiveSession(discordUserId, dutyType);
+  }
+
+  /**
+   * Get session by ID (for button validation)
+   */
+  async getActiveSessionById(sessionId) {
+    return DutySession.findOne({
+      where: { id: sessionId, isActive: true }
+    });
   }
 
   /**
@@ -189,14 +265,15 @@ class DutySessionService {
    * Start the auto-timeout checker
    */
   async startAutoTimeoutChecker() {
-    // Check every 5 minutes
-    const checkIntervalMs = 5 * 60 * 1000;
+    // Check every 5 minutes in production, every 30 seconds in development
+    const { isDevelopment } = require('../utils/environment');
+    const checkIntervalMs = isDevelopment ? 30 * 1000 : 5 * 60 * 1000;
 
     this.timeoutCheckInterval = setInterval(async () => {
       await this.checkForTimeouts();
     }, checkIntervalMs);
 
-    logger.info('Auto-timeout checker started', { intervalMinutes: 5 });
+    logger.info('Auto-timeout checker started', { intervalSeconds: checkIntervalMs / 1000 });
   }
 
   /**
@@ -280,24 +357,32 @@ class DutySessionService {
   }
 
   /**
-   * Send timeout warning DM
+   * Send timeout warning to channel with user ping
    */
   async sendTimeoutWarning(session, settings) {
     try {
-      const user = await this.client.users.fetch(session.discordUserId);
+      const { CHANNELS } = require('../utils/environment');
+      const channelId = CHANNELS.DUTY_TIMEOUT_WARNINGS || CHANNELS.DUTY_LOGS;
+
+      if (!channelId) {
+        logger.warn('No timeout warning channel configured');
+        return;
+      }
+
+      const channel = await this.client.channels.fetch(channelId);
 
       const embed = new EmbedBuilder()
         .setColor(0xFFA500) // Orange warning
         .setTitle('Duty Session Timeout Warning')
         .setDescription(
           `Your ${session.dutyType} duty session will automatically end in **${settings.warningMinutes} minutes** due to the ${settings.hours}-hour session limit.\n\n` +
-          'If you\'re still on duty, click the button below to extend your session.'
+          'If you\'re still on duty, click a button below to extend or end your session.'
         )
         .addFields(
           { name: 'Session Started', value: `<t:${Math.floor(session.sessionStart.getTime() / 1000)}:R>`, inline: true },
           { name: 'Current Duration', value: `${session.getDurationMinutes()} minutes`, inline: true }
         )
-        .setFooter({ text: 'This is an automatic message from the duty tracking system' })
+        .setFooter({ text: 'Auto-timeout system' })
         .setTimestamp();
 
       const row = new ActionRowBuilder()
@@ -305,24 +390,27 @@ class DutySessionService {
           new ButtonBuilder()
             .setCustomId(`duty_extend_${session.id}`)
             .setLabel('Extend Session')
-            .setStyle(ButtonStyle.Primary)
-            .setEmoji('🔄'),
+            .setStyle(ButtonStyle.Primary),
           new ButtonBuilder()
             .setCustomId(`duty_end_${session.id}`)
             .setLabel('End Session Now')
             .setStyle(ButtonStyle.Secondary)
         );
 
-      await user.send({ embeds: [embed], components: [row] });
+      await channel.send({
+        content: `<@${session.discordUserId}>`,
+        embeds: [embed],
+        components: [row]
+      });
       await DutySession.markWarned(session.id);
 
-      logger.info('Sent timeout warning', {
+      logger.info('Sent timeout warning to channel', {
         sessionId: session.id,
-        discordUserId: session.discordUserId
+        discordUserId: session.discordUserId,
+        channelId
       });
     } catch (error) {
-      // User might have DMs disabled
-      logger.warn('Failed to send timeout warning DM', {
+      logger.error('Failed to send timeout warning', {
         sessionId: session.id,
         discordUserId: session.discordUserId,
         error: error.message
@@ -332,25 +420,43 @@ class DutySessionService {
 
   /**
    * Auto-end an expired session
+   * Uses DutyStatusFactory as the single traffic cop for all duty changes
    */
   async autoEndSession(session) {
     try {
+      const durationMinutes = session.getDurationMinutes();
+
       // End the session
-      await this.endSession(session.id, 'auto_timeout');
+      const result = await this.endSession(session.id, 'auto_timeout');
 
       // Remove the duty role
       await this.removeDutyRole(session);
 
-      // Notify user
-      await this.sendAutoEndNotification(session);
+      // Use the factory to handle audit logging and notifications
+      // Factory is the single traffic cop for all duty status changes
+      const guild = await this.client.guilds.fetch(session.guildId);
+      const member = await guild.members.fetch(session.discordUserId);
 
-      // Notify duty logs channel
-      await this.sendDutyLogNotification(session);
+      const DutyStatusFactory = require('./DutyStatusFactory');
+      const factory = new DutyStatusFactory();
+
+      await factory.endDutyViaTimeout(member, {
+        dutyType: session.dutyType,
+        durationMinutes,
+        metadata: {
+          sessionId: session.id,
+          durationMinutes: result.session?.durationMinutes || durationMinutes,
+          totalPoints: result.session?.totalPoints || session.totalPoints
+        }
+      });
+
+      // Send additional auto-timeout specific notifications
+      await this.sendAutoEndNotification(session);
 
       logger.info('Auto-ended session due to timeout', {
         sessionId: session.id,
         discordUserId: session.discordUserId,
-        durationMinutes: session.getDurationMinutes()
+        durationMinutes
       });
     } catch (error) {
       logger.error('Failed to auto-end session', {
@@ -365,6 +471,13 @@ class DutySessionService {
    */
   async removeDutyRole(session) {
     try {
+      logger.debug('Attempting to remove duty role', {
+        sessionId: session.id,
+        discordUserId: session.discordUserId,
+        guildId: session.guildId,
+        dutyType: session.dutyType
+      });
+
       const guild = await this.client.guilds.fetch(session.guildId);
       const member = await guild.members.fetch(session.discordUserId);
 
@@ -372,11 +485,29 @@ class DutySessionService {
       const { DISCORD_ROLES } = require('../utils/environment');
       const roleId = session.dutyType === 'tutor'
         ? DISCORD_ROLES.TUTOR_ON_DUTY
-        : DISCORD_ROLES.ADMIN_ON_DUTY;
+        : DISCORD_ROLES.ON_DUTY;
+
+      logger.debug('Role lookup', {
+        dutyType: session.dutyType,
+        roleId,
+        memberHasRole: member.roles.cache.has(roleId)
+      });
 
       if (member.roles.cache.has(roleId)) {
-        await member.roles.remove(roleId, 'Auto-timeout: session exceeded maximum duration');
-        logger.info('Removed duty role due to auto-timeout', {
+        // Add to processing set to prevent role change handler from logging as external
+        const { getRoleChangeHandler } = require('../handlers/roleChangeHandler');
+        const roleChangeHandler = getRoleChangeHandler();
+        if (roleChangeHandler) {
+          roleChangeHandler.addToProcessingSet(session.discordUserId);
+        }
+
+        await member.roles.remove(roleId, 'Duty session ended');
+        logger.info('Removed duty role', {
+          discordUserId: session.discordUserId,
+          roleId
+        });
+      } else {
+        logger.warn('Member does not have duty role to remove', {
           discordUserId: session.discordUserId,
           roleId
         });
@@ -384,17 +515,26 @@ class DutySessionService {
     } catch (error) {
       logger.error('Failed to remove duty role', {
         sessionId: session.id,
-        error: error.message
+        error: error.message,
+        stack: error.stack
       });
     }
   }
 
   /**
-   * Send auto-end notification to user
+   * Send auto-end notification to channel with user ping
    */
   async sendAutoEndNotification(session) {
     try {
-      const user = await this.client.users.fetch(session.discordUserId);
+      const { CHANNELS } = require('../utils/environment');
+      const channelId = CHANNELS.DUTY_TIMEOUT_WARNINGS || CHANNELS.DUTY_LOGS;
+
+      if (!channelId) {
+        logger.warn('No timeout warning channel configured');
+        return;
+      }
+
+      const channel = await this.client.channels.fetch(channelId);
 
       const embed = new EmbedBuilder()
         .setColor(0xFF6B6B) // Red
@@ -410,44 +550,14 @@ class DutySessionService {
         .setFooter({ text: 'Use /onduty to start a new session when you\'re ready' })
         .setTimestamp();
 
-      await user.send({ embeds: [embed] });
-    } catch (error) {
-      // User might have DMs disabled
-      logger.warn('Failed to send auto-end notification', {
-        sessionId: session.id,
-        error: error.message
+      await channel.send({
+        content: `<@${session.discordUserId}>`,
+        embeds: [embed]
       });
-    }
-  }
-
-  /**
-   * Send notification to duty logs channel
-   */
-  async sendDutyLogNotification(session) {
-    try {
-      const { CHANNELS } = require('../utils/environment');
-      const channelId = session.dutyType === 'tutor'
-        ? CHANNELS.TUTOR_DUTY_LOG
-        : CHANNELS.ADMIN_DUTY_LOG;
-
-      if (!channelId) return;
-
-      const channel = await this.client.channels.fetch(channelId);
-
-      const embed = new EmbedBuilder()
-        .setColor(0xFF6B6B)
-        .setTitle('Session Auto-Timeout')
-        .setDescription(`<@${session.discordUserId}>'s duty session was automatically ended due to timeout.`)
-        .addFields(
-          { name: 'Duration', value: `${session.getDurationMinutes()} minutes`, inline: true },
-          { name: 'Points Earned', value: `${session.totalPoints}`, inline: true }
-        )
-        .setTimestamp();
-
-      await channel.send({ embeds: [embed] });
     } catch (error) {
-      logger.warn('Failed to send duty log notification', {
+      logger.error('Failed to send auto-end notification', {
         sessionId: session.id,
+        discordUserId: session.discordUserId,
         error: error.message
       });
     }

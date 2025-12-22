@@ -68,6 +68,33 @@ class DutyStatusFactory {
     });
   }
 
+  /**
+   * End duty via button click (from timeout warning)
+   * Called by DutySessionService.endSessionWithRole
+   */
+  async endDutyViaButton(member, options = {}) {
+    return await this._handleDutyStatusChange(null, false, {
+      source: 'button',
+      reason: 'Session ended via timeout warning button',
+      member,
+      ...options
+    });
+  }
+
+  /**
+   * End duty via auto-timeout
+   * Called by DutySessionService.autoEndSession
+   */
+  async endDutyViaTimeout(member, options = {}) {
+    const durationMinutes = options.durationMinutes || 0;
+    return await this._handleDutyStatusChange(null, false, {
+      source: 'auto_timeout',
+      reason: `Session auto-ended after ${durationMinutes} minutes due to timeout`,
+      member,
+      ...options
+    });
+  }
+
   async _handleDutyStatusChange(interaction, isOnDuty, options = {}) {
     const result = {
       success: false,
@@ -99,16 +126,19 @@ class DutyStatusFactory {
       const currentlyOnDuty = member.roles.cache.has(roleId);
       result.data.wasOnDuty = currentlyOnDuty;
 
+      // Sources that bypass role validation (role already changed elsewhere)
+      const skipRoleValidation = ['external', 'button', 'auto_timeout'].includes(options.source);
+
       // Only validate state change for command-based changes
-      // For external changes, we're just logging what already happened
-      if (options.source !== 'external' && currentlyOnDuty === isOnDuty) {
-        result.error = isOnDuty 
+      // For external/button/auto_timeout changes, we're just logging what already happened
+      if (!skipRoleValidation && currentlyOnDuty === isOnDuty) {
+        result.error = isOnDuty
           ? 'User is already on duty'
           : 'User is not currently on duty';
         return result;
       }
 
-      // Permission checks (only for bot-initiated changes)
+      // Permission checks (only for bot-initiated changes via interaction)
       if (interaction) {
         const permissionCheck = await this._validatePermissions(guild, onDutyRole);
         if (!permissionCheck.success) {
@@ -117,14 +147,13 @@ class DutyStatusFactory {
         }
       }
 
-
-      // Handle role change (skip for external changes since role already changed)
-      if (options.source !== 'external') {
+      // Handle role change (skip for sources where role already changed)
+      if (!skipRoleValidation) {
         // Notify role change handler that we're about to make a change
         if (this.roleChangeHandler) {
           this.roleChangeHandler.addToProcessingSet(member.user.id);
         }
-                
+
         const roleResult = await this._handleRoleChange(member, onDutyRole, isOnDuty);
         if (!roleResult.success) {
           result.error = roleResult.error;
@@ -132,8 +161,12 @@ class DutyStatusFactory {
         }
         result.data.roleChanged = true;
       } else {
-        result.data.roleChanged = false; // Role was changed externally
-        loggerConsole.log('📝 External role change detected - logging the change');
+        result.data.roleChanged = false; // Role was changed externally or by session service
+        if (options.source === 'external') {
+          loggerConsole.log('📝 External role change detected - logging the change');
+        } else {
+          loggerConsole.log(`📝 ${options.source} duty ending - logging the change`);
+        }
       }
 
       // Send notification (unless explicitly skipped)
@@ -282,6 +315,12 @@ class DutyStatusFactory {
 
   async _handleDutySession(member, isOnDuty, dutyType, options) {
     try {
+      // Skip session handling for button/auto_timeout - session already handled by DutySessionService
+      if (['button', 'auto_timeout'].includes(options.source)) {
+        loggerConsole.log(`📊 Session already handled by DutySessionService for ${options.source}`);
+        return;
+      }
+
       const sessionService = this.getDutySessionService();
       if (!sessionService) {
         loggerConsole.warn('DutySessionService not available - skipping session tracking');
@@ -302,7 +341,7 @@ class DutyStatusFactory {
         );
 
         if (result.created) {
-          loggerConsole.log(`📊 Started duty session #${result.session.id} for ${member.user.tag}`);
+          loggerConsole.log(`📊 Started duty session for ${member.user.tag}`);
         } else if (result.error) {
           loggerConsole.warn(`⚠️ Could not start session: ${result.error}`);
         }

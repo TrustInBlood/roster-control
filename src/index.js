@@ -151,6 +151,24 @@ client.on('ready', async () => {
       loggerConsole.error('Failed to initialize DutySessionService:', error.message);
     }
 
+    // Initialize DutyVoiceTrackingService (voice time tracking for duty sessions)
+    try {
+      const { initializeDutyVoiceTrackingService } = require('./services/DutyVoiceTrackingService');
+      await initializeDutyVoiceTrackingService(client);
+      loggerConsole.log('DutyVoiceTrackingService initialized');
+    } catch (error) {
+      loggerConsole.error('Failed to initialize DutyVoiceTrackingService:', error.message);
+    }
+
+    // Initialize DutyTicketTrackingService (ticket response tracking for duty sessions)
+    try {
+      const { initializeDutyTicketTrackingService } = require('./services/DutyTicketTrackingService');
+      await initializeDutyTicketTrackingService(client);
+      loggerConsole.log('DutyTicketTrackingService initialized');
+    } catch (error) {
+      loggerConsole.error('Failed to initialize DutyTicketTrackingService:', error.message);
+    }
+
     // Initialize ticket prompt tracking after startup sync
     await initializeTicketPromptTracking(client);
 
@@ -191,10 +209,17 @@ client.on('ready', async () => {
 // Voice state update handler
 client.on('voiceStateUpdate', handleVoiceStateUpdate);
 
-// Message handler for legacy commands
+// Message handler for legacy commands and duty tracking
 client.on('messageCreate', async (message) => {
   try {
     await handleLegacyCommands(message);
+
+    // Track ticket responses for on-duty users
+    const { getDutyTicketTrackingService } = require('./services/DutyTicketTrackingService');
+    const ticketTrackingService = getDutyTicketTrackingService();
+    if (ticketTrackingService) {
+      await ticketTrackingService.handleMessage(message);
+    }
   } catch (error) {
     loggerConsole.error('Error in messageCreate handler:', error);
     logger.error('messageCreate handler failed', {

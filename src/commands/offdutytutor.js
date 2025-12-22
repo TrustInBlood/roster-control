@@ -20,7 +20,6 @@ module.exports = {
         // Attempt to set user off duty as tutor
         const result = await dutyFactory.setTutorOffDuty(interaction, {
           channelId: interaction.channelId,
-          skipNotification: true, // Let the role change handler send the notification
           metadata: {
             commandName: 'offdutytutor',
             triggeredAt: new Date().toISOString()

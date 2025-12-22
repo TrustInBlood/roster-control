@@ -2,7 +2,7 @@ const { EmbedBuilder } = require('discord.js');
 const { CHANNELS } = require('../../config/discord');
 const { ON_DUTY_ROLE_ID } = require('../../config/discord');
 const { console: loggerConsole } = require('../utils/logger');
-// const DutyStatusFactory = require('../services/DutyStatusFactory'); // Available for future automatic duty management
+const { getDutyVoiceTrackingService } = require('../services/DutyVoiceTrackingService');
 
 /**
  * Handles voice state updates and notifies on-duty admins when users join the monitored channel
@@ -11,6 +11,12 @@ const { console: loggerConsole } = require('../utils/logger');
  */
 async function handleVoiceStateUpdate(oldState, newState) {
   try {
+    // Track voice time for duty sessions
+    const voiceTrackingService = getDutyVoiceTrackingService();
+    if (voiceTrackingService) {
+      await voiceTrackingService.handleVoiceStateUpdate(oldState, newState);
+    }
+
     // Check if this is a join event to our monitored channel
     if (newState.channelId === CHANNELS.MONITORED_VOICE && oldState.channelId !== CHANNELS.MONITORED_VOICE) {
       const channel = newState.guild.channels.cache.get(CHANNELS.DUTY_LOGS);
@@ -18,7 +24,7 @@ async function handleVoiceStateUpdate(oldState, newState) {
 
       const member = newState.member;
       const voiceChannel = newState.channel;
-            
+
       const embed = new EmbedBuilder()
         .setColor(0x00FFFF) // Cyan color for voice notifications
         .setTitle('Voice Channel Join')
@@ -39,20 +45,6 @@ async function handleVoiceStateUpdate(oldState, newState) {
         embeds: [embed]
       });
     }
-
-    // Future enhancement: Automatic duty management based on voice state
-    // This is where the DutyStatusFactory could be used for automatic role removal
-    // when admins are inactive for extended periods or join/leave specific channels
-    //
-    // Example implementation:
-    // if (shouldAutoRemoveDuty(oldState, newState)) {
-    //     const dutyFactory = new DutyStatusFactory();
-    //     await dutyFactory.removeInactiveDuty(member, {
-    //         source: 'voice_state',
-    //         reason: 'User left monitored channel or became inactive',
-    //         skipNotification: false
-    //     });
-    // }
   } catch (error) {
     loggerConsole.error('Error handling voice state update:', error);
   }

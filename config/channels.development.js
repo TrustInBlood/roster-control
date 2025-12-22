@@ -5,6 +5,8 @@
 const CHANNELS = {
   // Channel where admin duty status changes are announced
   DUTY_LOGS: '1407218430825992243',
+  // Channel for duty timeout warnings (pings admins who need to extend/end their session)
+  DUTY_TIMEOUT_WARNINGS: '1407218430825992243', // Uses DUTY_LOGS by default, can be changed
   // Voice channel to monitor for joins
   MONITORED_VOICE: '1407218548014579813',
   // Channel for bot activity logs (auto-linking, commands, etc.)

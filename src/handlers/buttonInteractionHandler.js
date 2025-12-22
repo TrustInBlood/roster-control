@@ -29,8 +29,13 @@ const {
 } = require('../utils/linkButton');
 const { STATS_BUTTON_ID } = require('../services/StatsService');
 const { Op } = require('sequelize');
+const { getDutySessionService } = require('../services/DutySessionService');
 
 const serviceLogger = createServiceLogger('ButtonInteractionHandler');
+
+// Prefixes for duty timeout buttons (sent via DM)
+const DUTY_EXTEND_PREFIX = 'duty_extend_';
+const DUTY_END_PREFIX = 'duty_end_';
 
 // Button custom IDs for the whitelist post (legacy, kept for backwards compatibility)
 const BUTTON_IDS = {
@@ -80,6 +85,16 @@ async function handleButtonInteraction(interaction) {
     // Check for ticket link buttons
     if (customId.startsWith(TICKET_LINK_BUTTON_PREFIX)) {
       await handleTicketLinkButton(interaction);
+      return;
+    }
+
+    // Check for duty timeout buttons (from DM warnings)
+    if (customId.startsWith(DUTY_EXTEND_PREFIX)) {
+      await handleDutyExtendButton(interaction);
+      return;
+    }
+    if (customId.startsWith(DUTY_END_PREFIX)) {
+      await handleDutyEndButton(interaction);
       return;
     }
 
@@ -1287,9 +1302,143 @@ function calculateExpirationDate(grantedAt, durationValue, durationType) {
   return expiration;
 }
 
+/**
+ * Handle the "Extend Session" button from duty timeout warning
+ */
+async function handleDutyExtendButton(interaction) {
+  try {
+    const customId = interaction.customId;
+    const sessionId = parseInt(customId.replace(DUTY_EXTEND_PREFIX, ''));
+
+    const sessionService = getDutySessionService();
+    if (!sessionService) {
+      await interaction.reply({
+        content: 'Session service is not available. Please try again later.',
+        flags: MessageFlags.Ephemeral
+      });
+      return;
+    }
+
+    // Verify the user clicking is the session owner
+    const session = await sessionService.getActiveSessionById(sessionId);
+    if (!session) {
+      await interaction.reply({
+        content: 'This session no longer exists or has already ended.',
+        flags: MessageFlags.Ephemeral
+      });
+      return;
+    }
+
+    if (session.discordUserId !== interaction.user.id) {
+      await interaction.reply({
+        content: 'You can only manage your own duty sessions.',
+        flags: MessageFlags.Ephemeral
+      });
+      return;
+    }
+
+    const result = await sessionService.extendSession(sessionId);
+
+    if (result.success) {
+      await interaction.update({
+        content: `<@${session.discordUserId}> Your duty session has been extended! The timeout timer has been reset.`,
+        embeds: [],
+        components: []
+      });
+
+      serviceLogger.info('Duty session extended via button', {
+        sessionId,
+        userId: interaction.user.id
+      });
+    } else {
+      await interaction.reply({
+        content: `Failed to extend session: ${result.error}`,
+        flags: MessageFlags.Ephemeral
+      });
+    }
+  } catch (error) {
+    serviceLogger.error('Error handling duty extend button:', error);
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({
+        content: 'An error occurred while extending your session.',
+        flags: MessageFlags.Ephemeral
+      });
+    }
+  }
+}
+
+/**
+ * Handle the "End Session Now" button from duty timeout warning
+ */
+async function handleDutyEndButton(interaction) {
+  try {
+    const customId = interaction.customId;
+    const sessionId = parseInt(customId.replace(DUTY_END_PREFIX, ''));
+
+    const sessionService = getDutySessionService();
+    if (!sessionService) {
+      await interaction.reply({
+        content: 'Session service is not available. Please try again later.',
+        flags: MessageFlags.Ephemeral
+      });
+      return;
+    }
+
+    // Verify the user clicking is the session owner (check before ending)
+    const session = await sessionService.getActiveSessionById(sessionId);
+    if (!session) {
+      await interaction.reply({
+        content: 'This session no longer exists or has already ended.',
+        flags: MessageFlags.Ephemeral
+      });
+      return;
+    }
+
+    if (session.discordUserId !== interaction.user.id) {
+      await interaction.reply({
+        content: 'You can only manage your own duty sessions.',
+        flags: MessageFlags.Ephemeral
+      });
+      return;
+    }
+
+    const result = await sessionService.endSessionWithRole(sessionId, 'manual_button');
+
+    if (result.success) {
+      const endedSession = result.session;
+      await interaction.update({
+        content: `<@${session.discordUserId}> Your duty session has been ended.\n\n**Duration:** ${endedSession.durationMinutes} minutes\n**Points earned:** ${endedSession.totalPoints}`,
+        embeds: [],
+        components: []
+      });
+
+      serviceLogger.info('Duty session ended via button', {
+        sessionId,
+        userId: interaction.user.id,
+        durationMinutes: endedSession.durationMinutes
+      });
+    } else {
+      await interaction.reply({
+        content: `Failed to end session: ${result.error}`,
+        flags: MessageFlags.Ephemeral
+      });
+    }
+  } catch (error) {
+    serviceLogger.error('Error handling duty end button:', error);
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({
+        content: 'An error occurred while ending your session.',
+        flags: MessageFlags.Ephemeral
+      });
+    }
+  }
+}
+
 module.exports = {
   handleButtonInteraction,
   BUTTON_IDS,
   MODAL_ID_PREFIX,
-  TICKET_LINK_BUTTON_PREFIX
+  TICKET_LINK_BUTTON_PREFIX,
+  DUTY_EXTEND_PREFIX,
+  DUTY_END_PREFIX
 };

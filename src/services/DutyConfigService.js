@@ -135,6 +135,14 @@ class DutyConfigService {
   }
 
   /**
+   * Get excluded voice channels (e.g., AFK channel)
+   */
+  async getExcludedVoiceChannels(guildId) {
+    const value = await this.getValue(guildId, 'excluded_voice_channels');
+    return Array.isArray(value) ? value : [];
+  }
+
+  /**
    * Get ticket channel pattern
    */
   async getTicketChannelPattern(guildId) {
@@ -157,12 +165,20 @@ class DutyConfigService {
   }
 
   /**
-   * Check if a voice channel should be tracked
+   * Check if a voice channel should be tracked for duty points
+   * Returns false for excluded channels (like AFK)
    */
   async isTrackedVoiceChannel(guildId, channelId) {
+    // First check if channel is excluded (e.g., AFK channel)
+    const excludedChannels = await this.getExcludedVoiceChannels(guildId);
+    if (excludedChannels.includes(channelId)) {
+      return false;
+    }
+
+    // Then check if we have a whitelist of tracked channels
     const trackedChannels = await this.getTrackedVoiceChannels(guildId);
 
-    // If no channels configured, track all voice channels
+    // If no channels configured, track all voice channels (except excluded)
     if (trackedChannels.length === 0) {
       return true;
     }

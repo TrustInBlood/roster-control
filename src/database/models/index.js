@@ -13,6 +13,7 @@ const SeedingParticipant = require('./SeedingParticipant');
 // Import new duty tracking models
 const DutySession = require('./DutySession');
 const { DutyTrackingConfig, DutyTrackingConfigAudit } = require('./DutyTrackingConfig');
+const DutyLifetimeStats = require('./DutyLifetimeStats');
 
 // Import and initialize whitelist models (factory functions)
 const GroupFactory = require('./Group');
@@ -76,5 +77,6 @@ module.exports = {
   SeedingParticipant,
   DutySession,
   DutyTrackingConfig,
-  DutyTrackingConfigAudit
+  DutyTrackingConfigAudit,
+  DutyLifetimeStats
 };
