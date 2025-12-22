@@ -3,6 +3,7 @@ const router = express.Router();
 const { createServiceLogger } = require('../../utils/logger');
 const { requireAuth, requirePermission } = require('../middleware/auth');
 const { DutyStatusChange } = require('../../database/models');
+const { getMemberCacheService } = require('../../services/MemberCacheService');
 
 const logger = createServiceLogger('DutyAPI');
 
@@ -73,17 +74,53 @@ router.get('/leaderboard', requireAuth, requirePermission('VIEW_DUTY'), async (r
       parsedLimit
     );
 
+    // Fetch Discord member info for avatars and display names
+    const discordClient = global.discordClient;
+    let memberMap = new Map();
+
+    if (discordClient) {
+      try {
+        const guild = await discordClient.guilds.fetch(guildId).catch(() => null);
+        if (guild) {
+          const cacheService = getMemberCacheService();
+          const userIds = leaderboard.map(e => e.discordUserId);
+
+          // Fetch all members in parallel
+          const memberPromises = userIds.map(id =>
+            cacheService.getMember(guild, id).catch(() => null)
+          );
+          const members = await Promise.all(memberPromises);
+
+          members.forEach((member, index) => {
+            if (member) {
+              memberMap.set(userIds[index], {
+                displayName: member.displayName || member.user.username,
+                avatarUrl: member.user.displayAvatarURL({ size: 64 })
+              });
+            }
+          });
+        }
+      } catch (err) {
+        logger.warn('Failed to fetch Discord member info for leaderboard', { error: err.message });
+      }
+    }
+
     // Transform to expected format with ranks
-    const entries = leaderboard.map((entry, index) => ({
-      rank: index + 1,
-      discordUserId: entry.discordUserId,
-      discordUsername: entry.discordUsername,
-      totalTime: entry.totalMs,
-      sessionCount: entry.sessionCount,
-      averageSessionTime: entry.averageSessionMs,
-      longestSession: entry.longestSessionMs,
-      lastActive: entry.sessions?.length > 0 ? entry.sessions[entry.sessions.length - 1].end : null
-    }));
+    const entries = leaderboard.map((entry, index) => {
+      const memberInfo = memberMap.get(entry.discordUserId);
+      return {
+        rank: index + 1,
+        discordUserId: entry.discordUserId,
+        discordUsername: entry.discordUsername,
+        displayName: memberInfo?.displayName || entry.discordUsername,
+        avatarUrl: memberInfo?.avatarUrl || null,
+        totalTime: entry.totalMs,
+        sessionCount: entry.sessionCount,
+        averageSessionTime: entry.averageSessionMs,
+        longestSession: entry.longestSessionMs,
+        lastActive: entry.sessions?.length > 0 ? entry.sessions[entry.sessions.length - 1].end : null
+      };
+    });
 
     res.json({
       success: true,
@@ -132,12 +169,47 @@ router.get('/summary', requireAuth, requirePermission('VIEW_DUTY'), async (req, 
       entry.sessions?.some(s => s.isActive)
     ).length;
 
-    // Get top 3 performers
-    const topPerformers = leaderboard.slice(0, 3).map(entry => ({
-      discordUserId: entry.discordUserId,
-      discordUsername: entry.discordUsername,
-      totalTime: entry.totalMs
-    }));
+    // Fetch Discord member info for top performers
+    const discordClient = global.discordClient;
+    let memberMap = new Map();
+
+    if (discordClient) {
+      try {
+        const guild = await discordClient.guilds.fetch(guildId).catch(() => null);
+        if (guild) {
+          const cacheService = getMemberCacheService();
+          const topUserIds = leaderboard.slice(0, 3).map(e => e.discordUserId);
+
+          const memberPromises = topUserIds.map(id =>
+            cacheService.getMember(guild, id).catch(() => null)
+          );
+          const members = await Promise.all(memberPromises);
+
+          members.forEach((member, index) => {
+            if (member) {
+              memberMap.set(topUserIds[index], {
+                displayName: member.displayName || member.user.username,
+                avatarUrl: member.user.displayAvatarURL({ size: 64 })
+              });
+            }
+          });
+        }
+      } catch (err) {
+        logger.warn('Failed to fetch Discord member info for top performers', { error: err.message });
+      }
+    }
+
+    // Get top 3 performers with Discord info
+    const topPerformers = leaderboard.slice(0, 3).map(entry => {
+      const memberInfo = memberMap.get(entry.discordUserId);
+      return {
+        discordUserId: entry.discordUserId,
+        discordUsername: entry.discordUsername,
+        displayName: memberInfo?.displayName || entry.discordUsername,
+        avatarUrl: memberInfo?.avatarUrl || null,
+        totalTime: entry.totalMs
+      };
+    });
 
     res.json({
       success: true,

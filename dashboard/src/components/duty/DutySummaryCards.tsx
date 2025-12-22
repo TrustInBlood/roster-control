@@ -1,4 +1,4 @@
-import { Users, Clock, CalendarDays, TrendingUp, Activity } from 'lucide-react'
+import { Users, Clock, CalendarDays, TrendingUp, Activity, User } from 'lucide-react'
 import type { DutySummaryStats } from '../../types/duty'
 import { formatDuration } from '../../lib/dutyUtils'
 import { DUTY_PERIOD_LABELS, DUTY_TYPE_LABELS } from '../../types/duty'
@@ -98,7 +98,18 @@ export default function DutySummaryCards({ stats, isLoading }: DutySummaryCardsP
                 <span className="text-yellow-400 text-sm">
                   {index === 0 ? '1st' : index === 1 ? '2nd' : '3rd'}
                 </span>
-                <span className="text-white text-sm">{performer.discordUsername}</span>
+                {performer.avatarUrl ? (
+                  <img
+                    src={performer.avatarUrl}
+                    alt={performer.displayName}
+                    className="w-5 h-5 rounded-full"
+                  />
+                ) : (
+                  <div className="w-5 h-5 rounded-full bg-discord-blurple/30 flex items-center justify-center">
+                    <User className="w-3 h-3 text-discord-blurple" />
+                  </div>
+                )}
+                <span className="text-white text-sm">{performer.displayName}</span>
                 <span className="text-gray-400 text-xs">
                   {formatDuration(performer.totalTime, true)}
                 </span>

@@ -16,6 +16,8 @@ export interface DutyLeaderboardEntry {
   rank: number;
   discordUserId: string;
   discordUsername: string;
+  displayName: string;
+  avatarUrl: string | null;
   totalTime: number; // milliseconds
   sessionCount: number;
   averageSessionTime: number; // milliseconds
@@ -45,7 +47,7 @@ export interface DutySummaryStats {
   averageTimePerUser: number;
   averageSessionsPerUser: number;
   currentlyOnDuty: number;
-  topPerformers: Pick<DutyLeaderboardEntry, 'discordUserId' | 'discordUsername' | 'totalTime'>[];
+  topPerformers: Pick<DutyLeaderboardEntry, 'discordUserId' | 'discordUsername' | 'displayName' | 'avatarUrl' | 'totalTime'>[];
 }
 
 // API Response Types

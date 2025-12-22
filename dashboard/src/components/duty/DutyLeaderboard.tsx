@@ -1,4 +1,4 @@
-import { Clock, User, TrendingUp } from 'lucide-react'
+import { Clock, TrendingUp, User } from 'lucide-react'
 import type { DutyLeaderboardEntry } from '../../types/duty'
 import { formatDuration, getRankBadge } from '../../lib/dutyUtils'
 
@@ -86,11 +86,19 @@ export default function DutyLeaderboard({ entries, isLoading }: DutyLeaderboardP
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-discord-blurple/30 flex items-center justify-center">
-                        <User className="w-4 h-4 text-discord-blurple" />
-                      </div>
+                      {entry.avatarUrl ? (
+                        <img
+                          src={entry.avatarUrl}
+                          alt={entry.displayName}
+                          className="w-8 h-8 rounded-full"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-discord-blurple/30 flex items-center justify-center">
+                          <User className="w-4 h-4 text-discord-blurple" />
+                        </div>
+                      )}
                       <span className="text-white font-medium">
-                        {entry.discordUsername}
+                        {entry.displayName}
                       </span>
                     </div>
                   </td>
