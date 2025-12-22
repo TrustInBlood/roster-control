@@ -143,43 +143,54 @@ async function getOnlineStaff(steamIds) {
 /**
  * Get player list directly from SquadJS socket
  * @param {Socket} socket - Socket.io connection
- * @returns {Promise<Array>} - Array of player objects
+ * @returns {Promise<{success: boolean, players: Array}>} - Result object with success flag and players
  */
 function getPlayerListFromSocket(socket) {
   return new Promise((resolve) => {
     if (!socket || !socket.connected) {
-      resolve([]);
+      resolve({ success: false, players: [] });
       return;
     }
 
     const timeout = setTimeout(() => {
-      resolve([]);
+      logger.debug('Socket player list request timed out after 5s');
+      resolve({ success: false, players: [] });
     }, 5000);
 
     socket.emit('players', (playerList) => {
       clearTimeout(timeout);
-      resolve(playerList || []);
+      // Socket responded successfully - trust the result even if empty
+      resolve({ success: true, players: playerList || [] });
     });
   });
 }
 
 /**
  * Get active Steam IDs for a specific server - tries direct socket query first
- * Falls back to PlaytimeTrackingService cache if socket fails
+ * Falls back to PlaytimeTrackingService cache only if socket query fails (timeout/error)
  */
 async function getActiveSteamIdsForServer(playtimeService, serverId, socket) {
   // Try direct socket query first (most accurate)
   if (socket && socket.connected) {
-    const playerList = await getPlayerListFromSocket(socket);
-    if (playerList.length > 0) {
-      const steamIds = playerList
+    const result = await getPlayerListFromSocket(socket);
+
+    // If socket responded successfully, trust the result even if empty
+    // (server could genuinely be empty)
+    if (result.success) {
+      const steamIds = result.players
         .filter(p => p.steamID)
         .map(p => p.steamID);
+      logger.debug(`Server ${serverId}: Socket returned ${steamIds.length} players (direct query)`);
       return steamIds;
     }
+
+    // Socket failed (timeout) - fall through to cache
+    logger.warn(`Server ${serverId}: Socket query timed out, falling back to cache`);
+  } else {
+    logger.debug(`Server ${serverId}: Socket not connected, using cache`);
   }
 
-  // Fallback to PlaytimeTrackingService cache
+  // Fallback to PlaytimeTrackingService cache (only when socket unavailable/failed)
   if (!playtimeService) {
     return [];
   }
@@ -197,6 +208,7 @@ async function getActiveSteamIdsForServer(playtimeService, serverId, socket) {
     }
   }
 
+  logger.warn(`Server ${serverId}: Using cached sessions - ${steamIds.length} players (cache may be stale)`);
   return steamIds;
 }
 
