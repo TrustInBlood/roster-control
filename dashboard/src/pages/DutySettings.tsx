@@ -92,15 +92,23 @@ function ConfigInput({ configKey, item, value, onChange, disabled }: ConfigInput
           )}
         </div>
         <input
-          type="number"
+          type="search"
+          inputMode="decimal"
           id={`duty-config-${configKey}`}
           name={`duty-config-${configKey}`}
           value={typeof value === 'number' ? value : 0}
-          onChange={(e) => onChange(configKey, parseFloat(e.target.value) || 0)}
+          onChange={(e) => {
+            const val = e.target.value
+            if (val === '' || /^-?\d*\.?\d*$/.test(val)) {
+              onChange(configKey, val === '' ? 0 : parseFloat(val) || 0)
+            }
+          }}
           disabled={disabled || isSquadJSRequired}
-          step={configKey.includes('per_minute') ? 0.1 : 1}
-          min={0}
           autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          data-form-type="other"
           data-lpignore="true"
           data-1p-ignore="true"
           className="w-24 bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-white text-right focus:outline-none focus:border-discord-blurple disabled:opacity-50"
@@ -116,13 +124,17 @@ function ConfigInput({ configKey, item, value, onChange, disabled }: ConfigInput
           <label className="block text-sm font-medium text-gray-300">{item.label}</label>
         </div>
         <input
-          type="text"
+          type="search"
           id={`duty-config-${configKey}`}
           name={`duty-config-${configKey}`}
           value={typeof value === 'string' ? value : ''}
           onChange={(e) => onChange(configKey, e.target.value)}
           disabled={disabled}
           autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          data-form-type="other"
           data-lpignore="true"
           data-1p-ignore="true"
           className="w-48 bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-white focus:outline-none focus:border-discord-blurple disabled:opacity-50"

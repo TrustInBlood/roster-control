@@ -41,3 +41,10 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #5865f2;
 }
+
+/* Hide search input clear button */
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
