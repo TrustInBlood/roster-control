@@ -15,6 +15,7 @@ import StatsTemplateEditor from './pages/StatsTemplateEditor'
 import Seeding from './pages/Seeding'
 import SeedingSession from './pages/SeedingSession'
 import DutyStats from './pages/DutyStats'
+import DutySettings from './pages/DutySettings'
 import AccessDenied from './pages/AccessDenied'
 
 function ProtectedRoute() {
@@ -73,6 +74,7 @@ function App() {
           <Route path="seeding" element={<Seeding />} />
           <Route path="seeding/:id" element={<SeedingSession />} />
           <Route path="duty" element={<DutyStats />} />
+          <Route path="admin/duty-settings" element={<DutySettings />} />
         </Route>
       </Route>
     </Routes>

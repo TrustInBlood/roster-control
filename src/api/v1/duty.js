@@ -340,7 +340,7 @@ router.put('/settings', requireAuth, requirePermission('MANAGE_DUTY_SETTINGS'), 
       return res.status(400).json({ error: 'Invalid updates object' });
     }
 
-    const changedBy = req.user.discordId;
+    const changedBy = req.user.id;
     const changedByName = req.user.username;
 
     const results = await configService.updateMultiple(guildId, updates, changedBy, changedByName);

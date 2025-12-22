@@ -90,6 +90,12 @@ import type {
   DutySummaryResponse,
   DutyUserStatsResponse,
 } from '../types/duty'
+import type {
+  DutySettingsResponse,
+  UpdateDutySettingsResponse,
+  DutySettingsAuditResponse,
+  ResetDutySettingsResponse,
+} from '../types/dutySettings'
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -613,6 +619,33 @@ export const dutyApi = {
   ): Promise<DutyUserStatsResponse> => {
     const { data } = await api.get<DutyUserStatsResponse>(`/duty/user/${discordId}`, {
       params: { period, type: dutyType },
+    })
+    return data
+  },
+}
+
+// Duty Settings API
+export const dutySettingsApi = {
+  get: async (): Promise<DutySettingsResponse> => {
+    const { data } = await api.get<DutySettingsResponse>('/duty/settings')
+    return data
+  },
+
+  update: async (updates: Record<string, boolean | number | string | string[]>): Promise<UpdateDutySettingsResponse> => {
+    const { data } = await api.put<UpdateDutySettingsResponse>('/duty/settings', { updates })
+    return data
+  },
+
+  getAuditLog: async (limit = 50): Promise<DutySettingsAuditResponse> => {
+    const { data } = await api.get<DutySettingsAuditResponse>('/duty/settings/audit', {
+      params: { limit },
+    })
+    return data
+  },
+
+  reset: async (): Promise<ResetDutySettingsResponse> => {
+    const { data } = await api.post<ResetDutySettingsResponse>('/duty/settings/reset', {
+      confirm: 'RESET_DUTY_SETTINGS',
     })
     return data
   },
