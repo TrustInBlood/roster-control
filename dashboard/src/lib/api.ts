@@ -83,6 +83,13 @@ import type {
   RefreshCacheResponse,
   SeedTemplatesResponse,
 } from '../types/statsTemplates'
+import type {
+  DutyPeriod,
+  DutyType,
+  DutyLeaderboardResponse,
+  DutySummaryResponse,
+  DutyUserStatsResponse,
+} from '../types/duty'
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -572,6 +579,41 @@ export const seedingApi = {
       `/seeding/sessions/${sessionId}/participants/${participantId}/revoke-rewards`,
       { reason }
     )
+    return data
+  },
+}
+
+// Duty Stats API
+export const dutyApi = {
+  getLeaderboard: async (
+    period: DutyPeriod = 'week',
+    dutyType: DutyType = 'both',
+    limit = 25
+  ): Promise<DutyLeaderboardResponse> => {
+    const { data } = await api.get<DutyLeaderboardResponse>('/duty/leaderboard', {
+      params: { period, type: dutyType, limit },
+    })
+    return data
+  },
+
+  getSummary: async (
+    period: DutyPeriod = 'week',
+    dutyType: DutyType = 'both'
+  ): Promise<DutySummaryResponse> => {
+    const { data } = await api.get<DutySummaryResponse>('/duty/summary', {
+      params: { period, type: dutyType },
+    })
+    return data
+  },
+
+  getUserStats: async (
+    discordId: string,
+    period: DutyPeriod = 'week',
+    dutyType: DutyType = 'both'
+  ): Promise<DutyUserStatsResponse> => {
+    const { data } = await api.get<DutyUserStatsResponse>(`/duty/user/${discordId}`, {
+      params: { period, type: dutyType },
+    })
     return data
   },
 }

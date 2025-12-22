@@ -3,6 +3,7 @@ import { Activity, Shield, History, Link2, ExternalLink, TrendingUp, AlertTriang
 import type { PlayerProfile } from '../../types/player'
 import { cn, formatRelativeTime } from '../../lib/utils'
 import { useUpgradeConfidence } from '../../hooks/useWhitelist'
+import { DutyStatsCard } from '../duty'
 
 interface PlayerOverviewProps {
   profile: PlayerProfile
@@ -286,6 +287,11 @@ export default function PlayerOverview({ profile, steamid64, onTabChange }: Play
             ))}
           </div>
         </div>
+      )}
+
+      {/* Duty Stats Card (for staff members) */}
+      {profile.isStaff && profile.discordLink && (
+        <DutyStatsCard discordId={profile.discordLink.discord_user_id} />
       )}
 
       {/* Notes Card (if applicable) */}

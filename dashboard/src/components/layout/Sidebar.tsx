@@ -17,7 +17,7 @@ const navigation: NavItem[] = [
   { name: 'Players', href: '/players', icon: UserSearch, permission: 'VIEW_PLAYERS' },
   { name: 'Members', href: '/members', icon: Users, permission: 'VIEW_MEMBERS' },
   { name: 'Seeding', href: '/seeding', icon: Sprout, permission: 'VIEW_SEEDING' },
-  { name: 'Duty Stats', href: '/duty', icon: Clock, disabled: true, permission: 'VIEW_DUTY' },
+  { name: 'Duty Stats', href: '/duty', icon: Clock, permission: 'VIEW_DUTY' },
   { name: 'Audit Logs', href: '/audit', icon: Shield, permission: 'VIEW_AUDIT' },
   { name: 'Unlinked Staff', href: '/security/unlinked-staff', icon: UserX, permission: 'VIEW_SECURITY' },
   { name: 'Permissions', href: '/admin/permissions', icon: Key, permission: 'MANAGE_PERMISSIONS' },

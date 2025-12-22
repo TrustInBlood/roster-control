@@ -14,6 +14,7 @@ import StatsTemplates from './pages/StatsTemplates'
 import StatsTemplateEditor from './pages/StatsTemplateEditor'
 import Seeding from './pages/Seeding'
 import SeedingSession from './pages/SeedingSession'
+import DutyStats from './pages/DutyStats'
 import AccessDenied from './pages/AccessDenied'
 
 function ProtectedRoute() {
@@ -71,6 +72,7 @@ function App() {
           <Route path="admin/stats-templates/:id" element={<StatsTemplateEditor />} />
           <Route path="seeding" element={<Seeding />} />
           <Route path="seeding/:id" element={<SeedingSession />} />
+          <Route path="duty" element={<DutyStats />} />
         </Route>
       </Route>
     </Routes>
