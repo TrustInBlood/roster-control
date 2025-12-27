@@ -2,14 +2,14 @@ const express = require('express');
 const router = express.Router();
 const { createServiceLogger } = require('../../utils/logger');
 const { requirePermission } = require('../middleware/auth');
-const { squadGroupService, SQUAD_PERMISSIONS } = require('../../services/SquadGroupService');
+const { squadGroupService, SQUAD_PERMISSIONS, sanitizeGroupName } = require('../../services/SquadGroupService');
 const { AuditLog, Whitelist } = require('../../database/models');
 const { getHighestPriorityGroupAsync } = require('../../utils/environment');
 
 const logger = createServiceLogger('SquadGroupsAPI');
 
 // Staff-level permissions (anything beyond just reserve slot)
-const STAFF_PERMISSIONS = ['ban', 'cameraman', 'canseeadminchat', 'changemap', 'chat', 'cheat', 'forceteamchange', 'immune', 'kick', 'startvote', 'teamchange', 'balance'];
+const STAFF_PERMISSIONS = ['ban', 'cameraman', 'canseeadminchat', 'changemap', 'chat', 'forceteamchange', 'immune', 'kick', 'startvote', 'teamchange', 'balance'];
 
 /**
  * Determine if a group should be 'staff' or 'whitelist' type based on permissions
@@ -392,11 +392,11 @@ router.get('/:roleId', requirePermission('MANAGE_PERMISSIONS'), async (req, res)
  * POST /api/v1/squadgroups
  * Add a new role with Squad permissions
  * Requires: MANAGE_PERMISSIONS
- * Body: { roleId: string, groupName?: string, permissions: string[] }
+ * Body: { roleId: string, permissions: string[] }
  */
 router.post('/', requirePermission('MANAGE_PERMISSIONS'), async (req, res) => {
   try {
-    const { roleId, groupName, permissions } = req.body;
+    const { roleId, permissions } = req.body;
 
     // Validate required fields
     if (!roleId) {
@@ -430,10 +430,12 @@ router.post('/', requirePermission('MANAGE_PERMISSIONS'), async (req, res) => {
       }
     }
 
+    // Group name is auto-derived from sanitized role name
+    const groupName = sanitizeGroupName(roleName) || `Role_${roleId}`;
+
     // Create the role config
     const result = await squadGroupService.setRolePermissions(roleId, {
       roleName,
-      groupName: groupName || roleName,
       permissions
     }, req.user.id);
 
@@ -445,12 +447,12 @@ router.post('/', requirePermission('MANAGE_PERMISSIONS'), async (req, res) => {
       actorName: req.user.username,
       targetType: 'squad_group',
       targetId: roleId,
-      targetName: groupName || roleName || roleId,
+      targetName: groupName,
       description: `Added Squad group for role ${roleName || roleId}`,
       details: JSON.stringify({
         roleId,
         roleName,
-        groupName: groupName || roleName,
+        groupName,
         permissions
       }),
       severity: 'medium',
@@ -460,13 +462,13 @@ router.post('/', requirePermission('MANAGE_PERMISSIONS'), async (req, res) => {
 
     logger.info('Squad group created', {
       roleId,
-      groupName: groupName || roleName,
+      groupName,
       permissionCount: permissions.length,
       createdBy: req.user.username
     });
 
     // Sync all members with this role to create/update their whitelist entries
-    const syncResult = await syncMembersWithRole(roleId, groupName || roleName);
+    const syncResult = await syncMembersWithRole(roleId, groupName);
 
     res.status(201).json({
       success: true,
@@ -488,12 +490,12 @@ router.post('/', requirePermission('MANAGE_PERMISSIONS'), async (req, res) => {
  * PUT /api/v1/squadgroups/:roleId
  * Update permissions for an existing role
  * Requires: MANAGE_PERMISSIONS
- * Body: { groupName?: string, permissions: string[] }
+ * Body: { permissions: string[] }
  */
 router.put('/:roleId', requirePermission('MANAGE_PERMISSIONS'), async (req, res) => {
   try {
     const { roleId } = req.params;
-    const { groupName, permissions } = req.body;
+    const { permissions } = req.body;
 
     // Validate permissions array
     if (!Array.isArray(permissions)) {
@@ -520,10 +522,12 @@ router.put('/:roleId', requirePermission('MANAGE_PERMISSIONS'), async (req, res)
       }
     }
 
+    // Group name is auto-derived from sanitized role name
+    const groupName = sanitizeGroupName(roleName) || `Role_${roleId}`;
+
     // Update the role config
     const result = await squadGroupService.setRolePermissions(roleId, {
       roleName,
-      groupName: groupName !== undefined ? groupName : existingConfig.groupName,
       permissions
     }, req.user.id);
 
@@ -535,7 +539,7 @@ router.put('/:roleId', requirePermission('MANAGE_PERMISSIONS'), async (req, res)
       actorName: req.user.username,
       targetType: 'squad_group',
       targetId: roleId,
-      targetName: groupName || roleName || roleId,
+      targetName: groupName,
       description: `Updated Squad group for role ${roleName || roleId}`,
       details: JSON.stringify({
         previous: {
@@ -543,7 +547,7 @@ router.put('/:roleId', requirePermission('MANAGE_PERMISSIONS'), async (req, res)
           permissions: existingConfig.permissions
         },
         new: {
-          groupName: groupName !== undefined ? groupName : existingConfig.groupName,
+          groupName,
           permissions
         },
         changeCount: {
@@ -558,15 +562,13 @@ router.put('/:roleId', requirePermission('MANAGE_PERMISSIONS'), async (req, res)
 
     logger.info('Squad group updated', {
       roleId,
-      groupName: groupName || roleName,
+      groupName,
       permissionCount: permissions.length,
       updatedBy: req.user.username
     });
 
     // Sync all members with this role to update their whitelist entries
-    // This ensures changes propagate even if just permissions changed
-    const newGroupName = groupName !== undefined ? groupName : existingConfig.groupName;
-    const syncResult = await syncMembersWithRole(roleId, newGroupName);
+    const syncResult = await syncMembersWithRole(roleId, groupName);
 
     res.json({
       success: true,

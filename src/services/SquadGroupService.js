@@ -25,9 +25,19 @@ const SQUAD_PERMISSIONS = [
   { id: 'kick', label: 'Kick', description: 'Kick players from the server' },
   { id: 'reserve', label: 'Reserve Slot', description: 'Reserved slot access when server is full' },
   { id: 'startvote', label: 'Start Vote', description: 'Start server votes' },
-  { id: 'teamchange', label: 'Team Change', description: 'Change own team freely' },
-  { id: 'cheat', label: 'Cheat', description: 'Access to cheat commands' }
+  { id: 'teamchange', label: 'Team Change', description: 'Change own team freely' }
 ];
+
+/**
+ * Sanitize a role name for use as a Squad group name
+ * Removes spaces and non-alphanumeric characters (keeps underscores)
+ * @param {string} roleName - Discord role name
+ * @returns {string|null} - Sanitized group name safe for Squad server config
+ */
+function sanitizeGroupName(roleName) {
+  if (!roleName) return null;
+  return roleName.replace(/[^a-zA-Z0-9_]/g, '');
+}
 
 // Get default squad groups from config file for seeding
 function getDefaultSquadGroups() {
@@ -254,7 +264,6 @@ class SquadGroupService {
    * @param {string} roleId - Discord role ID
    * @param {Object} data - Role data
    * @param {string} [data.roleName] - Discord role name
-   * @param {string} [data.groupName] - Squad group name
    * @param {string[]} data.permissions - Array of permission IDs
    * @param {string} [updatedBy] - Discord user ID who made the change
    * @returns {Promise<Object>}
@@ -267,32 +276,18 @@ class SquadGroupService {
       throw new Error(`Invalid permissions: ${invalidPerms.join(', ')}`);
     }
 
-    // Check for conflicting group names with different permissions
-    if (data.groupName) {
-      const existingConfigs = await this.getAllRoleConfigs();
-      const conflicting = existingConfigs.find(c =>
-        c.roleId !== roleId &&
-        c.groupName === data.groupName
-      );
+    // Auto-derive group name from sanitized role name (one role = one group)
+    const groupName = sanitizeGroupName(data.roleName) || `Role_${roleId}`;
 
-      if (conflicting) {
-        const existingPerms = Array.isArray(conflicting.permissions)
-          ? conflicting.permissions.sort().join(',')
-          : conflicting.permissions.split(',').sort().join(',');
-        const newPerms = data.permissions.sort().join(',');
-
-        if (existingPerms !== newPerms) {
-          throw new Error(`Group name "${data.groupName}" is already used by role "${conflicting.roleName}" with different permissions. Use a unique group name or match the existing permissions.`);
-        }
-      }
-    }
-
-    const result = await getSquadRolePermissionModel().setRolePermissions(roleId, data, updatedBy);
+    const result = await getSquadRolePermissionModel().setRolePermissions(roleId, {
+      ...data,
+      groupName
+    }, updatedBy);
     this.invalidateCache();
 
     logger.info('Squad role permissions updated', {
       roleId,
-      groupName: data.groupName || data.roleName,
+      groupName,
       permissionCount: data.permissions.length,
       updatedBy,
       isNew: result.isNew
@@ -409,5 +404,6 @@ const squadGroupService = new SquadGroupService();
 module.exports = {
   squadGroupService,
   SQUAD_PERMISSIONS,
-  getDefaultSquadGroups
+  getDefaultSquadGroups,
+  sanitizeGroupName
 };

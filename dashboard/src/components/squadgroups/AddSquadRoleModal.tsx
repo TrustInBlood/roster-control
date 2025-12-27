@@ -17,7 +17,6 @@ export default function AddSquadRoleModal({
 
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedRole, setSelectedRole] = useState<DiscordRoleForSquad | null>(null)
-  const [groupName, setGroupName] = useState('')
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([])
 
   // Filter roles that aren't already configured and match search
@@ -27,9 +26,12 @@ export default function AddSquadRoleModal({
       role.name.toLowerCase().includes(searchQuery.toLowerCase())
   ) || []
 
+  // Auto-derive group name from role name (sanitized)
+  const sanitizeGroupName = (name: string) => name.replace(/[^a-zA-Z0-9_]/g, '')
+  const groupName = selectedRole ? sanitizeGroupName(selectedRole.name) || `Role_${selectedRole.id}` : ''
+
   const handleRoleSelect = (role: DiscordRoleForSquad) => {
     setSelectedRole(role)
-    setGroupName(role.name.replace(/\s+/g, '')) // Default group name without spaces
     // Default to all permissions for new roles
     setSelectedPermissions(squadPermissions.map(p => p.id))
   }
@@ -58,7 +60,6 @@ export default function AddSquadRoleModal({
     try {
       await addMutation.mutateAsync({
         roleId: selectedRole.id,
-        groupName: groupName || selectedRole.name.replace(/\s+/g, ''),
         permissions: selectedPermissions,
       })
       onClose()
@@ -149,7 +150,6 @@ export default function AddSquadRoleModal({
                   type="button"
                   onClick={() => {
                     setSelectedRole(null)
-                    setGroupName('')
                     setSelectedPermissions([])
                   }}
                   className="text-gray-400 hover:text-white text-sm"
@@ -158,20 +158,16 @@ export default function AddSquadRoleModal({
                 </button>
               </div>
 
-              {/* Group Name */}
+              {/* Group Name (Read-only) */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">
                   Squad Group Name
                 </label>
-                <input
-                  type="text"
-                  value={groupName}
-                  onChange={(e) => setGroupName(e.target.value)}
-                  placeholder={selectedRole.name.replace(/\s+/g, '')}
-                  className="w-full bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-discord-blurple"
-                />
+                <div className="w-full bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-gray-300">
+                  {groupName}
+                </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  This is the group name used in the Squad whitelist file
+                  Auto-derived from role name (used in Squad whitelist file)
                 </p>
               </div>
 

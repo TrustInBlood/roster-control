@@ -9,6 +9,9 @@ interface SquadGroupEditModalProps {
   onClose: () => void
 }
 
+// Sanitize role name for Squad group name (same as backend)
+const sanitizeGroupName = (name: string) => name.replace(/[^a-zA-Z0-9_]/g, '')
+
 export default function SquadGroupEditModal({
   roleConfig,
   squadPermissions,
@@ -16,12 +19,13 @@ export default function SquadGroupEditModal({
 }: SquadGroupEditModalProps) {
   const updateMutation = useUpdateSquadRole()
 
-  const [groupName, setGroupName] = useState(roleConfig.groupName || '')
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>(roleConfig.permissions)
+
+  // Auto-derived group name (read-only)
+  const groupName = sanitizeGroupName(roleConfig.roleName || '') || `Role_${roleConfig.roleId}`
 
   // Reset form when roleConfig changes
   useEffect(() => {
-    setGroupName(roleConfig.groupName || '')
     setSelectedPermissions(roleConfig.permissions)
   }, [roleConfig])
 
@@ -48,7 +52,6 @@ export default function SquadGroupEditModal({
       await updateMutation.mutateAsync({
         roleId: roleConfig.roleId,
         request: {
-          groupName: groupName || roleConfig.roleName || undefined,
           permissions: selectedPermissions,
         },
       })
@@ -59,7 +62,6 @@ export default function SquadGroupEditModal({
   }
 
   const hasChanges =
-    groupName !== roleConfig.groupName ||
     JSON.stringify(selectedPermissions.sort()) !== JSON.stringify(roleConfig.permissions.sort())
 
   return (
@@ -86,20 +88,16 @@ export default function SquadGroupEditModal({
 
         {/* Content */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 space-y-4">
-          {/* Group Name */}
+          {/* Group Name (Read-only) */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">
               Squad Group Name
             </label>
-            <input
-              type="text"
-              value={groupName}
-              onChange={(e) => setGroupName(e.target.value)}
-              placeholder={roleConfig.roleName || 'Enter group name'}
-              className="w-full bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-discord-blurple"
-            />
+            <div className="w-full bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-gray-300">
+              {groupName}
+            </div>
             <p className="text-xs text-gray-500 mt-1">
-              This is the group name used in the Squad whitelist file (e.g., HeadAdmin, Moderator)
+              Auto-derived from role name (used in Squad whitelist file)
             </p>
           </div>
 

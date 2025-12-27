@@ -40,12 +40,10 @@ export interface RoleConfigResponse {
 
 export interface AddRoleRequest {
   roleId: string
-  groupName?: string
   permissions: string[]
 }
 
 export interface UpdateRoleRequest {
-  groupName?: string
   permissions: string[]
 }
 
