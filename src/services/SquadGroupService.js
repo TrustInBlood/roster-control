@@ -25,7 +25,8 @@ const SQUAD_PERMISSIONS = [
   { id: 'kick', label: 'Kick', description: 'Kick players from the server' },
   { id: 'reserve', label: 'Reserve Slot', description: 'Reserved slot access when server is full' },
   { id: 'startvote', label: 'Start Vote', description: 'Start server votes' },
-  { id: 'teamchange', label: 'Team Change', description: 'Change own team freely' }
+  { id: 'teamchange', label: 'Team Change', description: 'Change own team freely' },
+  { id: 'cheat', label: 'Cheat', description: 'Access to cheat commands' }
 ];
 
 // Get default squad groups from config file for seeding
