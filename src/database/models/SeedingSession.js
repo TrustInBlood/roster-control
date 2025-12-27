@@ -330,12 +330,22 @@ SeedingSession.getSessionWithStats = async function(sessionId) {
     }
   });
 
+  // Count broadcast recipients (players on source servers who received the broadcast message)
+  // This includes both those still waiting and those who switched
+  const broadcastRecipients = await SeedingParticipant.count({
+    where: {
+      session_id: sessionId,
+      participant_type: 'switcher' // All switcher types received the broadcast
+    }
+  });
+
   return {
     ...session.toJSON(),
     stats: {
       byTypeAndStatus: stats,
       currentlyOnTarget: onTargetCount,
-      actualParticipants: actualParticipants
+      actualParticipants: actualParticipants,
+      broadcastRecipients: broadcastRecipients
     }
   };
 };

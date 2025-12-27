@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, RefreshCw, Users, Clock, Target, Award, X, ChevronLeft, ChevronRight, FlaskConical, RotateCcw, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, RefreshCw, Users, Clock, Target, Award, X, ChevronLeft, ChevronRight, FlaskConical, RotateCcw, AlertTriangle, Radio } from 'lucide-react'
 import { useSession, useParticipants, useCloseSession, useCancelSession, useRevokeParticipantRewards, useReverseSessionRewards, useClosePreview } from '../hooks/useSeeding'
 import type { SeedingParticipant, ClosePreviewResponse } from '../types/seeding'
 
@@ -430,10 +430,19 @@ export default function SeedingSession() {
         </div>
         <div className="bg-discord-light rounded-lg p-4">
           <div className="flex items-center gap-2 text-gray-400 text-sm mb-1">
+            <Radio className="w-4 h-4" />
+            Broadcast Recipients
+          </div>
+          <div className="text-2xl font-bold text-white">{session.stats?.broadcastRecipients ?? '-'}</div>
+          <div className="text-xs text-gray-500 mt-1">Players who saw the message</div>
+        </div>
+        <div className="bg-discord-light rounded-lg p-4">
+          <div className="flex items-center gap-2 text-gray-400 text-sm mb-1">
             <Users className="w-4 h-4" />
             Participants
           </div>
           <div className="text-2xl font-bold text-white">{session.stats?.actualParticipants ?? '-'}</div>
+          <div className="text-xs text-gray-500 mt-1">Joined target server</div>
         </div>
         <div className="bg-discord-light rounded-lg p-4">
           <div className="flex items-center gap-2 text-gray-400 text-sm mb-1">

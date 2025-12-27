@@ -202,6 +202,10 @@ class SeedingSessionService {
     // Enroll existing players on target as seeders
     await this.enrollExistingPlayers(session.id, targetServerId);
 
+    // Enroll existing players on source servers as potential switchers (for tracking broadcast recipients)
+    // In test mode, enroll from all source servers; otherwise only from full servers
+    await this.enrollExistingSourcePlayers(session.id, sourceServerIds, !testMode);
+
     // Broadcast seeding call to source servers
     // In test mode, bypass the full server threshold
     await this.broadcastSeedingCall(session, sourceServerIds, false, testMode);
@@ -264,6 +268,77 @@ class SeedingSessionService {
     await SeedingSession.updateParticipantCount(sessionId, enrolledCount);
 
     this.logger.info(`Enrolled ${enrolledCount} existing players as seeders`);
+  }
+
+  /**
+   * Enroll existing players on source servers as potential switchers
+   * This tracks players who receive broadcast messages for accurate metrics
+   * @param {number} sessionId - Session ID
+   * @param {string[]} sourceServerIds - Array of source server IDs to enroll from
+   * @param {boolean} fullServersOnly - Only enroll from servers above broadcast threshold
+   * @returns {Promise<number>} Number of players enrolled
+   */
+  async enrollExistingSourcePlayers(sessionId, sourceServerIds, fullServersOnly = true) {
+    const activeSessions = this.playtimeTrackingService.getActiveSessions();
+
+    // Filter to only full servers if requested
+    const serversToEnroll = fullServersOnly
+      ? sourceServerIds.filter(serverId => this.isServerFull(serverId))
+      : sourceServerIds;
+
+    if (serversToEnroll.length === 0) {
+      this.logger.debug('No source servers above threshold for enrollment');
+      return 0;
+    }
+
+    let enrolledCount = 0;
+
+    for (const [sessionKey, sessionData] of activeSessions) {
+      const [serverId, steamId] = sessionKey.split(':');
+
+      // Skip if not a source server we're enrolling from
+      if (!serversToEnroll.includes(serverId)) continue;
+
+      try {
+        // Check if already a participant
+        const existing = await SeedingParticipant.findBySessionAndSteamId(sessionId, steamId);
+        if (existing) continue;
+
+        // Create potential switcher participant
+        await SeedingParticipant.createPotentialSwitcher({
+          sessionId,
+          playerId: sessionData.playerId,
+          steamId,
+          username: sessionData.username,
+          sourceServerId: serverId
+        });
+
+        enrolledCount++;
+
+        // Track in memory for switch detection
+        this.potentialSwitchers.set(steamId, {
+          serverId,
+          joinTime: new Date(),
+          participantId: null // Will be set if needed
+        });
+
+      } catch (error) {
+        this.logger.error(`Error enrolling source player ${steamId}:`, error.message);
+      }
+    }
+
+    if (enrolledCount > 0) {
+      // Update participant count
+      const currentCount = await SeedingParticipant.count({ where: { session_id: sessionId } });
+      await SeedingSession.update(
+        { participants_count: currentCount },
+        { where: { id: sessionId } }
+      );
+
+      this.logger.info(`Enrolled ${enrolledCount} existing players from ${serversToEnroll.length} source servers as potential switchers`);
+    }
+
+    return enrolledCount;
   }
 
   /**
@@ -1025,6 +1100,19 @@ class SeedingSessionService {
       }
 
       this.logger.info(`Broadcasting seeding call to ${serversTobroadcast.length} full servers${isReminder ? ' (reminder)' : ''}, skipping ${skippedServers.length} servers below threshold`);
+    }
+
+    // Enroll any players on servers that are now receiving broadcasts
+    // This catches servers that crossed the threshold since the session started or last broadcast
+    if (serversTobroadcast.length > 0) {
+      const enrolledCount = await this.enrollExistingSourcePlayers(
+        session.id,
+        serversTobroadcast,
+        false // Don't filter again, we already know these servers are above threshold
+      );
+      if (enrolledCount > 0) {
+        this.logger.info(`Enrolled ${enrolledCount} new broadcast recipients from servers crossing threshold`);
+      }
     }
 
     for (const serverId of serversTobroadcast) {

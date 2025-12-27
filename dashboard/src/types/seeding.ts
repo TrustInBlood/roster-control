@@ -56,6 +56,7 @@ export interface SeedingSessionWithStats extends SeedingSession {
     }>
     currentlyOnTarget: number
     actualParticipants: number
+    broadcastRecipients: number
   }
 }
 
