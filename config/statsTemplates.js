@@ -16,41 +16,47 @@ const { discordRoles: { DISCORD_ROLES } } = require('../src/utils/environment');
 const TEMPLATES = {
   // Default template - uses stats-template-wide.png (2048x512)
   wide: {
-    boxWidth: 800,
-    boxHeight: 420,
+    boxWidth: 1000,
+    boxHeight: 475,
+    boxX: 968,
+    boxY: 18.5,
     rightMargin: 80,
-    padding: 25,
-    titleSize: 28,
-    labelSize: 18,
-    valueSize: 26,
+    padding: 12,
+    titleSize: 50,
+    labelSize: 25,
+    valueSize: 50,
     rowGap: 12,
-    topGap: 40,
+    topGap: 50,
     sectionGap: 40
   },
   // Tank template (2048x512)
   tank: {
-    boxWidth: 800,
-    boxHeight: 420,
+    boxWidth: 1000,
+    boxHeight: 475,
+    boxX: 968,
+    boxY: 18.5,
     rightMargin: 80,
-    padding: 25,
-    titleSize: 28,
-    labelSize: 18,
-    valueSize: 26,
+    padding: 12,
+    titleSize: 50,
+    labelSize: 25,
+    valueSize: 50,
     rowGap: 12,
-    topGap: 40,
+    topGap: 50,
     sectionGap: 40
   },
   // Tank 2 template (2048x512)
   tank2: {
-    boxWidth: 800,
-    boxHeight: 420,
+    boxWidth: 1000,
+    boxHeight: 475,
+    boxX: 968,
+    boxY: 18.5,
     rightMargin: 80,
-    padding: 25,
-    titleSize: 28,
-    labelSize: 18,
-    valueSize: 26,
+    padding: 12,
+    titleSize: 50,
+    labelSize: 25,
+    valueSize: 50,
     rowGap: 12,
-    topGap: 40,
+    topGap: 50,
     sectionGap: 40
   }
 };

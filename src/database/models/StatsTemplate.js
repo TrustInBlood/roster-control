@@ -39,23 +39,23 @@ module.exports = (sequelize) => {
     box_width: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      defaultValue: 800
+      defaultValue: 1000
     },
     box_height: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      defaultValue: 420
+      defaultValue: 475
     },
     box_x: {
       type: DataTypes.INTEGER,
       allowNull: true,
-      defaultValue: null,
+      defaultValue: 968,
       comment: 'X position (null = auto right-aligned)'
     },
     box_y: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.FLOAT,
       allowNull: true,
-      defaultValue: null,
+      defaultValue: 18.5,
       comment: 'Y position (null = auto centered)'
     },
     right_margin: {
@@ -67,22 +67,22 @@ module.exports = (sequelize) => {
     padding: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      defaultValue: 25
+      defaultValue: 12
     },
     title_size: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      defaultValue: 28
+      defaultValue: 50
     },
     label_size: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      defaultValue: 18
+      defaultValue: 25
     },
     value_size: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      defaultValue: 26
+      defaultValue: 50
     },
     row_gap: {
       type: DataTypes.INTEGER,
@@ -92,7 +92,7 @@ module.exports = (sequelize) => {
     top_gap: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      defaultValue: 40
+      defaultValue: 50
     },
     section_gap: {
       type: DataTypes.INTEGER,
@@ -260,17 +260,17 @@ module.exports = (sequelize) => {
       filename: config.filename,
       is_active: config.isActive !== false,
       is_default: config.isDefault || false,
-      box_width: config.boxWidth || 800,
-      box_height: config.boxHeight || 420,
-      box_x: config.boxX ?? null,
-      box_y: config.boxY ?? null,
+      box_width: config.boxWidth || 1000,
+      box_height: config.boxHeight || 475,
+      box_x: config.boxX ?? 968,
+      box_y: config.boxY ?? 18.5,
       right_margin: config.rightMargin || 80,
-      padding: config.padding || 25,
-      title_size: config.titleSize || 28,
-      label_size: config.labelSize || 18,
-      value_size: config.valueSize || 26,
+      padding: config.padding || 12,
+      title_size: config.titleSize || 50,
+      label_size: config.labelSize || 25,
+      value_size: config.valueSize || 50,
       row_gap: config.rowGap || 12,
-      top_gap: config.topGap || 40,
+      top_gap: config.topGap || 50,
       section_gap: config.sectionGap || 40,
       updated_by: userId,
       updated_at: new Date()
