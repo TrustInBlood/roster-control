@@ -5,7 +5,6 @@ const { PlayerDiscordLink } = require('../database/models');
 const { isValidSteamId } = require('../utils/steamId');
 const { logAccountLink } = require('../utils/discordLogger');
 const { console: loggerConsole } = require('../utils/logger');
-const { triggerUserRoleSync } = require('../utils/triggerUserRoleSync');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -71,6 +70,7 @@ module.exports = {
         }
 
         // Create or update the link with 1.0 confidence (admin verified)
+        // Role sync is handled automatically by createOrUpdateLink when confidence crosses 1.0 threshold
         const { link, created } = await PlayerDiscordLink.createOrUpdateLink(
           targetUser.id,
           steamId,
@@ -158,20 +158,7 @@ module.exports = {
           embeds: [publicEmbed]
         });
 
-        // Trigger role-based whitelist sync for this user
-        // This ensures their whitelist access is updated immediately if they have a whitelisted role
-        //
-        // What this does:
-        // - If user has a staff role (HeadAdmin/SquadAdmin/Moderator), creates/upgrades their whitelist entry
-        // - If user has a Member role, creates their whitelist entry
-        // - Upgrades any existing unapproved/security-blocked entries to approved status
-        // - Invalidates whitelist cache so changes appear immediately
-        //
-        // Note: Admin-created links have 1.0 confidence and grant full staff whitelist access.
-        await triggerUserRoleSync(interaction.client, targetUser.id, {
-          source: 'adminlink',
-          skipNotification: false
-        });
+        // Note: Role sync is handled automatically by createOrUpdateLink when confidence crosses 1.0 threshold
 
       } catch (error) {
         loggerConsole.error('Adminlink command error:', error);

@@ -847,7 +847,6 @@ router.post('/:steamid64/revoke', requireAuth, requirePermission('REVOKE_WHITELI
 router.post('/:steamid64/upgrade-confidence', requireAuth, requirePermission('GRANT_WHITELIST'), async (req, res) => {
   try {
     const { PlayerDiscordLink } = require('../../database/models');
-    const { triggerUserRoleSync } = require('../../utils/triggerUserRoleSync');
     const { steamid64 } = req.params;
     const { reason } = req.body;
 
@@ -872,36 +871,31 @@ router.post('/:steamid64/upgrade-confidence', requireAuth, requirePermission('GR
     }
 
     const beforeConfidence = accountLink.confidence_score;
-    const upgraded_by = `${req.user.username} (${req.user.id})`;
 
-    // Upgrade confidence to 1.0
-    await accountLink.update({
-      confidence_score: 1.0,
-      metadata: {
-        ...accountLink.metadata,
-        confidence_upgrade: {
-          upgraded_by: req.user.id,
-          upgraded_by_name: req.user.username,
-          upgraded_at: new Date().toISOString(),
-          previous_confidence: beforeConfidence,
-          reason,
-          source: 'dashboard'
+    // Upgrade confidence to 1.0 using createOrUpdateLink
+    // Role sync is handled automatically when confidence crosses 1.0 threshold
+    await PlayerDiscordLink.createOrUpdateLink(
+      accountLink.discord_user_id,
+      steamid64,
+      accountLink.eosID,
+      accountLink.username,
+      {
+        linkSource: accountLink.link_source,
+        confidenceScore: 1.0,
+        isPrimary: true,
+        metadata: {
+          ...accountLink.metadata,
+          confidence_upgrade: {
+            upgraded_by: req.user.id,
+            upgraded_by_name: req.user.username,
+            upgraded_at: new Date().toISOString(),
+            previous_confidence: beforeConfidence,
+            reason,
+            source: 'dashboard'
+          }
         }
       }
-    });
-
-    // Trigger role sync to upgrade any security-blocked whitelist entries
-    try {
-      await triggerUserRoleSync(global.discordClient, accountLink.discord_user_id, {
-        source: 'confidence_upgrade',
-        skipNotification: true
-      });
-    } catch (syncError) {
-      logger.warn('Role sync after confidence upgrade failed (non-blocking)', {
-        error: syncError.message,
-        discordUserId: accountLink.discord_user_id
-      });
-    }
+    );
 
     // Log to audit
     await AuditLog.logAction({
@@ -922,7 +916,7 @@ router.post('/:steamid64/upgrade-confidence', requireAuth, requirePermission('GR
       steamid64,
       discordUserId: accountLink.discord_user_id,
       beforeConfidence,
-      upgradedBy: upgraded_by,
+      upgradedBy: `${req.user.username} (${req.user.id})`,
       reason
     });
 

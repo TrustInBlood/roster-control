@@ -3,7 +3,6 @@ const { permissionMiddleware } = require('../handlers/permissionHandler');
 const { sendError, createResponseEmbed } = require('../utils/messageHandler');
 const { PlayerDiscordLink, AuditLog } = require('../database/models');
 const { isValidSteamId } = require('../utils/steamId');
-const { triggerUserRoleSync } = require('../utils/triggerUserRoleSync');
 const BattleMetricsService = require('../services/BattleMetricsService');
 const BattleMetricsScrubService = require('../services/BattleMetricsScrubService');
 const { loadConfig } = require('../utils/environment');
@@ -229,38 +228,33 @@ module.exports = {
             };
 
             // 1. Create or update PlayerDiscordLink
+            // Role sync is handled automatically by createOrUpdateLink when confidence crosses 1.0 threshold
             serviceLogger.info(`Creating/updating PlayerDiscordLink for ${targetUser.tag} with Steam ID ${steamId}`);
 
-            if (existingLink) {
-            // Update existing link if confidence is less than 1.0
-              if (existingLink.confidence_score < 1.0) {
-                await existingLink.update({ confidence_score: 1.0 });
-                serviceLogger.info(`Updated existing link confidence to 1.0 for ${targetUser.tag}`);
-                results.linkUpdated = true;
-              } else {
-                serviceLogger.info(`Existing link already has confidence 1.0 for ${targetUser.tag}`);
-                results.linkUpdated = false;
-              }
-            } else {
-            // Create new link
-              const newLink = await PlayerDiscordLink.create({
-                discord_user_id: targetUser.id,
-                steamid64: steamId,
-                eosID: null,
-                username: targetUser.username,
-                link_source: 'manual',
-                confidence_score: 1.0,
-                is_primary: true,
-                linked_by: interaction.user.id,
+            const { link, created } = await PlayerDiscordLink.createOrUpdateLink(
+              targetUser.id,
+              steamId,
+              null, // eosId
+              targetUser.username,
+              {
+                linkSource: 'manual',
+                confidenceScore: 1.0,
+                isPrimary: true,
                 metadata: {
                   created_via: 'addmember_command',
                   created_by: interaction.user.tag,
                   battlemetrics_name: playerName,
                   battlemetrics_url: bmProfileUrl
                 }
-              });
-              serviceLogger.info(`Created new PlayerDiscordLink (ID: ${newLink.id}) for ${targetUser.tag}`);
+              }
+            );
+
+            if (created) {
+              serviceLogger.info(`Created new PlayerDiscordLink (ID: ${link.id}) for ${targetUser.tag}`);
               results.linkCreated = true;
+            } else {
+              serviceLogger.info(`Updated existing PlayerDiscordLink for ${targetUser.tag}`);
+              results.linkUpdated = true;
             }
 
             // 2. Add Member role
@@ -350,12 +344,7 @@ module.exports = {
               severity: results.errors.length === 0 ? 'info' : 'warning'
             });
 
-            // 5. Trigger role sync
-            serviceLogger.info(`Triggering role sync for ${targetUser.tag}`);
-            await triggerUserRoleSync(interaction.client, targetUser.id, {
-              reason: 'Member added via /addmember command',
-              triggeredBy: interaction.user.id
-            });
+            // 5. Role sync is handled automatically by createOrUpdateLink when confidence crosses 1.0 threshold
 
             // 6. Send success message to admin
             const successFields = [

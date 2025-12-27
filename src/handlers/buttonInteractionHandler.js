@@ -9,7 +9,6 @@ const {
 } = require('discord.js');
 const { PlayerDiscordLink, UnlinkHistory, Whitelist } = require('../database/models');
 const { isValidSteamId } = require('../utils/steamId');
-const { triggerUserRoleSync } = require('../utils/triggerUserRoleSync');
 const { getRoleArchiveService } = require('../services/RoleArchiveService');
 const WhitelistAuthorityService = require('../services/WhitelistAuthorityService');
 const notificationService = require('../services/NotificationService');
@@ -309,20 +308,29 @@ async function handleLinkModalSubmit(interaction) {
         return;
       }
 
-      // Upgrade confidence to 1.0
-      await existingLink.update({
-        confidence_score: 1.0,
-        link_source: 'manual',
-        metadata: {
-          ...existingLink.metadata,
-          confidence_upgrade: {
-            upgraded_by: discordUserId,
-            upgraded_at: new Date().toISOString(),
-            previous_confidence: existingLink.confidence_score,
-            upgrade_method: `link_button_${source}`
+      // Upgrade confidence to 1.0 using createOrUpdateLink
+      // Role sync is handled automatically when confidence crosses 1.0 threshold
+      const previousConfidence = existingLink.confidence_score;
+      await PlayerDiscordLink.createOrUpdateLink(
+        discordUserId,
+        steamId,
+        null, // eosId
+        interaction.user.username,
+        {
+          linkSource: 'manual',
+          confidenceScore: 1.0,
+          isPrimary: true,
+          metadata: {
+            ...existingLink.metadata,
+            confidence_upgrade: {
+              upgraded_by: discordUserId,
+              upgraded_at: new Date().toISOString(),
+              previous_confidence: previousConfidence,
+              upgrade_method: `link_button_${source}`
+            }
           }
         }
-      });
+      );
 
       const upgradeEmbed = {
         color: 0x00ff00,
@@ -330,7 +338,7 @@ async function handleLinkModalSubmit(interaction) {
         description: 'Your account link confidence has been upgraded!',
         fields: [
           { name: 'Steam ID', value: steamId, inline: true },
-          { name: 'Previous Confidence', value: `${(existingLink.confidence_score * 100).toFixed(0)}%`, inline: true },
+          { name: 'Previous Confidence', value: `${(previousConfidence * 100).toFixed(0)}%`, inline: true },
           { name: 'New Confidence', value: '100%', inline: true }
         ],
         timestamp: new Date().toISOString(),
@@ -339,12 +347,7 @@ async function handleLinkModalSubmit(interaction) {
 
       await interaction.editReply({ embeds: [upgradeEmbed] });
 
-      // Trigger role sync and restore archived roles
-      await triggerUserRoleSync(interaction.client, discordUserId, {
-        source: `link_button_${source}_upgrade`,
-        skipNotification: true
-      });
-
+      // Role sync handled by createOrUpdateLink, now restore archived roles
       await handleRoleRestoration(interaction, discordUserId);
 
       // Send notification for confidence upgrade
@@ -440,11 +443,7 @@ async function handleLinkModalSubmit(interaction) {
 
     await interaction.editReply({ embeds: [successEmbed] });
 
-    // Trigger role sync
-    await triggerUserRoleSync(interaction.client, discordUserId, {
-      source: `link_button_${source}`,
-      skipNotification: false
-    });
+    // Note: Role sync is handled automatically by createOrUpdateLink when confidence crosses 1.0 threshold
 
     // Handle role restoration
     await handleRoleRestoration(interaction, discordUserId);
@@ -1066,11 +1065,7 @@ async function handleTicketLinkButton(interaction) {
     // Disable the button on the original message
     await disableTicketLinkButton(interaction.message, customId);
 
-    // Trigger role sync for the target user
-    await triggerUserRoleSync(interaction.client, targetUserId, {
-      source: 'ticket_link_button',
-      skipNotification: false
-    });
+    // Note: Role sync is handled automatically by createOrUpdateLink when confidence crosses 1.0 threshold
 
     // Send notification
     await notificationService.sendAccountLinkNotification({

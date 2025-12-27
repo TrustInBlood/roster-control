@@ -3,7 +3,6 @@ const router = express.Router();
 const { requirePermission } = require('../middleware/auth');
 const { PlayerDiscordLink, AuditLog } = require('../../database/models');
 const { isValidSteamId } = require('../../utils/steamId');
-const { triggerUserRoleSync } = require('../../utils/triggerUserRoleSync');
 const BattleMetricsService = require('../../services/BattleMetricsService');
 const BattleMetricsScrubService = require('../../services/BattleMetricsScrubService');
 const { getMemberCacheService } = require('../../services/MemberCacheService');
@@ -105,41 +104,30 @@ router.post('/', requirePermission('ADD_MEMBER'), async (req, res) => {
       errors: []
     };
 
-    // Check existing link
-    const existingLink = await PlayerDiscordLink.findOne({
-      where: {
-        discord_user_id: discord_user_id,
-        steamid64: steamid64
-      }
-    });
-
     // 1. Create or update PlayerDiscordLink
-    if (existingLink) {
-      if (existingLink.confidence_score < 1.0) {
-        await existingLink.update({ confidence_score: 1.0 });
-        logger.info(`Updated existing link confidence to 1.0 for ${member.user.username}`);
-        results.linkUpdated = true;
-      } else {
-        logger.info(`Existing link already has confidence 1.0 for ${member.user.username}`);
-      }
-    } else {
-      // Create new link
-      await PlayerDiscordLink.create({
-        discord_user_id: discord_user_id,
-        steamid64: steamid64,
-        eosID: null,
-        username: member.user.username,
-        link_source: 'manual',
-        confidence_score: 1.0,
-        is_primary: true,
-        linked_by: req.user.id,
+    // Role sync is handled automatically by createOrUpdateLink when confidence crosses 1.0 threshold
+    const { created } = await PlayerDiscordLink.createOrUpdateLink(
+      discord_user_id,
+      steamid64,
+      null, // eosId
+      member.user.username,
+      {
+        linkSource: 'manual',
+        confidenceScore: 1.0,
+        isPrimary: true,
         metadata: {
           created_via: 'dashboard_addmember',
           created_by: req.user.username
         }
-      });
+      }
+    );
+
+    if (created) {
       logger.info(`Created new PlayerDiscordLink for ${member.user.username}`);
       results.linkCreated = true;
+    } else {
+      logger.info(`Updated existing PlayerDiscordLink for ${member.user.username}`);
+      results.linkUpdated = true;
     }
 
     // 2. Add Member role
@@ -206,8 +194,9 @@ router.post('/', requirePermission('ADD_MEMBER'), async (req, res) => {
 
     // 5. Create audit log
     // Core success = link + role are good (nickname/flag failures are just warnings)
+    // Note: createOrUpdateLink always succeeds (creates or updates), so link is always good
     const auditSuccess =
-      (results.linkCreated || results.linkUpdated || existingLink) &&
+      (results.linkCreated || results.linkUpdated) &&
       (results.roleAdded || hasMemberRole);
 
     await AuditLog.create({
@@ -235,12 +224,7 @@ router.post('/', requirePermission('ADD_MEMBER'), async (req, res) => {
       severity: auditSuccess ? (results.errors.length === 0 ? 'info' : 'warning') : 'error'
     });
 
-    // 6. Trigger role sync
-    logger.info(`Triggering role sync for ${member.user.username}`);
-    await triggerUserRoleSync(discordClient, discord_user_id, {
-      reason: 'Member added via dashboard',
-      triggeredBy: req.user.id
-    });
+    // 6. Role sync is handled automatically by createOrUpdateLink when confidence crosses 1.0 threshold
 
     // 7. Send log to configured channel
     try {
@@ -299,8 +283,9 @@ router.post('/', requirePermission('ADD_MEMBER'), async (req, res) => {
 
     // Determine success - core operations are link creation and role assignment
     // Nickname and BM flag failures are warnings, not failures
+    // Note: createOrUpdateLink always succeeds (creates or updates), so link is always good
     const coreOperationsSucceeded =
-      (results.linkCreated || results.linkUpdated || existingLink) && // Link exists or was created
+      (results.linkCreated || results.linkUpdated) && // Link was created or updated
       (results.roleAdded || hasMemberRole); // Role was added or already had it
 
     // Return success response

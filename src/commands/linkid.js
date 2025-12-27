@@ -1,7 +1,6 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { PlayerDiscordLink, UnlinkHistory } = require('../database/models');
 const { isValidSteamId } = require('../utils/steamId');
-const { triggerUserRoleSync } = require('../utils/triggerUserRoleSync');
 const { getRoleArchiveService } = require('../services/RoleArchiveService');
 const { Op } = require('sequelize');
 
@@ -160,20 +159,29 @@ module.exports = {
           return;
         }
 
-        // Upgrade confidence to 1.0
-        await existingLink.update({
-          confidence_score: 1.0,
-          link_source: 'manual',
-          metadata: {
-            ...existingLink.metadata,
-            confidence_upgrade: {
-              upgraded_by: discordUserId,
-              upgraded_at: new Date().toISOString(),
-              previous_confidence: existingLink.confidence_score,
-              upgrade_method: 'linkid_direct'
+        // Upgrade confidence to 1.0 using createOrUpdateLink
+        // Role sync is handled automatically when confidence crosses 1.0 threshold
+        const previousConfidence = existingLink.confidence_score;
+        await PlayerDiscordLink.createOrUpdateLink(
+          discordUserId,
+          steamId,
+          null, // eosId
+          interaction.user.username,
+          {
+            linkSource: 'manual',
+            confidenceScore: 1.0,
+            isPrimary: true,
+            metadata: {
+              ...existingLink.metadata,
+              confidence_upgrade: {
+                upgraded_by: discordUserId,
+                upgraded_at: new Date().toISOString(),
+                previous_confidence: previousConfidence,
+                upgrade_method: 'linkid_direct'
+              }
             }
           }
-        });
+        );
 
         const upgradeEmbed = {
           color: 0x00ff00,
@@ -187,7 +195,7 @@ module.exports = {
             },
             {
               name: 'Previous Confidence',
-              value: `${(existingLink.confidence_score * 100).toFixed(0)}%`,
+              value: `${(previousConfidence * 100).toFixed(0)}%`,
               inline: true
             },
             {
@@ -208,12 +216,6 @@ module.exports = {
         };
 
         await interaction.editReply({ embeds: [upgradeEmbed] });
-
-        // Trigger role sync
-        await triggerUserRoleSync(interaction.client, discordUserId, {
-          source: 'linkid_upgrade',
-          skipNotification: true
-        });
 
         // Check for archived roles to restore
         const roleArchiveService = getRoleArchiveService(interaction.client);
@@ -298,6 +300,7 @@ module.exports = {
 
       // Case 3: User is linking a DIFFERENT Steam ID AND has < 1.0 confidence (allow overwrite)
       // OR user has no existing link (new link)
+      // Role sync is handled automatically by createOrUpdateLink when confidence crosses 1.0 threshold
       const { link, created } = await PlayerDiscordLink.createOrUpdateLink(
         discordUserId,
         steamId,
@@ -362,11 +365,7 @@ module.exports = {
 
       await interaction.editReply({ embeds: [successEmbed] });
 
-      // Trigger role sync
-      await triggerUserRoleSync(interaction.client, discordUserId, {
-        source: 'linkid_direct',
-        skipNotification: false
-      });
+      // Note: Role sync is handled automatically by createOrUpdateLink when confidence crosses 1.0 threshold
 
       // Check for archived roles to restore
       const roleArchiveService = getRoleArchiveService(interaction.client);
