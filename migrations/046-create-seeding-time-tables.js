@@ -26,30 +26,30 @@ module.exports = {
     const tableExists = async (tableName) => {
       const [results] = await queryInterface.sequelize.query(
         `SELECT COUNT(*) as count FROM information_schema.tables
-         WHERE table_schema = DATABASE() AND table_name = ?`,
-        { replacements: [tableName] }
+         WHERE table_schema = DATABASE() AND table_name = '${tableName}'`,
+        { type: queryInterface.sequelize.QueryTypes.SELECT }
       );
-      return results[0].count > 0;
+      return results.count > 0;
     };
 
     // Helper to check if an index exists
     const indexExists = async (tableName, indexName) => {
       const [results] = await queryInterface.sequelize.query(
         `SELECT COUNT(*) as count FROM information_schema.statistics
-         WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?`,
-        { replacements: [tableName, indexName] }
+         WHERE table_schema = DATABASE() AND table_name = '${tableName}' AND index_name = '${indexName}'`,
+        { type: queryInterface.sequelize.QueryTypes.SELECT }
       );
-      return results[0].count > 0;
+      return results.count > 0;
     };
 
     // Helper to check if a column exists
     const columnExists = async (tableName, columnName) => {
       const [results] = await queryInterface.sequelize.query(
         `SELECT COUNT(*) as count FROM information_schema.columns
-         WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?`,
-        { replacements: [tableName, columnName] }
+         WHERE table_schema = DATABASE() AND table_name = '${tableName}' AND column_name = '${columnName}'`,
+        { type: queryInterface.sequelize.QueryTypes.SELECT }
       );
-      return results[0].count > 0;
+      return results.count > 0;
     };
 
     // Step 1: Create seeding_time table
