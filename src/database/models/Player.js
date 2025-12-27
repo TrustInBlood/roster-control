@@ -71,7 +71,15 @@ const Player = sequelize.define('Player', {
     defaultValue: 0,
     comment: 'Total play time in minutes'
   },
-  
+
+  // Total Seeding Time - Cumulative time spent seeding (below threshold) in minutes
+  total_seeding_minutes: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 0,
+    comment: 'Lifetime seeding time in minutes'
+  },
+
   // Notes - Admin notes about the player
   notes: {
     type: DataTypes.TEXT,
@@ -190,8 +198,39 @@ Player.findOrCreateByIdentifiers = async function(steamId, eosId, username) {
     username: username,
     rosterStatus: false,
     joinCount: 0,
-    totalPlayTime: 0
+    totalPlayTime: 0,
+    total_seeding_minutes: 0
   });
+};
+
+/**
+ * Get seeding statistics for a player
+ * @param {number} playerId - Player ID
+ * @param {Object} options - Query options (days, serverId)
+ * @returns {Promise<Object>} - Seeding stats
+ */
+Player.getSeedingStats = async function(playerId, options = {}) {
+  const SeedingTime = require('./SeedingTime');
+  const player = await this.findByPk(playerId);
+
+  if (!player) {
+    return null;
+  }
+
+  // Get detailed stats from SeedingTime table
+  const detailedStats = await SeedingTime.getPlayerStats(playerId, options);
+
+  return {
+    playerId,
+    username: player.username,
+    steamId: player.steamId,
+    lifetimeSeedingMinutes: player.total_seeding_minutes,
+    lifetimePlayMinutes: player.totalPlayTime,
+    lifetimeSeedingPercentage: player.totalPlayTime > 0
+      ? Math.round((player.total_seeding_minutes / player.totalPlayTime) * 100)
+      : 0,
+    ...detailedStats
+  };
 };
 
 module.exports = Player;

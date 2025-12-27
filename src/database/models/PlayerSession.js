@@ -63,6 +63,14 @@ const PlayerSession = sequelize.define('PlayerSession', {
     type: DataTypes.JSON,
     allowNull: true,
     comment: 'Additional session data (extensible)'
+  },
+
+  // Seeding time during this session
+  seeding_minutes: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    defaultValue: null,
+    comment: 'Minutes spent seeding during this session'
   }
 }, {
   // Table name
@@ -123,48 +131,13 @@ PlayerSession.createSession = async function(playerId, serverId, metadata = null
 };
 
 /**
- * Append player count snapshot to all active sessions on a server
- * @param {string} serverId - Server identifier
- * @param {number} playerCount - Current player count on server
- * @returns {Promise<number>} - Number of sessions updated
- */
-PlayerSession.appendPlayerCountSnapshot = async function(serverId, playerCount) {
-  const activeSessions = await this.findAll({
-    where: { serverId: serverId, isActive: true }
-  });
-
-  const snapshot = {
-    timestamp: new Date().toISOString(),
-    count: playerCount
-  };
-
-  let updatedCount = 0;
-
-  for (const session of activeSessions) {
-    const metadata = session.metadata || {};
-
-    if (!metadata.playerCountSnapshots) {
-      metadata.playerCountSnapshots = [];
-    }
-
-    metadata.playerCountSnapshots.push(snapshot);
-    session.metadata = metadata;
-    session.changed('metadata', true); // Force Sequelize to recognize JSON change
-
-    await session.save();
-    updatedCount++;
-  }
-
-  return updatedCount;
-};
-
-/**
  * End an active session and calculate duration
  * @param {number} sessionId - Session ID to end
  * @param {Object} finalMetadata - Optional metadata to merge (e.g., finalPlayerCount)
+ * @param {number} seedingMinutes - Optional seeding minutes to record
  * @returns {Promise<PlayerSession|null>} - Updated session or null if not found
  */
-PlayerSession.endSession = async function(sessionId, finalMetadata = null) {
+PlayerSession.endSession = async function(sessionId, finalMetadata = null, seedingMinutes = null) {
   const session = await this.findByPk(sessionId);
 
   if (!session || !session.isActive) {
@@ -178,6 +151,11 @@ PlayerSession.endSession = async function(sessionId, finalMetadata = null) {
   session.sessionEnd = endTime;
   session.durationMinutes = durationMinutes;
   session.isActive = false;
+
+  // Record seeding minutes if provided
+  if (seedingMinutes !== null && seedingMinutes > 0) {
+    session.seeding_minutes = seedingMinutes;
+  }
 
   // Merge final metadata if provided
   if (finalMetadata) {

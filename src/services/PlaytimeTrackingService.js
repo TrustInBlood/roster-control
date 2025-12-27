@@ -3,6 +3,7 @@ const { console: loggerConsole } = require('../utils/logger');
 const { Player } = require('../database/models');
 const { Server } = require('../database/models');
 const PlayerSession = require('../database/models/PlayerSession');
+const { getPassiveSeedingService } = require('./PassiveSeedingService');
 
 /**
  * Playtime Tracking Service
@@ -28,6 +29,9 @@ class PlaytimeTrackingService extends EventEmitter {
     // Polling frequency in milliseconds (60 seconds)
     this.pollIntervalMs = 60 * 1000;
 
+    // Passive seeding service for tracking seeding time
+    this.seedingService = getPassiveSeedingService();
+
     // Shutdown guard
     this.isShuttingDown = false;
   }
@@ -40,6 +44,9 @@ class PlaytimeTrackingService extends EventEmitter {
 
     // Clean up stale sessions from previous crashes (older than 6 hours)
     await this.cleanupStaleSessions();
+
+    // Start passive seeding service
+    this.seedingService.start();
 
     // Get all server connections
     const connections = this.connectionManager.getConnections();
@@ -120,9 +127,23 @@ class PlaytimeTrackingService extends EventEmitter {
       // Process the playerlist and detect joins/leaves
       await this.processPlayerList(serverId, playerList, server);
 
-      // Append player count snapshot to all active sessions on this server
+      // Track passive seeding time for active players
       const playerCount = playerList.length;
-      await PlayerSession.appendPlayerCountSnapshot(serverId, playerCount);
+      const threshold = server.seedThreshold || 50;
+
+      // Build list of active players for seeding tracking
+      const activePlayers = [];
+      for (const [sessionKey, sessionData] of this.activeSessions) {
+        if (sessionKey.startsWith(`${serverId}:`)) {
+          activePlayers.push({
+            steamId: sessionKey.split(':')[1],
+            playerId: sessionData.playerId
+          });
+        }
+      }
+
+      // Track seeding time (handles state changes and player accumulation)
+      await this.seedingService.trackPollCycle(serverId, playerCount, threshold, activePlayers);
 
     } catch (error) {
       // Determine log level based on connection state
@@ -226,17 +247,10 @@ class PlaytimeTrackingService extends EventEmitter {
       // Step 1: Find or create Player record
       const player = await Player.findOrCreateByIdentifiers(steamId, eosId, username);
 
-      // Step 2: Build session metadata with seed tracking
-      const joinTimestamp = new Date().toISOString();
+      // Step 2: Build minimal session metadata (seeding is now tracked separately)
       const metadata = {
-        seedThreshold: server.seedThreshold || 40, // Default to 40 if not configured
-        initialPlayerCount: playerCount,
-        playerCountSnapshots: [
-          {
-            timestamp: joinTimestamp,
-            count: playerCount
-          }
-        ]
+        seedThreshold: server.seedThreshold || 50,
+        initialPlayerCount: playerCount
       };
 
       // Step 3: Create new PlayerSession with metadata
@@ -295,11 +309,14 @@ class PlaytimeTrackingService extends EventEmitter {
     try {
       const { playerId, sessionId, username } = sessionData;
 
-      // Step 1: End the session with final player count
+      // Step 1: Finalize seeding time tracking and get accumulated minutes
+      const { seedingMinutes } = await this.seedingService.finalizePlayerSession(sessionKey, playerId);
+
+      // Step 2: End the session with final player count and seeding time
       const finalMetadata = {
         finalPlayerCount: playerCount
       };
-      const session = await PlayerSession.endSession(sessionId, finalMetadata);
+      const session = await PlayerSession.endSession(sessionId, finalMetadata, seedingMinutes);
 
       if (!session) {
         loggerConsole.warn(`Failed to end session ${sessionId} for ${steamId}`);
@@ -307,22 +324,22 @@ class PlaytimeTrackingService extends EventEmitter {
         return;
       }
 
-      // Step 2: Update Player total playtime
+      // Step 3: Update Player total playtime
       const player = await Player.findByPk(playerId);
       if (player && session.durationMinutes) {
         await player.addPlayTime(session.durationMinutes);
       }
 
-      // Step 3: Update Server total playtime
+      // Step 4: Update Server total playtime
       const serverRecord = await Server.findByServerId(serverId);
       if (serverRecord && session.durationMinutes) {
         await serverRecord.addPlaytime(session.durationMinutes);
       }
 
-      // Step 4: Remove from in-memory tracking
+      // Step 5: Remove from in-memory tracking
       this.activeSessions.delete(sessionKey);
 
-      loggerConsole.log(`Player left: ${username} (${steamId}) from ${serverId} - Duration: ${session.durationMinutes} minutes`);
+      loggerConsole.log(`Player left: ${username} (${steamId}) from ${serverId} - Duration: ${session.durationMinutes} min, Seeding: ${seedingMinutes} min`);
 
       // Emit playerLeft event for other services (e.g., SeedingSessionService)
       this.emit('playerLeft', {
@@ -360,6 +377,13 @@ class PlaytimeTrackingService extends EventEmitter {
     }
 
     this.pollIntervals.clear();
+
+    // Stop passive seeding service (flushes accumulators)
+    try {
+      await this.seedingService.stop();
+    } catch (error) {
+      loggerConsole.error('Error stopping seeding service:', error.message);
+    }
 
     // Close all active sessions
     try {

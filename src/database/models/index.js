@@ -15,6 +15,10 @@ const DutySession = require('./DutySession');
 const { DutyTrackingConfig, DutyTrackingConfigAudit } = require('./DutyTrackingConfig');
 const DutyLifetimeStats = require('./DutyLifetimeStats');
 
+// Import seeding time tracking models
+const SeedingTime = require('./SeedingTime');
+const ServerSeedingSnapshot = require('./ServerSeedingSnapshot');
+
 // Import and initialize whitelist models (factory functions)
 const GroupFactory = require('./Group');
 const WhitelistFactory = require('./Whitelist');
@@ -54,6 +58,10 @@ SeedingParticipant.belongsTo(SeedingSession, { foreignKey: 'session_id', as: 'se
 SeedingParticipant.belongsTo(Player, { foreignKey: 'player_id', as: 'player' });
 Player.hasMany(SeedingParticipant, { foreignKey: 'player_id', as: 'seedingParticipations' });
 
+// Seeding time associations
+SeedingTime.belongsTo(Player, { foreignKey: 'player_id', as: 'player' });
+Player.hasMany(SeedingTime, { foreignKey: 'player_id', as: 'seedingTimes' });
+
 // Export all models
 module.exports = {
   Player,
@@ -78,5 +86,7 @@ module.exports = {
   DutySession,
   DutyTrackingConfig,
   DutyTrackingConfigAudit,
-  DutyLifetimeStats
+  DutyLifetimeStats,
+  SeedingTime,
+  ServerSeedingSnapshot
 };
