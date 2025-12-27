@@ -220,7 +220,7 @@ module.exports = {
 
     // Step 5: Close zombie sessions (active > 12 hours)
     loggerConsole.log('Step 5: Closing zombie sessions (active > 12 hours)...');
-    const [zombieResult] = await queryInterface.sequelize.query(`
+    const zombieResult = await queryInterface.sequelize.query(`
       UPDATE player_sessions
       SET
         isActive = false,
@@ -228,19 +228,20 @@ module.exports = {
         durationMinutes = TIMESTAMPDIFF(MINUTE, sessionStart, NOW())
       WHERE isActive = true
         AND sessionStart < DATE_SUB(NOW(), INTERVAL 12 HOUR)
-    `);
-    loggerConsole.log(`Closed ${zombieResult.affectedRows || 0} zombie sessions`);
+    `, { type: queryInterface.sequelize.QueryTypes.UPDATE });
+    loggerConsole.log(`Closed ${zombieResult[1] || 0} zombie sessions`);
 
     // Step 6: Clean up bloated playerCountSnapshots from metadata
     loggerConsole.log('Step 6: Cleaning up bloated playerCountSnapshots from metadata...');
 
     // Get count of sessions with snapshots
-    const [[{ snapshotCount }]] = await queryInterface.sequelize.query(`
+    const countResult = await queryInterface.sequelize.query(`
       SELECT COUNT(*) as snapshotCount
       FROM player_sessions
       WHERE metadata IS NOT NULL
         AND JSON_CONTAINS_PATH(metadata, 'one', '$.playerCountSnapshots')
-    `);
+    `, { type: queryInterface.sequelize.QueryTypes.SELECT });
+    const snapshotCount = countResult[0]?.snapshotCount || 0;
     loggerConsole.log(`Found ${snapshotCount} sessions with playerCountSnapshots to clean`);
 
     if (snapshotCount > 0) {
@@ -254,13 +255,13 @@ module.exports = {
         batchNum++;
 
         // Get batch of IDs to clean
-        const [rows] = await queryInterface.sequelize.query(`
+        const rows = await queryInterface.sequelize.query(`
           SELECT id
           FROM player_sessions
           WHERE metadata IS NOT NULL
             AND JSON_CONTAINS_PATH(metadata, 'one', '$.playerCountSnapshots')
           LIMIT ${batchSize}
-        `);
+        `, { type: queryInterface.sequelize.QueryTypes.SELECT });
 
         if (rows.length === 0) {
           hasMore = false;
@@ -274,7 +275,7 @@ module.exports = {
           UPDATE player_sessions
           SET metadata = JSON_REMOVE(metadata, '$.playerCountSnapshots')
           WHERE id IN (${ids.join(',')})
-        `);
+        `, { type: queryInterface.sequelize.QueryTypes.UPDATE });
 
         totalCleaned += rows.length;
         loggerConsole.log(`Batch ${batchNum}: Cleaned ${rows.length} sessions (total: ${totalCleaned})`);
@@ -289,22 +290,22 @@ module.exports = {
     // Step 7: Optimize table to reclaim space
     loggerConsole.log('Step 7: Optimizing player_sessions table...');
     try {
-      await queryInterface.sequelize.query('OPTIMIZE TABLE player_sessions');
+      await queryInterface.sequelize.query('OPTIMIZE TABLE player_sessions', { type: queryInterface.sequelize.QueryTypes.RAW });
       loggerConsole.log('Table optimization complete');
     } catch (err) {
       loggerConsole.warn('Table optimization skipped (may not be supported): ' + err.message);
     }
 
     // Step 8: Show final stats
-    const [[stats]] = await queryInterface.sequelize.query(`
+    const statsResult = await queryInterface.sequelize.query(`
       SELECT
         COUNT(*) as totalSessions,
         SUM(CASE WHEN isActive = 1 THEN 1 ELSE 0 END) as activeSessions,
         ROUND(SUM(LENGTH(COALESCE(metadata, '{}'))) / 1024 / 1024, 2) as metadataMB
       FROM player_sessions
-    `);
+    `, { type: queryInterface.sequelize.QueryTypes.SELECT });
 
-    loggerConsole.log('Migration complete. Final stats:', stats);
+    loggerConsole.log('Migration complete. Final stats:', statsResult[0]);
   },
 
   async down(queryInterface, Sequelize) {
