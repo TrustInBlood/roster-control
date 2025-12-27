@@ -12,6 +12,9 @@
  * 6. Closes zombie sessions (active > 12 hours)
  *
  * REPLACES the previous unbounded JSON snapshot approach with efficient aggregates.
+ *
+ * NOTE: This migration is idempotent - it checks for existing tables/indexes/columns
+ * before creating them, allowing it to resume from a partial run.
  */
 module.exports = {
   async up(queryInterface, Sequelize) {
@@ -19,143 +22,201 @@ module.exports = {
 
     loggerConsole.log('Starting passive seeding time tracking migration...');
 
+    // Helper to check if a table exists
+    const tableExists = async (tableName) => {
+      const [results] = await queryInterface.sequelize.query(
+        `SELECT COUNT(*) as count FROM information_schema.tables
+         WHERE table_schema = DATABASE() AND table_name = ?`,
+        { replacements: [tableName] }
+      );
+      return results[0].count > 0;
+    };
+
+    // Helper to check if an index exists
+    const indexExists = async (tableName, indexName) => {
+      const [results] = await queryInterface.sequelize.query(
+        `SELECT COUNT(*) as count FROM information_schema.statistics
+         WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?`,
+        { replacements: [tableName, indexName] }
+      );
+      return results[0].count > 0;
+    };
+
+    // Helper to check if a column exists
+    const columnExists = async (tableName, columnName) => {
+      const [results] = await queryInterface.sequelize.query(
+        `SELECT COUNT(*) as count FROM information_schema.columns
+         WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?`,
+        { replacements: [tableName, columnName] }
+      );
+      return results[0].count > 0;
+    };
+
     // Step 1: Create seeding_time table
     loggerConsole.log('Step 1: Creating seeding_time table...');
-    await queryInterface.createTable('seeding_time', {
-      id: {
-        type: Sequelize.INTEGER,
-        primaryKey: true,
-        autoIncrement: true,
-        allowNull: false
-      },
-      player_id: {
-        type: Sequelize.INTEGER,
-        allowNull: false,
-        references: {
-          model: 'players',
-          key: 'id'
+    if (await tableExists('seeding_time')) {
+      loggerConsole.log('seeding_time table already exists, skipping creation');
+    } else {
+      await queryInterface.createTable('seeding_time', {
+        id: {
+          type: Sequelize.INTEGER,
+          primaryKey: true,
+          autoIncrement: true,
+          allowNull: false
         },
-        onDelete: 'CASCADE'
-      },
-      server_id: {
-        type: Sequelize.STRING(50),
-        allowNull: false,
-        comment: 'Server identifier (e.g., "server1")'
-      },
-      date: {
-        type: Sequelize.DATEONLY,
-        allowNull: false,
-        comment: 'Calendar date for aggregation'
-      },
-      seeding_minutes: {
-        type: Sequelize.INTEGER,
-        allowNull: false,
-        defaultValue: 0,
-        comment: 'Minutes spent while server was below seed threshold'
-      },
-      total_minutes: {
-        type: Sequelize.INTEGER,
-        allowNull: false,
-        defaultValue: 0,
-        comment: 'Total minutes played on this server this day'
-      },
-      seed_threshold: {
-        type: Sequelize.INTEGER,
-        allowNull: false,
-        comment: 'Seed threshold used (for historical accuracy)'
-      },
-      created_at: {
-        type: Sequelize.DATE,
-        allowNull: false,
-        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
-      },
-      updated_at: {
-        type: Sequelize.DATE,
-        allowNull: false,
-        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')
-      }
-    });
+        player_id: {
+          type: Sequelize.INTEGER,
+          allowNull: false,
+          references: {
+            model: 'players',
+            key: 'id'
+          },
+          onDelete: 'CASCADE'
+        },
+        server_id: {
+          type: Sequelize.STRING(50),
+          allowNull: false,
+          comment: 'Server identifier (e.g., "server1")'
+        },
+        date: {
+          type: Sequelize.DATEONLY,
+          allowNull: false,
+          comment: 'Calendar date for aggregation'
+        },
+        seeding_minutes: {
+          type: Sequelize.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+          comment: 'Minutes spent while server was below seed threshold'
+        },
+        total_minutes: {
+          type: Sequelize.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+          comment: 'Total minutes played on this server this day'
+        },
+        seed_threshold: {
+          type: Sequelize.INTEGER,
+          allowNull: false,
+          comment: 'Seed threshold used (for historical accuracy)'
+        },
+        created_at: {
+          type: Sequelize.DATE,
+          allowNull: false,
+          defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
+        },
+        updated_at: {
+          type: Sequelize.DATE,
+          allowNull: false,
+          defaultValue: Sequelize.literal('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')
+        }
+      });
+    }
 
-    // Add indexes to seeding_time
-    await queryInterface.addIndex('seeding_time', ['player_id', 'server_id', 'date'], {
-      unique: true,
-      name: 'idx_seeding_time_player_server_date'
-    });
-    await queryInterface.addIndex('seeding_time', ['server_id', 'date'], {
-      name: 'idx_seeding_time_server_date'
-    });
-    await queryInterface.addIndex('seeding_time', ['date'], {
-      name: 'idx_seeding_time_date'
-    });
-    await queryInterface.addIndex('seeding_time', ['player_id'], {
-      name: 'idx_seeding_time_player'
-    });
+    // Add indexes to seeding_time (check each one)
+    if (!await indexExists('seeding_time', 'idx_seeding_time_player_server_date')) {
+      await queryInterface.addIndex('seeding_time', ['player_id', 'server_id', 'date'], {
+        unique: true,
+        name: 'idx_seeding_time_player_server_date'
+      });
+    }
+    if (!await indexExists('seeding_time', 'idx_seeding_time_server_date')) {
+      await queryInterface.addIndex('seeding_time', ['server_id', 'date'], {
+        name: 'idx_seeding_time_server_date'
+      });
+    }
+    if (!await indexExists('seeding_time', 'idx_seeding_time_date')) {
+      await queryInterface.addIndex('seeding_time', ['date'], {
+        name: 'idx_seeding_time_date'
+      });
+    }
+    if (!await indexExists('seeding_time', 'idx_seeding_time_player')) {
+      await queryInterface.addIndex('seeding_time', ['player_id'], {
+        name: 'idx_seeding_time_player'
+      });
+    }
 
-    loggerConsole.log('Created seeding_time table with indexes');
+    loggerConsole.log('seeding_time table ready with indexes');
 
     // Step 2: Create server_seeding_snapshots table
     loggerConsole.log('Step 2: Creating server_seeding_snapshots table...');
-    await queryInterface.createTable('server_seeding_snapshots', {
-      id: {
-        type: Sequelize.INTEGER,
-        primaryKey: true,
-        autoIncrement: true,
-        allowNull: false
-      },
-      server_id: {
-        type: Sequelize.STRING(50),
-        allowNull: false,
-        comment: 'Server identifier'
-      },
-      timestamp: {
-        type: Sequelize.DATE,
-        allowNull: false,
-        comment: 'When the state change occurred'
-      },
-      player_count: {
-        type: Sequelize.INTEGER,
-        allowNull: false,
-        comment: 'Player count at time of state change'
-      },
-      was_seeding: {
-        type: Sequelize.BOOLEAN,
-        allowNull: false,
-        comment: 'true = entered seeding state, false = exited seeding state'
-      },
-      seed_threshold: {
-        type: Sequelize.INTEGER,
-        allowNull: false,
-        comment: 'Threshold that was crossed'
-      }
-    });
+    if (await tableExists('server_seeding_snapshots')) {
+      loggerConsole.log('server_seeding_snapshots table already exists, skipping creation');
+    } else {
+      await queryInterface.createTable('server_seeding_snapshots', {
+        id: {
+          type: Sequelize.INTEGER,
+          primaryKey: true,
+          autoIncrement: true,
+          allowNull: false
+        },
+        server_id: {
+          type: Sequelize.STRING(50),
+          allowNull: false,
+          comment: 'Server identifier'
+        },
+        timestamp: {
+          type: Sequelize.DATE,
+          allowNull: false,
+          comment: 'When the state change occurred'
+        },
+        player_count: {
+          type: Sequelize.INTEGER,
+          allowNull: false,
+          comment: 'Player count at time of state change'
+        },
+        was_seeding: {
+          type: Sequelize.BOOLEAN,
+          allowNull: false,
+          comment: 'true = entered seeding state, false = exited seeding state'
+        },
+        seed_threshold: {
+          type: Sequelize.INTEGER,
+          allowNull: false,
+          comment: 'Threshold that was crossed'
+        }
+      });
+    }
 
-    // Add indexes to server_seeding_snapshots
-    await queryInterface.addIndex('server_seeding_snapshots', ['server_id', 'timestamp'], {
-      name: 'idx_server_seeding_server_timestamp'
-    });
-    await queryInterface.addIndex('server_seeding_snapshots', ['timestamp'], {
-      name: 'idx_server_seeding_timestamp'
-    });
+    // Add indexes to server_seeding_snapshots (check each one)
+    if (!await indexExists('server_seeding_snapshots', 'idx_server_seeding_server_timestamp')) {
+      await queryInterface.addIndex('server_seeding_snapshots', ['server_id', 'timestamp'], {
+        name: 'idx_server_seeding_server_timestamp'
+      });
+    }
+    if (!await indexExists('server_seeding_snapshots', 'idx_server_seeding_timestamp')) {
+      await queryInterface.addIndex('server_seeding_snapshots', ['timestamp'], {
+        name: 'idx_server_seeding_timestamp'
+      });
+    }
 
-    loggerConsole.log('Created server_seeding_snapshots table with indexes');
+    loggerConsole.log('server_seeding_snapshots table ready with indexes');
 
     // Step 3: Add seeding_minutes column to player_sessions
     loggerConsole.log('Step 3: Adding seeding_minutes column to player_sessions...');
-    await queryInterface.addColumn('player_sessions', 'seeding_minutes', {
-      type: Sequelize.INTEGER,
-      allowNull: true,
-      defaultValue: null,
-      comment: 'Minutes spent seeding during this session'
-    });
+    if (await columnExists('player_sessions', 'seeding_minutes')) {
+      loggerConsole.log('seeding_minutes column already exists, skipping');
+    } else {
+      await queryInterface.addColumn('player_sessions', 'seeding_minutes', {
+        type: Sequelize.INTEGER,
+        allowNull: true,
+        defaultValue: null,
+        comment: 'Minutes spent seeding during this session'
+      });
+    }
 
     // Step 4: Add total_seeding_minutes column to players
     loggerConsole.log('Step 4: Adding total_seeding_minutes column to players...');
-    await queryInterface.addColumn('players', 'total_seeding_minutes', {
-      type: Sequelize.INTEGER,
-      allowNull: false,
-      defaultValue: 0,
-      comment: 'Lifetime seeding time in minutes'
-    });
+    if (await columnExists('players', 'total_seeding_minutes')) {
+      loggerConsole.log('total_seeding_minutes column already exists, skipping');
+    } else {
+      await queryInterface.addColumn('players', 'total_seeding_minutes', {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+        comment: 'Lifetime seeding time in minutes'
+      });
+    }
 
     // Step 5: Close zombie sessions (active > 12 hours)
     loggerConsole.log('Step 5: Closing zombie sessions (active > 12 hours)...');
