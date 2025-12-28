@@ -28,6 +28,7 @@ const COMMAND_PERMISSIONS = {
   'addmember': ['1444815201516912720'],  // Applications role
   'promote': ['1444815201516912720'],    // Applications role: Promote users to Member or Moderator T1
   'dashboard': ['1365205433236717598'],  // Admin roles can access dashboard link
+  'wl': ['1420297163166191627'],         // Whitelist dashboard command
 
   // Public commands
   'ping': [],  // Everyone can use

@@ -35,6 +35,7 @@ const COMMAND_PERMISSIONS = {
   'auditwhitelist': getAllAdminRoles(), // All admin roles can audit whitelist security
   'reloadposts': [DISCORD_ROLES.HEAD_ADMIN, DISCORD_ROLES.EXECUTIVE_ADMIN], // Head admin and executive admin can reload info posts config
   'dashboard': getAllStaffRoles(), // All admin roles can access dashboard link
+  'wl': getAllStaffRoles(), // Whitelist dashboard command
 
   // Tutor management commands (Tutor Lead only)
   'addspecialty': [DISCORD_ROLES.TUTOR_LEAD],
