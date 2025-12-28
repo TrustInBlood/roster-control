@@ -487,7 +487,9 @@ class PlayerProfileService {
       let potentialLink = null;
       if (!discordLink) {
         const { PotentialPlayerLink } = require('../database/models');
+        logger.info('Checking for potential links', { steamid64 });
         const potentialLinks = await PotentialPlayerLink.findBySteamId(steamid64);
+        logger.info('Potential links query result', { steamid64, count: potentialLinks.length });
         if (potentialLinks.length > 0) {
           const pl = potentialLinks[0]; // Highest confidence first (sorted by model)
           potentialLink = {
