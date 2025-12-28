@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { permissionMiddleware } = require('../handlers/permissionHandler');
 const { sendError, createResponseEmbed } = require('../utils/messageHandler');
-const { PlayerDiscordLink } = require('../database/models');
+const { PlayerDiscordLink, PotentialPlayerLink } = require('../database/models');
 const { isValidSteamId } = require('../utils/steamId');
 const { logAccountLink } = require('../utils/discordLogger');
 const { console: loggerConsole } = require('../utils/logger');
@@ -42,28 +42,53 @@ module.exports = {
         // Check if this Steam ID is already linked to someone else
         const existingLink = await PlayerDiscordLink.findOne({
           where: {
-            steamid64: steamId,
-            is_primary: true
+            steamid64: steamId
           }
         });
 
         if (existingLink && existingLink.discord_user_id !== targetUser.id) {
           const existingUser = await interaction.client.users.fetch(existingLink.discord_user_id).catch(() => null);
+          const existingConfidence = parseFloat(existingLink.confidence_score);
+
+          // Block if existing link has 1.0 confidence - require manual deletion first
+          if (existingConfidence >= 1.0) {
+            const errorEmbed = createResponseEmbed({
+              title: '❌ Steam ID Already Linked with Full Confidence',
+              description: `This Steam ID is already linked to ${existingUser ? `<@${existingUser.id}>` : 'another user'} with 1.0 confidence. You must unlink it first before reassigning.`,
+              fields: [
+                { name: 'Steam ID', value: steamId, inline: true },
+                { name: 'Currently Linked To', value: existingUser ? `${existingUser.tag}` : `User ID: ${existingLink.discord_user_id}`, inline: true },
+                { name: 'Existing Confidence', value: `${existingConfidence} (Admin Verified)`, inline: true }
+              ],
+              color: 0xff0000
+            });
+
+            await interaction.editReply({ embeds: [errorEmbed] });
+            return;
+          }
+
+          // Lower confidence link exists - we'll transfer it
           const warningEmbed = createResponseEmbed({
-            title: '⚠️ Steam ID Already Linked',
-            description: `This Steam ID is already linked to ${existingUser ? `<@${existingUser.id}>` : 'another user'}`,
+            title: '⚠️ Transferring Steam ID Link',
+            description: `This Steam ID has a lower confidence link (${existingConfidence}) to ${existingUser ? `<@${existingUser.id}>` : 'another user'}. It will be transferred to the new user.`,
             fields: [
               { name: 'Steam ID', value: steamId, inline: true },
-              { name: 'Currently Linked To', value: existingUser ? `${existingUser.tag}` : `User ID: ${existingLink.discord_user_id}`, inline: true },
-              { name: 'New Link Target', value: `${targetUser.tag}`, inline: true }
+              { name: 'Previously Linked To', value: existingUser ? `${existingUser.tag}` : `User ID: ${existingLink.discord_user_id}`, inline: true },
+              { name: 'New Link Target', value: `${targetUser.tag}`, inline: true },
+              { name: 'Old Confidence', value: `${existingConfidence}`, inline: true },
+              { name: 'New Confidence', value: '1.0 (Admin Verified)', inline: true }
             ],
             color: 0xffa500
           });
 
           await interaction.editReply({
             embeds: [warningEmbed],
-            content: '⚠️ **Warning**: This will update the existing link. The previous link will be marked as non-primary.'
+            content: '⚠️ **Transferring link**: The old link will be deleted and a new one created.'
           });
+
+          // Delete the old link before creating the new one
+          await existingLink.destroy();
+          loggerConsole.log(`Deleted existing link for Steam ID ${steamId} from user ${existingLink.discord_user_id} (confidence: ${existingConfidence}) to transfer to ${targetUser.id}`);
 
           // Give admin a moment to see the warning
           await new Promise(resolve => setTimeout(resolve, 2000));
@@ -78,7 +103,6 @@ module.exports = {
           targetUser.username,
           {
             linkSource: 'manual',
-            confidenceScore: 1.0,
             isPrimary: true,
             metadata: {
               admin_link: true,
@@ -89,6 +113,10 @@ module.exports = {
             }
           }
         );
+
+        // Clean up any potential links for this Discord user + Steam ID combo
+        // since we now have a verified link
+        await PotentialPlayerLink.removePotentialLink(targetUser.id, steamId);
 
         const linkResult = { created };
         const actualConfidence = 1.0;

@@ -1,63 +1,94 @@
-const { PlayerDiscordLink, Whitelist } = require('../database/models');
+const { PlayerDiscordLink, PotentialPlayerLink, Whitelist } = require('../database/models');
 const { console: loggerConsole } = require('./logger');
 
 /**
  * Generic account linking utilities
  * Provides functions to link Discord users with Steam IDs and resolve them
+ *
+ * After the soft-link refactor:
+ * - PlayerDiscordLink: ONLY verified (1.0 confidence) links
+ * - PotentialPlayerLink: Unverified potential links for alt detection
  */
 
 /**
- * Create or update a Discord-Steam account link
+ * Create a POTENTIAL link (not a verified link) during whitelist grant
+ * These are used for alt detection only and don't grant any access
+ *
  * @param {string} discordUserId - Discord user ID
  * @param {string} steamid64 - Steam ID64
  * @param {string} eosID - Optional EOS ID
  * @param {string} username - Optional username
- * @param {number} confidenceScore - Confidence score for the link (default 0.5, will preserve higher existing scores)
  * @param {Object} discordUser - Optional Discord user object for display name (for logging)
- * @returns {Object} The created or updated link
+ * @returns {Object} The created or updated potential link
  */
-async function createOrUpdateLink(discordUserId, steamid64, eosID = null, username = null, confidenceScore = 0.5, discordUser = null) {
+async function createPotentialLink(discordUserId, steamid64, eosID = null, username = null, discordUser = null) {
   try {
-    const { link, created } = await PlayerDiscordLink.createOrUpdateLink(
-      discordUserId, 
-      steamid64, 
-      eosID, 
-      username,
+    // Check if user already has a verified link - if so, don't create a potential link
+    const existingVerifiedLink = await PlayerDiscordLink.findByDiscordId(discordUserId);
+    if (existingVerifiedLink) {
+      const userIdentifier = discordUser?.displayName || discordUser?.username || discordUser?.tag || discordUserId;
+      loggerConsole.log(`Skipping potential link - user ${userIdentifier} already has verified link to ${existingVerifiedLink.steamid64}`);
+      return { link: existingVerifiedLink, created: false, error: null, alreadyVerified: true };
+    }
+
+    const { link, created } = await PotentialPlayerLink.createOrUpdatePotentialLink(
+      discordUserId,
+      steamid64,
       {
-        linkSource: 'manual',
-        confidenceScore: confidenceScore,
-        isPrimary: true
+        eosID,
+        username,
+        linkSource: 'whitelist',
+        confidenceScore: 0.5,
+        metadata: {
+          source: 'whitelist_grant',
+          createdAt: new Date()
+        }
       }
     );
-    
+
     const userIdentifier = discordUser?.displayName || discordUser?.username || discordUser?.tag || discordUserId;
-    loggerConsole.log(`Account link ${created ? 'created' : 'updated'}: Discord ${userIdentifier} <-> Steam ${steamid64}`);
-    return { link, created, error: null };
+    loggerConsole.log(`Potential link ${created ? 'created' : 'updated'}: Discord ${userIdentifier} <-> Steam ${steamid64} (for alt detection)`);
+    return { link, created, error: null, alreadyVerified: false };
   } catch (error) {
-    loggerConsole.error('Failed to create/update account link:', error);
-    return { link: null, created: false, error: error.message };
+    loggerConsole.error('Failed to create/update potential link:', error);
+    return { link: null, created: false, error: error.message, alreadyVerified: false };
   }
 }
 
 /**
+ * @deprecated Use createPotentialLink for whitelist grants
+ * This function is kept for backward compatibility but now creates potential links
+ */
+async function createOrUpdateLink(discordUserId, steamid64, eosID = null, username = null, _confidenceScore = 0.5, discordUser = null) {
+  // Redirect to createPotentialLink - whitelist grants should create potential links
+  return await createPotentialLink(discordUserId, steamid64, eosID, username, discordUser);
+}
+
+/**
  * Resolve Steam ID from Discord user ID
- * Checks both formal account links and whitelist entries
+ * Checks verified links, potential links, and whitelist entries
  * @param {string} discordUserId - Discord user ID
  * @returns {string|null} Steam ID64 if found
  */
 async function resolveSteamIdFromDiscord(discordUserId) {
   try {
-    // First, check formal account links
-    const link = await PlayerDiscordLink.findByDiscordId(discordUserId);
-    if (link && link.steamid64) {
-      return link.steamid64;
+    // First, check verified account links (most reliable)
+    const verifiedLink = await PlayerDiscordLink.findByDiscordId(discordUserId);
+    if (verifiedLink && verifiedLink.steamid64) {
+      return verifiedLink.steamid64;
     }
 
-    // Second, check whitelist entries (fallback for users without formal links)
+    // Second, check potential links (less reliable but useful)
+    const potentialLinks = await PotentialPlayerLink.findByDiscordId(discordUserId);
+    if (potentialLinks.length > 0 && potentialLinks[0].steamid64) {
+      return potentialLinks[0].steamid64; // Returns highest confidence potential link
+    }
+
+    // Third, check whitelist entries (fallback for users without any links)
     const whitelistEntry = await Whitelist.findOne({
-      where: { 
-        discord_username: { 
-          [require('sequelize').Op.like]: `%${discordUserId}%` 
+      where: {
+        discord_username: {
+          [require('sequelize').Op.like]: `%${discordUserId}%`
         }
       },
       order: [['granted_at', 'DESC']]
@@ -76,19 +107,25 @@ async function resolveSteamIdFromDiscord(discordUserId) {
 
 /**
  * Resolve Discord user ID from Steam ID
- * Checks both formal account links and whitelist entries
+ * Checks verified links, potential links, and whitelist entries
  * @param {string} steamid64 - Steam ID64
  * @returns {string|null} Discord user ID if found
  */
 async function resolveDiscordFromSteamId(steamid64) {
   try {
-    // First, check formal account links
-    const link = await PlayerDiscordLink.findBySteamId(steamid64);
-    if (link && link.discord_user_id) {
-      return link.discord_user_id;
+    // First, check verified account links (most reliable)
+    const verifiedLink = await PlayerDiscordLink.findBySteamId(steamid64);
+    if (verifiedLink && verifiedLink.discord_user_id) {
+      return verifiedLink.discord_user_id;
     }
 
-    // Second, check whitelist entries (fallback)
+    // Second, check potential links
+    const potentialLinks = await PotentialPlayerLink.findBySteamId(steamid64);
+    if (potentialLinks.length > 0 && potentialLinks[0].discord_user_id) {
+      return potentialLinks[0].discord_user_id;
+    }
+
+    // Third, check whitelist entries (fallback)
     const whitelistEntry = await Whitelist.findOne({
       where: { steamid64: steamid64 },
       order: [['granted_at', 'DESC']]
@@ -124,7 +161,9 @@ async function getUserInfo(identifiers = {}) {
     steamid64: identifiers.steamid64 || null,
     eosID: identifiers.eosID || null,
     username: identifiers.username || null,
-    hasLink: false,
+    hasVerifiedLink: false,
+    hasPotentialLink: false,
+    hasLink: false, // Kept for backward compatibility (true if either verified or potential)
     hasWhitelistHistory: false
   };
 
@@ -139,23 +178,44 @@ async function getUserInfo(identifiers = {}) {
       result.discordUserId = await resolveDiscordFromSteamId(result.steamid64);
     }
 
-    // Check if formal account link exists
+    // Check if verified account link exists
     if (result.discordUserId) {
-      const link = await PlayerDiscordLink.findByDiscordId(result.discordUserId);
-      if (link) {
+      const verifiedLink = await PlayerDiscordLink.findByDiscordId(result.discordUserId);
+      if (verifiedLink) {
+        result.hasVerifiedLink = true;
         result.hasLink = true;
-        result.steamid64 = result.steamid64 || link.steamid64;
-        result.eosID = result.eosID || link.eosID;
-        result.username = result.username || link.username;
+        result.steamid64 = result.steamid64 || verifiedLink.steamid64;
+        result.eosID = result.eosID || verifiedLink.eosID;
+        result.username = result.username || verifiedLink.username;
+      } else {
+        // Check for potential links
+        const potentialLinks = await PotentialPlayerLink.findByDiscordId(result.discordUserId);
+        if (potentialLinks.length > 0) {
+          result.hasPotentialLink = true;
+          result.hasLink = true;
+          result.steamid64 = result.steamid64 || potentialLinks[0].steamid64;
+          result.eosID = result.eosID || potentialLinks[0].eosID;
+          result.username = result.username || potentialLinks[0].username;
+        }
       }
     } else if (result.steamid64) {
-      // Also check for links by Steam ID if we don't have a Discord user ID
-      const link = await PlayerDiscordLink.findBySteamId(result.steamid64);
-      if (link) {
+      // Check for links by Steam ID if we don't have a Discord user ID
+      const verifiedLink = await PlayerDiscordLink.findBySteamId(result.steamid64);
+      if (verifiedLink) {
+        result.hasVerifiedLink = true;
         result.hasLink = true;
-        result.discordUserId = result.discordUserId || link.discord_user_id;
-        result.eosID = result.eosID || link.eosID;
-        result.username = result.username || link.username;
+        result.discordUserId = result.discordUserId || verifiedLink.discord_user_id;
+        result.eosID = result.eosID || verifiedLink.eosID;
+        result.username = result.username || verifiedLink.username;
+      } else {
+        const potentialLinks = await PotentialPlayerLink.findBySteamId(result.steamid64);
+        if (potentialLinks.length > 0) {
+          result.hasPotentialLink = true;
+          result.hasLink = true;
+          result.discordUserId = result.discordUserId || potentialLinks[0].discord_user_id;
+          result.eosID = result.eosID || potentialLinks[0].eosID;
+          result.username = result.username || potentialLinks[0].username;
+        }
       }
     }
 
@@ -193,7 +253,8 @@ async function getAllLinkedAccounts(limit = 100) {
 }
 
 module.exports = {
-  createOrUpdateLink,
+  createOrUpdateLink, // @deprecated - use createPotentialLink for non-verified links
+  createPotentialLink,
   resolveSteamIdFromDiscord,
   resolveDiscordFromSteamId,
   getUserInfo,

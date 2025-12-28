@@ -1,5 +1,18 @@
-const { DataTypes, Op } = require('sequelize');
+const { DataTypes } = require('sequelize');
 
+/**
+ * PlayerDiscordLink Model
+ *
+ * Stores VERIFIED links between Discord users and Steam IDs.
+ * After the soft-link refactor, this table ONLY contains 1.0 confidence links.
+ *
+ * Verified links are created through:
+ * - SquadJS in-game verification (1.0 confidence)
+ * - Admin verification via button click (1.0 confidence)
+ * - Admin link command with verification (1.0 confidence)
+ *
+ * For unverified/potential links, see PotentialPlayerLink model.
+ */
 module.exports = (sequelize) => {
   const PlayerDiscordLink = sequelize.define('PlayerDiscordLink', {
     id: {
@@ -111,50 +124,34 @@ module.exports = (sequelize) => {
     });
   };
 
+  /**
+   * Create or update a VERIFIED link (1.0 confidence only)
+   * This method is for verified links only. For potential links, use PotentialPlayerLink.
+   *
+   * @param {string} discordUserId - Discord user ID
+   * @param {string} steamid64 - Steam ID64
+   * @param {string} eosID - EOS ID (optional)
+   * @param {string} username - Username (optional)
+   * @param {Object} options - Additional options
+   * @returns {Promise<Object>} { link, created }
+   */
   PlayerDiscordLink.createOrUpdateLink = async function(discordUserId, steamid64, eosID, username, options = {}) {
     const {
       linkSource = 'manual',
-      confidenceScore = 1.00,
       isPrimary = true,
       metadata = null
     } = options;
 
-    // Check for existing link to preserve highest confidence score
+    // Verified links are ALWAYS 1.0 confidence
+    const confidenceScore = 1.00;
+
+    // Check for existing link
     const existingLink = await this.findOne({
       where: {
         discord_user_id: discordUserId,
         steamid64
       }
     });
-
-    // Use the highest confidence score between existing and new
-    const finalConfidenceScore = existingLink
-      ? Math.max(existingLink.confidence_score, confidenceScore)
-      : confidenceScore;
-
-    // Log confidence score changes for security audit trail
-    if (existingLink && parseFloat(existingLink.confidence_score) !== parseFloat(finalConfidenceScore)) {
-      const { AuditLog } = require('./index');
-
-      await AuditLog.create({
-        actionType: 'confidence_change',
-        description: `Account link confidence upgraded from ${existingLink.confidence_score} to ${finalConfidenceScore}`,
-        actorId: 'SYSTEM', // System-initiated change (upgrade logic)
-        actorType: 'system',
-        targetId: discordUserId,
-        targetType: 'user',
-        targetName: username || discordUserId,
-        metadata: {
-          steamid64: steamid64,
-          old_confidence: parseFloat(existingLink.confidence_score),
-          new_confidence: parseFloat(finalConfidenceScore),
-          link_source: linkSource,
-          reason: `Confidence upgraded from ${existingLink.confidence_score} to ${finalConfidenceScore}`,
-          existing_source: existingLink.link_source,
-          new_source: linkSource
-        }
-      });
-    }
 
     // Update metadata to preserve existing if not provided
     const finalMetadata = metadata !== null ? metadata : (existingLink?.metadata || null);
@@ -165,7 +162,7 @@ module.exports = (sequelize) => {
       eosID,
       username,
       link_source: linkSource,
-      confidence_score: finalConfidenceScore,
+      confidence_score: confidenceScore,
       is_primary: isPrimary,
       metadata: finalMetadata,
       created_at: existingLink ? existingLink.created_at : new Date(),
@@ -174,35 +171,23 @@ module.exports = (sequelize) => {
       returning: true
     });
 
-    // SYSTEMIC FIX: Auto-trigger role sync when confidence crosses 1.0 threshold
-    // This ensures security-blocked entries are automatically upgraded regardless of how confidence was upgraded
-    const confidenceCrossedThreshold = existingLink &&
-      parseFloat(existingLink.confidence_score) < 1.0 &&
-      parseFloat(finalConfidenceScore) >= 1.0;
-
-    if (confidenceCrossedThreshold) {
-      // Trigger role sync asynchronously (non-blocking - don't wait, don't fail parent operation)
-      // This will automatically upgrade any security-blocked whitelist entries
+    // Trigger role sync for new verified links
+    if (created) {
       setImmediate(async () => {
         try {
           const { triggerUserRoleSync } = require('../../utils/triggerUserRoleSync');
 
-          // Check if Discord client is available
           if (global.discordClient) {
             await triggerUserRoleSync(global.discordClient, discordUserId, {
-              source: 'confidence_threshold_crossed',
+              source: 'verified_link_created',
               skipNotification: false
             });
           }
         } catch (syncError) {
-          // Log error but don't throw - this is a background operation
-          // The link was still created/updated successfully
           const { console: loggerConsole } = require('../../utils/logger');
-          loggerConsole.error('Failed to auto-sync role after confidence upgrade', {
+          loggerConsole.error('Failed to auto-sync role after verified link creation', {
             discordUserId,
             steamid64,
-            oldConfidence: existingLink.confidence_score,
-            newConfidence: finalConfidenceScore,
             error: syncError.message
           });
         }
@@ -212,58 +197,11 @@ module.exports = (sequelize) => {
     return { link, created };
   };
 
-  PlayerDiscordLink.createTicketLink = async function(discordUserId, steamid64, ticketInfo) {
-    // Check if this exact combination already exists
-    const existingLink = await this.findOne({
-      where: {
-        discord_user_id: discordUserId,
-        steamid64: steamid64
-      }
-    });
-
-    // If exact same record exists, skip
-    if (existingLink) {
-      return { link: existingLink, created: false, reason: 'duplicate_link' };
-    }
-
-    // Check if user has any high-confidence links
-    const highConfidenceLink = await this.findOne({
-      where: {
-        discord_user_id: discordUserId,
-        confidence_score: { [Op.gte]: 1.0 }
-      }
-    });
-
-    const metadata = {
-      ticketChannelId: ticketInfo.channelId,
-      ticketChannelName: ticketInfo.channelName,
-      messageId: ticketInfo.messageId,
-      extractedAt: new Date(),
-      originalMessage: ticketInfo.messageContent?.substring(0, 500) // Limit size
-    };
-
-    // Only mark as primary if no high-confidence link exists
-    const shouldBePrimary = !highConfidenceLink;
-
-    return await this.createOrUpdateLink(discordUserId, steamid64, null, ticketInfo.username, {
-      linkSource: 'ticket',
-      confidenceScore: 0.3, // Lower confidence for ticket text extraction
-      isPrimary: shouldBePrimary, // Only primary if no better link exists
-      metadata
-    });
-  };
-
-  PlayerDiscordLink.findHighConfidenceLinks = async function(minConfidence = 0.8) {
-    return await this.findAll({
-      where: {
-        confidence_score: {
-          [Op.gte]: minConfidence
-        }
-      },
-      order: [['confidence_score', 'DESC'], ['created_at', 'DESC']]
-    });
-  };
-
+  /**
+   * Find all verified links by source type
+   * @param {string} linkSource - 'manual', 'squadjs', or 'import'
+   * @returns {Promise<Array>}
+   */
   PlayerDiscordLink.findBySource = async function(linkSource) {
     return await this.findAll({
       where: { link_source: linkSource },
@@ -271,13 +209,23 @@ module.exports = (sequelize) => {
     });
   };
 
-  PlayerDiscordLink.createManualLink = async function(discordUserId, steamid64, eosId = null, username = null, adminInfo = {}) {
-    // Admin manual links get 0.7 confidence (not sufficient for staff whitelist)
+  /**
+   * Create a verified link from admin action
+   * This creates a VERIFIED (1.0 confidence) link, not a soft link.
+   *
+   * @param {string} discordUserId - Discord user ID
+   * @param {string} steamid64 - Steam ID64
+   * @param {string} eosId - EOS ID (optional)
+   * @param {string} username - Username (optional)
+   * @param {Object} adminInfo - Admin action info
+   * @returns {Promise<Object>} { link, created }
+   */
+  PlayerDiscordLink.createVerifiedLink = async function(discordUserId, steamid64, eosId = null, username = null, adminInfo = {}) {
     const metadata = {
-      created_by: adminInfo.created_by,
-      created_by_tag: adminInfo.created_by_tag,
-      reason: adminInfo.reason || 'Manual admin link',
-      created_at: new Date()
+      verified_by: adminInfo.verified_by,
+      verified_by_tag: adminInfo.verified_by_tag,
+      reason: adminInfo.reason || 'Admin verified link',
+      verified_at: new Date()
     };
 
     // Mark any existing links for this Steam ID as non-primary
@@ -290,7 +238,6 @@ module.exports = (sequelize) => {
 
     return await this.createOrUpdateLink(discordUserId, steamid64, eosId, username, {
       linkSource: 'manual',
-      confidenceScore: 0.7, // Admin-created links get 0.7 confidence
       isPrimary: true,
       metadata
     });

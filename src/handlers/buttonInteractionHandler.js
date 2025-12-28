@@ -7,7 +7,7 @@ const {
   ButtonBuilder,
   ButtonStyle
 } = require('discord.js');
-const { PlayerDiscordLink, UnlinkHistory, Whitelist } = require('../database/models');
+const { PlayerDiscordLink, PotentialPlayerLink, UnlinkHistory, Whitelist } = require('../database/models');
 const { isValidSteamId } = require('../utils/steamId');
 const { getRoleArchiveService } = require('../services/RoleArchiveService');
 const WhitelistAuthorityService = require('../services/WhitelistAuthorityService');
@@ -271,46 +271,52 @@ async function handleLinkModalSubmit(interaction) {
       return;
     }
 
-    // Check if user already has a Steam account linked
-    const existingLink = await PlayerDiscordLink.findOne({
+    // Check if user already has a verified Steam account linked
+    const existingVerifiedLink = await PlayerDiscordLink.findOne({
       where: {
         discord_user_id: discordUserId,
         is_primary: true
-      },
-      order: [['confidence_score', 'DESC'], ['created_at', 'DESC']]
+      }
     });
 
-    // Case 1: User is linking the SAME Steam ID (upgrade to 1.0 confidence)
-    if (existingLink && existingLink.steamid64 === steamId) {
-      if (existingLink.confidence_score >= 1.0) {
-        const alreadyLinkedEmbed = {
-          color: 0x00ff00,
-          title: 'Already Linked',
-          description: 'Your Discord account is already linked to this Steam ID.',
-          fields: [
-            { name: 'Steam ID', value: steamId, inline: true },
-            { name: 'Linked Since', value: `<t:${Math.floor(existingLink.created_at.getTime() / 1000)}:R>`, inline: true }
-          ],
-          timestamp: new Date().toISOString(),
-          footer: { text: 'Roster Control System' }
-        };
-
-        // Use the standard unlink button which goes through handleUnlinkButton -> warning flow
-        const unlinkRow = new ActionRowBuilder()
-          .addComponents(
-            new ButtonBuilder()
-              .setCustomId(BUTTON_IDS.UNLINK)
-              .setLabel('Unlink Steam ID')
-              .setStyle(ButtonStyle.Danger)
-          );
-
-        await interaction.editReply({ embeds: [alreadyLinkedEmbed], components: [unlinkRow] });
-        return;
+    // Also check for potential links (unverified)
+    const existingPotentialLink = await PotentialPlayerLink.findOne({
+      where: {
+        discord_user_id: discordUserId,
+        steamid64: steamId
       }
+    });
 
-      // Upgrade confidence to 1.0 using createOrUpdateLink
-      // Role sync is handled automatically when confidence crosses 1.0 threshold
-      const previousConfidence = existingLink.confidence_score;
+    // Case 1: User already has a VERIFIED link to this same Steam ID
+    if (existingVerifiedLink && existingVerifiedLink.steamid64 === steamId) {
+      const alreadyLinkedEmbed = {
+        color: 0x00ff00,
+        title: 'Already Linked',
+        description: 'Your Discord account is already linked to this Steam ID.',
+        fields: [
+          { name: 'Steam ID', value: steamId, inline: true },
+          { name: 'Linked Since', value: `<t:${Math.floor(existingVerifiedLink.created_at.getTime() / 1000)}:R>`, inline: true }
+        ],
+        timestamp: new Date().toISOString(),
+        footer: { text: 'Roster Control System' }
+      };
+
+      // Use the standard unlink button which goes through handleUnlinkButton -> warning flow
+      const unlinkRow = new ActionRowBuilder()
+        .addComponents(
+          new ButtonBuilder()
+            .setCustomId(BUTTON_IDS.UNLINK)
+            .setLabel('Unlink Steam ID')
+            .setStyle(ButtonStyle.Danger)
+        );
+
+      await interaction.editReply({ embeds: [alreadyLinkedEmbed], components: [unlinkRow] });
+      return;
+    }
+
+    // Case 1b: User has a POTENTIAL link to this Steam ID - verify it
+    if (existingPotentialLink) {
+      // Create verified link
       await PlayerDiscordLink.createOrUpdateLink(
         discordUserId,
         steamId,
@@ -318,28 +324,30 @@ async function handleLinkModalSubmit(interaction) {
         interaction.user.username,
         {
           linkSource: 'manual',
-          confidenceScore: 1.0,
           isPrimary: true,
           metadata: {
-            ...existingLink.metadata,
-            confidence_upgrade: {
-              upgraded_by: discordUserId,
-              upgraded_at: new Date().toISOString(),
-              previous_confidence: previousConfidence,
-              upgrade_method: `link_button_${source}`
-            }
+            verified_from_potential: true,
+            previous_source: existingPotentialLink.link_source,
+            previous_confidence: existingPotentialLink.confidence_score,
+            verified_by: discordUserId,
+            verified_at: new Date().toISOString(),
+            verified_via: `link_button_${source}`
           }
         }
       );
 
+      // Remove the potential link since it's now verified
+      await PotentialPlayerLink.removePotentialLink(discordUserId, steamId);
+
+      const previousConfidence = parseFloat(existingPotentialLink.confidence_score);
       const upgradeEmbed = {
         color: 0x00ff00,
-        title: 'Link Confidence Upgraded',
-        description: 'Your account link confidence has been upgraded!',
+        title: 'Account Link Verified',
+        description: 'Your potential account link has been verified!',
         fields: [
           { name: 'Steam ID', value: steamId, inline: true },
-          { name: 'Previous Confidence', value: `${(previousConfidence * 100).toFixed(0)}%`, inline: true },
-          { name: 'New Confidence', value: '100%', inline: true }
+          { name: 'Previous Status', value: `Potential (${(previousConfidence * 100).toFixed(0)}%)`, inline: true },
+          { name: 'New Status', value: 'Verified (100%)', inline: true }
         ],
         timestamp: new Date().toISOString(),
         footer: { text: 'Roster Control System' }
@@ -350,35 +358,35 @@ async function handleLinkModalSubmit(interaction) {
       // Role sync handled by createOrUpdateLink, now restore archived roles
       await handleRoleRestoration(interaction, discordUserId);
 
-      // Send notification for confidence upgrade
+      // Send notification for link verification
       await notificationService.sendAccountLinkNotification({
         success: true,
-        description: `<@${discordUserId}> upgraded their Steam link confidence via ${sourceDisplay}`,
+        description: `<@${discordUserId}> verified their Steam link via ${sourceDisplay}`,
         fields: [
           { name: 'Discord User', value: `<@${discordUserId}>`, inline: true },
           { name: 'Steam ID', value: `\`${steamId}\``, inline: true },
-          { name: 'Confidence', value: `${(existingLink.confidence_score * 100).toFixed(0)}% → 100%`, inline: true }
+          { name: 'Status', value: `Potential (${(previousConfidence * 100).toFixed(0)}%) → Verified (100%)`, inline: true }
         ]
       });
 
-      serviceLogger.info(`User upgraded link confidence via ${sourceDisplay}`, {
+      serviceLogger.info(`User verified potential link via ${sourceDisplay}`, {
         discordUserId,
         steamId,
-        previousConfidence: existingLink.confidence_score
+        previousConfidence
       });
 
       return;
     }
 
-    // Case 2: User is linking a DIFFERENT Steam ID AND has 1.0 confidence (block)
-    if (existingLink && existingLink.steamid64 !== steamId && existingLink.confidence_score >= 1.0) {
+    // Case 2: User is linking a DIFFERENT Steam ID AND already has verified link (block)
+    if (existingVerifiedLink && existingVerifiedLink.steamid64 !== steamId) {
       const blockEmbed = {
         color: 0xffa500,
         title: 'Cannot Change Steam ID',
         description: 'You already have a verified Steam ID linked. You must unlink it first.',
         fields: [
-          { name: 'Current Steam ID', value: existingLink.steamid64, inline: true },
-          { name: 'Linked Since', value: `<t:${Math.floor(existingLink.created_at.getTime() / 1000)}:R>`, inline: true },
+          { name: 'Current Steam ID', value: existingVerifiedLink.steamid64, inline: true },
+          { name: 'Linked Since', value: `<t:${Math.floor(existingVerifiedLink.created_at.getTime() / 1000)}:R>`, inline: true },
           {
             name: 'Want to change?',
             value: 'Use `/unlink` to remove your current link.\n**Warning**: 30-day cooldown after unlinking.',
@@ -393,7 +401,7 @@ async function handleLinkModalSubmit(interaction) {
       return;
     }
 
-    // Case 3: New link OR replacing lower confidence link
+    // Case 3: New verified link (no existing verified link)
     const { created } = await PlayerDiscordLink.createOrUpdateLink(
       discordUserId,
       steamId,
@@ -401,28 +409,25 @@ async function handleLinkModalSubmit(interaction) {
       interaction.user.username,
       {
         linkSource: 'manual',
-        confidenceScore: 1.0,
         isPrimary: true,
         metadata: {
           direct_link: true,
           created_by: `link_button_${source}`,
-          created_at: new Date().toISOString(),
-          replaced_link: existingLink ? {
-            previous_steamid: existingLink.steamid64,
-            previous_confidence: existingLink.confidence_score,
-            replaced_at: new Date().toISOString()
-          } : null
+          created_at: new Date().toISOString()
         }
       }
     );
 
+    // Clean up any potential links for this user+steam combo
+    await PotentialPlayerLink.removePotentialLink(discordUserId, steamId);
+
     const successEmbed = {
       color: 0x00ff00,
-      title: created ? 'Steam ID Linked Successfully' : 'Steam ID Updated Successfully',
+      title: 'Steam ID Linked Successfully',
       description: `Your Discord account is now linked to Steam ID \`${steamId}\`.`,
       fields: [
         { name: 'Steam ID', value: steamId, inline: true },
-        { name: 'Link Type', value: created ? 'New Link' : 'Updated Link', inline: true },
+        { name: 'Status', value: 'Verified (100%)', inline: true },
         {
           name: 'What now?',
           value: 'Your Steam ID is linked! Your roles will be synchronized automatically.',
@@ -432,14 +437,6 @@ async function handleLinkModalSubmit(interaction) {
       timestamp: new Date().toISOString(),
       footer: { text: 'Roster Control System' }
     };
-
-    if (existingLink && existingLink.steamid64 !== steamId) {
-      successEmbed.fields.push({
-        name: 'Previous Steam ID',
-        value: `\`${existingLink.steamid64}\` (replaced)`,
-        inline: false
-      });
-    }
 
     await interaction.editReply({ embeds: [successEmbed] });
 
@@ -455,14 +452,6 @@ async function handleLinkModalSubmit(interaction) {
       { name: 'Link Type', value: created ? 'New Link' : 'Updated Link', inline: true }
     ];
 
-    if (existingLink && existingLink.steamid64 !== steamId) {
-      notificationFields.push({
-        name: 'Previous Steam ID',
-        value: `\`${existingLink.steamid64}\` (replaced)`,
-        inline: false
-      });
-    }
-
     await notificationService.sendAccountLinkNotification({
       success: true,
       description: `<@${discordUserId}> linked their Steam ID via ${sourceDisplay}`,
@@ -472,8 +461,7 @@ async function handleLinkModalSubmit(interaction) {
     serviceLogger.info(`User linked Steam ID via ${sourceDisplay}`, {
       discordUserId,
       steamId,
-      created,
-      replacedPrevious: existingLink && existingLink.steamid64 !== steamId
+      created
     });
 
   } catch (error) {
@@ -988,15 +976,15 @@ async function handleTicketLinkButton(interaction) {
       return;
     }
 
-    // Check if already linked at 1.0 confidence
-    const existingLink = await PlayerDiscordLink.findOne({
+    // Check if already linked (verified)
+    const existingVerifiedLink = await PlayerDiscordLink.findOne({
       where: {
         discord_user_id: targetUserId,
         steamid64: steamId
       }
     });
 
-    if (existingLink && parseFloat(existingLink.confidence_score) >= 1.0) {
+    if (existingVerifiedLink) {
       await interaction.editReply({
         embeds: [{
           color: 0x00ff00,
@@ -1004,8 +992,8 @@ async function handleTicketLinkButton(interaction) {
           description: `This Steam ID is already linked to <@${targetUserId}> with full confidence.`,
           fields: [
             { name: 'Steam ID', value: `\`${steamId}\``, inline: true },
-            { name: 'Confidence', value: '100%', inline: true },
-            { name: 'Linked Since', value: `<t:${Math.floor(existingLink.created_at.getTime() / 1000)}:R>`, inline: true }
+            { name: 'Status', value: 'Verified (100%)', inline: true },
+            { name: 'Linked Since', value: `<t:${Math.floor(existingVerifiedLink.created_at.getTime() / 1000)}:R>`, inline: true }
           ],
           timestamp: new Date().toISOString(),
           footer: { text: 'Roster Control System' }
@@ -1017,9 +1005,17 @@ async function handleTicketLinkButton(interaction) {
       return;
     }
 
-    // Create or upgrade the link
-    const previousConfidence = existingLink ? parseFloat(existingLink.confidence_score) : null;
+    // Check for potential link (unverified)
+    const existingPotentialLink = await PotentialPlayerLink.findOne({
+      where: {
+        discord_user_id: targetUserId,
+        steamid64: steamId
+      }
+    });
 
+    const previousConfidence = existingPotentialLink ? parseFloat(existingPotentialLink.confidence_score) : null;
+
+    // Create verified link
     const { created } = await PlayerDiscordLink.createOrUpdateLink(
       targetUserId,
       steamId,
@@ -1027,7 +1023,6 @@ async function handleTicketLinkButton(interaction) {
       null, // username (will be fetched if needed)
       {
         linkSource: 'manual', // Ticket button click counts as manual verification
-        confidenceScore: 1.0,
         isPrimary: true,
         metadata: {
           linked_via: 'ticket_button',
@@ -1036,16 +1031,22 @@ async function handleTicketLinkButton(interaction) {
           linked_at: new Date().toISOString(),
           channel_id: interaction.channel.id,
           channel_name: interaction.channel.name,
+          verified_from_potential: !!existingPotentialLink,
           previous_confidence: previousConfidence
         }
       }
     );
 
-    const actionType = created ? 'linked' : (previousConfidence ? 'verified' : 'linked');
-    const title = created ? 'Account Linked' : 'Account Link Verified';
-    const description = created
-      ? `Steam ID successfully linked to <@${targetUserId}>.`
-      : `Steam ID link for <@${targetUserId}> has been verified.`;
+    // Clean up potential link if it existed
+    if (existingPotentialLink) {
+      await PotentialPlayerLink.removePotentialLink(targetUserId, steamId);
+    }
+
+    const actionType = existingPotentialLink ? 'verified' : 'linked';
+    const title = existingPotentialLink ? 'Account Link Verified' : 'Account Linked';
+    const description = existingPotentialLink
+      ? `Steam ID link for <@${targetUserId}> has been verified.`
+      : `Steam ID successfully linked to <@${targetUserId}>.`;
 
     await interaction.editReply({
       embeds: [{
