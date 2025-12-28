@@ -39,21 +39,18 @@ let tableExists = false;
  */
 async function checkTableExists(sequelize) {
   if (tableExistsChecked) {
-    console.log('[PotentialPlayerLink] Table exists cache hit:', tableExists);
     return tableExists;
   }
 
   try {
-    console.log('[PotentialPlayerLink] Checking if table exists...');
-    const [results] = await sequelize.query(
-      'SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = \'potential_player_links\''
+    const results = await sequelize.query(
+      'SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = \'potential_player_links\'',
+      { type: sequelize.QueryTypes.SELECT }
     );
     tableExists = results[0].count > 0;
     tableExistsChecked = true;
-    console.log('[PotentialPlayerLink] Table exists check result:', tableExists);
     return tableExists;
   } catch (error) {
-    console.log('[PotentialPlayerLink] Table exists check error:', error.message);
     // If we can't check, assume table doesn't exist
     return false;
   }
