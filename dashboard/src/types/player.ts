@@ -211,6 +211,15 @@ export interface PotentialLinkMetadata {
   [key: string]: unknown
 }
 
+// Discord info for a potential link
+export interface PotentialLinkDiscordInfo {
+  discord_user_id: string
+  discord_username: string
+  display_name: string
+  avatar_url: string | null
+  nickname: string | null
+}
+
 // Potential (unverified) link between Steam ID and Discord user
 export interface PotentialLink {
   id: number
@@ -222,6 +231,7 @@ export interface PotentialLink {
   metadata: PotentialLinkMetadata | null
   created_at: string
   updated_at: string | null
+  discordInfo: PotentialLinkDiscordInfo | null
 }
 
 // Whitelist entry with calculated fields (reuse from whitelist.ts)

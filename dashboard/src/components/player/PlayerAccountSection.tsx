@@ -232,35 +232,65 @@ export default function PlayerAccountSection({ steamid64, profile }: PlayerAccou
               </div>
             </div>
 
-            {/* Link Details */}
-            <div className="flex items-start gap-4">
-              <div className={cn(
-                'p-3 rounded-lg border',
-                'bg-yellow-500/20 border-yellow-500/30'
-              )}>
-                <AlertTriangle className="w-8 h-8 text-yellow-400" />
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-white font-medium">
-                    Confidence Score
-                  </span>
+            {/* Discord User Info */}
+            {profile.potentialLink.discordInfo ? (
+              <div className="flex items-center gap-4 p-4 bg-discord-darker rounded-lg">
+                <img
+                  src={profile.potentialLink.discordInfo.avatar_url || '/default-avatar.png'}
+                  alt="Discord avatar"
+                  className="w-16 h-16 rounded-full"
+                />
+                <div className="flex-1">
+                  <p className="text-white font-medium text-lg">
+                    {profile.potentialLink.discordInfo.display_name}
+                  </p>
+                  <p className="text-gray-400 text-sm">
+                    @{profile.potentialLink.discordInfo.discord_username}
+                  </p>
+                  {profile.potentialLink.discordInfo.nickname &&
+                   profile.potentialLink.discordInfo.nickname !== profile.potentialLink.discordInfo.display_name && (
+                    <p className="text-gray-500 text-xs mt-1">
+                      Server nickname: {profile.potentialLink.discordInfo.nickname}
+                    </p>
+                  )}
+                </div>
+                <div className="text-right">
                   <span className="text-2xl font-bold text-yellow-400">
                     {(profile.potentialLink.confidence_score * 100).toFixed(0)}%
                   </span>
+                  <p className="text-xs text-gray-400">confidence</p>
                 </div>
-                <p className="text-sm text-gray-400 mt-1">
-                  Low confidence - verification required for access
-                </p>
               </div>
-            </div>
+            ) : (
+              <div className="flex items-start gap-4">
+                <div className={cn(
+                  'p-3 rounded-lg border',
+                  'bg-yellow-500/20 border-yellow-500/30'
+                )}>
+                  <AlertTriangle className="w-8 h-8 text-yellow-400" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-white font-medium">
+                      Confidence Score
+                    </span>
+                    <span className="text-2xl font-bold text-yellow-400">
+                      {(profile.potentialLink.confidence_score * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-400 mt-1">
+                    Discord user not found in server
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Details Grid */}
             <div className="grid grid-cols-2 gap-4 mt-4">
               <div className="bg-discord-darker rounded-lg p-4">
                 <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Discord ID</p>
                 <div className="flex items-center gap-2">
-                  <code className="text-purple-400 font-mono">{profile.potentialLink.discord_user_id}</code>
+                  <code className="text-purple-400 font-mono text-sm">{profile.potentialLink.discord_user_id}</code>
                   <CopyButton text={profile.potentialLink.discord_user_id} size={3} />
                 </div>
               </div>
@@ -285,7 +315,7 @@ export default function PlayerAccountSection({ steamid64, profile }: PlayerAccou
 
               {profile.potentialLink.username && (
                 <div className="bg-discord-darker rounded-lg p-4">
-                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Username</p>
+                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">In-Game Name</p>
                   <span className="text-gray-300">{profile.potentialLink.username}</span>
                 </div>
               )}
@@ -326,15 +356,35 @@ export default function PlayerAccountSection({ steamid64, profile }: PlayerAccou
               <span className="text-yellow-400">{(profile.potentialLink.confidence_score * 100).toFixed(0)}%</span> to{' '}
               <span className="text-green-400">100%</span>
             </p>
+
+            {/* Discord User Preview */}
+            {profile.potentialLink.discordInfo && (
+              <div className="flex items-center gap-3 p-3 bg-discord-darker rounded-lg mb-4">
+                <img
+                  src={profile.potentialLink.discordInfo.avatar_url || '/default-avatar.png'}
+                  alt="Discord avatar"
+                  className="w-10 h-10 rounded-full"
+                />
+                <div>
+                  <p className="text-white font-medium">
+                    {profile.potentialLink.discordInfo.display_name}
+                  </p>
+                  <p className="text-gray-400 text-xs">
+                    @{profile.potentialLink.discordInfo.discord_username}
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="bg-discord-darker rounded-lg p-3 mb-4">
               <dl className="space-y-1 text-sm">
                 <div className="flex justify-between">
                   <dt className="text-gray-400">Steam ID</dt>
-                  <dd className="text-blue-400 font-mono">{steamid64}</dd>
+                  <dd className="text-blue-400 font-mono text-xs">{steamid64}</dd>
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-gray-400">Discord ID</dt>
-                  <dd className="text-purple-400 font-mono">{profile.potentialLink.discord_user_id}</dd>
+                  <dd className="text-purple-400 font-mono text-xs">{profile.potentialLink.discord_user_id}</dd>
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-gray-400">Original Source</dt>

@@ -92,6 +92,10 @@ const PERMISSION_DEFINITIONS = {
   VIEW_PLAYERS: {
     description: 'View player profiles and search',
     critical: false
+  },
+  MANAGE_ACCOUNT_LINKS: {
+    description: 'Create and manage Steam-Discord account links',
+    critical: false
   }
 };
 
@@ -162,6 +166,10 @@ function getDefaultPermissions() {
     ],
     VIEW_PLAYERS: [
       ...getAllStaffRoles(),
+      DISCORD_ROLES.SUPER_ADMIN
+    ],
+    MANAGE_ACCOUNT_LINKS: [
+      ...getAllAdminRoles(),
       DISCORD_ROLES.SUPER_ADMIN
     ]
   };

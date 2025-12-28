@@ -219,7 +219,7 @@ router.get('/:steamid64/potential-links', requireAuth, requirePermission('VIEW_P
 });
 
 // POST /api/v1/players/:steamid64/link - Create a verified link from a potential link
-router.post('/:steamid64/link', requireAuth, requirePermission('MANAGE_WHITELIST'), async (req, res) => {
+router.post('/:steamid64/link', requireAuth, requirePermission('MANAGE_ACCOUNT_LINKS'), async (req, res) => {
   try {
     const { steamid64 } = req.params;
     const { discordUserId, reason } = req.body;

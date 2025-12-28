@@ -499,8 +499,29 @@ class PlayerProfileService {
             confidence_score: parseFloat(pl.confidence_score),
             metadata: pl.metadata,
             created_at: pl.created_at,
-            updated_at: pl.updated_at
+            updated_at: pl.updated_at,
+            discordInfo: null
           };
+
+          // Fetch Discord info for the potential link
+          if (pl.discord_user_id && global.discordClient) {
+            try {
+              const guildId = process.env.DISCORD_GUILD_ID;
+              const guild = await global.discordClient.guilds.fetch(guildId);
+              const member = await guild.members.fetch(pl.discord_user_id).catch(() => null);
+              if (member) {
+                potentialLink.discordInfo = {
+                  discord_user_id: pl.discord_user_id,
+                  discord_username: member.user.username,
+                  display_name: member.displayName,
+                  avatar_url: member.user.displayAvatarURL({ size: 128 }),
+                  nickname: member.nickname || null
+                };
+              }
+            } catch {
+              // Failed to fetch Discord member - may have left server
+            }
+          }
         }
       }
 
