@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Link2, Shield, Clock, AlertTriangle, CheckCircle, History, User, Calendar, Users, TrendingUp } from 'lucide-react'
+import { Link2, Shield, Clock, AlertTriangle, CheckCircle, History, User, Calendar, Users, TrendingUp, LinkIcon } from 'lucide-react'
 import type { PlayerProfile } from '../../types/player'
-import { usePlayerUnlinkHistory, usePlayerLinkedAccounts } from '../../hooks/usePlayers'
+import { usePlayerUnlinkHistory, usePlayerLinkedAccounts, useLinkAccount } from '../../hooks/usePlayers'
 import { useUpgradeConfidence } from '../../hooks/useWhitelist'
 import { formatDateTime, formatRelativeTime } from '../../lib/utils'
 import { cn } from '../../lib/utils'
@@ -19,6 +19,8 @@ export default function PlayerAccountSection({ steamid64, profile }: PlayerAccou
   const [showLinkedAccounts, setShowLinkedAccounts] = useState(false)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const [upgradeReason, setUpgradeReason] = useState('')
+  const [showLinkModal, setShowLinkModal] = useState(false)
+  const [linkReason, setLinkReason] = useState('')
   const { data: unlinkData, isLoading: unlinkLoading } = usePlayerUnlinkHistory(
     steamid64,
     showUnlinkHistory
@@ -28,6 +30,7 @@ export default function PlayerAccountSection({ steamid64, profile }: PlayerAccou
     showLinkedAccounts
   )
   const upgradeMutation = useUpgradeConfidence()
+  const linkMutation = useLinkAccount()
 
   const getConfidenceColor = (score: number) => {
     if (score >= 1) return 'text-green-400'
@@ -198,6 +201,196 @@ export default function PlayerAccountSection({ steamid64, profile }: PlayerAccou
           </div>
         )}
       </div>
+
+      {/* Potential Links Card - shown when no verified link but potential link exists */}
+      {!profile.discordLink && profile.potentialLink && (
+        <div className="bg-discord-light rounded-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium text-white flex items-center gap-2">
+              <LinkIcon className="w-5 h-5 text-yellow-400" />
+              Potential Link
+            </h3>
+            <button
+              onClick={() => setShowLinkModal(true)}
+              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center gap-1"
+            >
+              <LinkIcon className="w-4 h-4" />
+              Link Account
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            {/* Warning Banner */}
+            <div className="flex items-start gap-3 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+              <AlertTriangle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-yellow-400">Unverified Link</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  This potential link was discovered but has not been verified.
+                  Click &quot;Link Account&quot; to create a verified link.
+                </p>
+              </div>
+            </div>
+
+            {/* Link Details */}
+            <div className="flex items-start gap-4">
+              <div className={cn(
+                'p-3 rounded-lg border',
+                'bg-yellow-500/20 border-yellow-500/30'
+              )}>
+                <AlertTriangle className="w-8 h-8 text-yellow-400" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-white font-medium">
+                    Confidence Score
+                  </span>
+                  <span className="text-2xl font-bold text-yellow-400">
+                    {(profile.potentialLink.confidence_score * 100).toFixed(0)}%
+                  </span>
+                </div>
+                <p className="text-sm text-gray-400 mt-1">
+                  Low confidence - verification required for access
+                </p>
+              </div>
+            </div>
+
+            {/* Details Grid */}
+            <div className="grid grid-cols-2 gap-4 mt-4">
+              <div className="bg-discord-darker rounded-lg p-4">
+                <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Discord ID</p>
+                <div className="flex items-center gap-2">
+                  <code className="text-purple-400 font-mono">{profile.potentialLink.discord_user_id}</code>
+                  <CopyButton text={profile.potentialLink.discord_user_id} size={3} />
+                </div>
+              </div>
+
+              <div className="bg-discord-darker rounded-lg p-4">
+                <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Link Source</p>
+                <span className={cn(
+                  'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border',
+                  'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+                )}>
+                  {getLinkSourceLabel(profile.potentialLink.link_source)}
+                </span>
+              </div>
+
+              <div className="bg-discord-darker rounded-lg p-4">
+                <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Discovered</p>
+                <span className="text-gray-300 flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  {formatDateTime(profile.potentialLink.created_at)}
+                </span>
+              </div>
+
+              {profile.potentialLink.username && (
+                <div className="bg-discord-darker rounded-lg p-4">
+                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Username</p>
+                  <span className="text-gray-300">{profile.potentialLink.username}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Metadata (Ticket Info) */}
+            {profile.potentialLink.metadata && (
+              <div className="bg-discord-darker rounded-lg p-4 mt-4">
+                <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">Discovery Details</p>
+                <dl className="space-y-1 text-sm">
+                  {profile.potentialLink.metadata.ticketChannelName && (
+                    <div className="flex justify-between">
+                      <dt className="text-gray-400">Ticket Channel</dt>
+                      <dd className="text-gray-300">#{profile.potentialLink.metadata.ticketChannelName}</dd>
+                    </div>
+                  )}
+                  {profile.potentialLink.metadata.extractedAt && (
+                    <div className="flex justify-between">
+                      <dt className="text-gray-400">Extracted At</dt>
+                      <dd className="text-gray-300">{formatDateTime(profile.potentialLink.metadata.extractedAt)}</dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Link Account Modal */}
+      {showLinkModal && profile.potentialLink && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-discord-light rounded-lg w-full max-w-md mx-4 p-4">
+            <h3 className="text-lg font-semibold text-white mb-4">Link Account</h3>
+            <p className="text-sm text-gray-400 mb-4">
+              Create a verified link from this potential link.
+              Confidence will be upgraded from{' '}
+              <span className="text-yellow-400">{(profile.potentialLink.confidence_score * 100).toFixed(0)}%</span> to{' '}
+              <span className="text-green-400">100%</span>
+            </p>
+            <div className="bg-discord-darker rounded-lg p-3 mb-4">
+              <dl className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <dt className="text-gray-400">Steam ID</dt>
+                  <dd className="text-blue-400 font-mono">{steamid64}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-gray-400">Discord ID</dt>
+                  <dd className="text-purple-400 font-mono">{profile.potentialLink.discord_user_id}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-gray-400">Original Source</dt>
+                  <dd className="text-gray-300 capitalize">{profile.potentialLink.link_source}</dd>
+                </div>
+              </dl>
+            </div>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault()
+                if (!linkReason.trim() || !profile.potentialLink) return
+                try {
+                  await linkMutation.mutateAsync({
+                    steamid64,
+                    discordUserId: profile.potentialLink.discord_user_id,
+                    reason: linkReason
+                  })
+                  setShowLinkModal(false)
+                  setLinkReason('')
+                } catch {
+                  // Error handled by mutation
+                }
+              }}
+              className="space-y-4"
+            >
+              <textarea
+                value={linkReason}
+                onChange={(e) => setLinkReason(e.target.value)}
+                placeholder="Reason for linking (required)"
+                rows={2}
+                required
+                className="w-full bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 resize-none"
+              />
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowLinkModal(false)
+                    setLinkReason('')
+                  }}
+                  className="text-gray-400 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={linkMutation.isPending || !linkReason.trim()}
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
+                >
+                  {linkMutation.isPending ? 'Linking...' : 'Link Account'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Discord Account Information */}
       {profile.discordInfo && (

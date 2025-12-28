@@ -153,6 +153,25 @@ export default function PlayerOverview({ profile, steamid64, onTabChange }: Play
                 <dd className="text-white">{profile.allLinks.length}</dd>
               </div>
             </dl>
+          ) : profile.potentialLink ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-yellow-400">
+                <AlertTriangle className="w-4 h-4" />
+                <span className="text-sm font-medium">Potential link found</span>
+              </div>
+              <dl className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <dt className="text-gray-400">Confidence</dt>
+                  <dd className="text-yellow-400 font-medium">
+                    {(profile.potentialLink.confidence_score * 100).toFixed(0)}%
+                  </dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-gray-400">Source</dt>
+                  <dd className="text-white capitalize">{profile.potentialLink.link_source}</dd>
+                </div>
+              </dl>
+            </div>
           ) : (
             <p className="text-sm text-gray-400">No account linked</p>
           )}

@@ -199,4 +199,61 @@ router.get('/:steamid64/linked-accounts', requireAuth, requirePermission('VIEW_P
   }
 });
 
+// GET /api/v1/players/:steamid64/potential-links - Get potential (unverified) links for this Steam ID
+router.get('/:steamid64/potential-links', requireAuth, requirePermission('VIEW_PLAYERS'), async (req, res) => {
+  try {
+    const { steamid64 } = req.params;
+
+    // Validate Steam64 format
+    if (!/^7656\d{13}$/.test(steamid64)) {
+      return res.status(400).json({ error: 'Invalid Steam64 ID format' });
+    }
+
+    const result = await PlayerProfileService.getPotentialLinksForPlayer(steamid64);
+
+    res.json(result);
+  } catch (error) {
+    logger.error('Error getting potential links', { error: error.message, steamid64: req.params.steamid64 });
+    res.status(500).json({ error: 'Failed to get potential links' });
+  }
+});
+
+// POST /api/v1/players/:steamid64/link - Create a verified link from a potential link
+router.post('/:steamid64/link', requireAuth, requirePermission('MANAGE_WHITELIST'), async (req, res) => {
+  try {
+    const { steamid64 } = req.params;
+    const { discordUserId, reason } = req.body;
+
+    // Validate Steam64 format
+    if (!/^7656\d{13}$/.test(steamid64)) {
+      return res.status(400).json({ error: 'Invalid Steam64 ID format' });
+    }
+
+    // Validate Discord user ID
+    if (!discordUserId) {
+      return res.status(400).json({ error: 'Discord user ID is required' });
+    }
+
+    // Validate reason
+    if (!reason || reason.trim().length === 0) {
+      return res.status(400).json({ error: 'Reason is required' });
+    }
+
+    const result = await PlayerProfileService.createLinkFromPotential(steamid64, discordUserId, {
+      adminId: req.user.id,
+      adminTag: req.user.username,
+      reason: reason.trim()
+    });
+
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    res.json(result);
+  } catch (error) {
+    logger.error('Error creating link from potential', { error: error.message, steamid64: req.params.steamid64 });
+    res.status(500).json({ error: 'Failed to create link' });
+  }
+});
+
 module.exports = router;

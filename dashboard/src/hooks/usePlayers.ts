@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { playersApi } from '../lib/api'
 import { useAuth } from './useAuth'
 import type { PlayerFilters } from '../types/player'
@@ -81,5 +81,28 @@ export function usePlayerLinkedAccounts(steamid64: string, enabled = true) {
     queryKey: ['players', 'linked-accounts', steamid64],
     queryFn: () => playersApi.getLinkedAccounts(steamid64),
     enabled: !!user && !!steamid64 && enabled,
+  })
+}
+
+export function usePlayerPotentialLinks(steamid64: string, enabled = true) {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['players', 'potential-links', steamid64],
+    queryFn: () => playersApi.getPotentialLinks(steamid64),
+    enabled: !!user && !!steamid64 && enabled,
+  })
+}
+
+export function useLinkAccount() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ steamid64, discordUserId, reason }: { steamid64: string; discordUserId: string; reason: string }) =>
+      playersApi.linkAccount(steamid64, discordUserId, reason),
+    onSuccess: (_data, variables) => {
+      // Invalidate relevant queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['players', 'profile', variables.steamid64] })
+      queryClient.invalidateQueries({ queryKey: ['players', 'potential-links', variables.steamid64] })
+      queryClient.invalidateQueries({ queryKey: ['players', 'linked-accounts', variables.steamid64] })
+    },
   })
 }

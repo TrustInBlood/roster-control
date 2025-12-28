@@ -67,6 +67,8 @@ import type {
   PlayerWhitelistResponse,
   PlayerUnlinkResponse,
   LinkedAccountsResponse,
+  PotentialLinksResponse,
+  LinkAccountResponse,
   PlayerFilters,
 } from '../types/player'
 import type {
@@ -503,6 +505,16 @@ export const playersApi = {
 
   getLinkedAccounts: async (steamid64: string): Promise<LinkedAccountsResponse> => {
     const { data } = await api.get<LinkedAccountsResponse>(`/players/${steamid64}/linked-accounts`)
+    return data
+  },
+
+  getPotentialLinks: async (steamid64: string): Promise<PotentialLinksResponse> => {
+    const { data } = await api.get<PotentialLinksResponse>(`/players/${steamid64}/potential-links`)
+    return data
+  },
+
+  linkAccount: async (steamid64: string, discordUserId: string, reason: string): Promise<LinkAccountResponse> => {
+    const { data } = await api.post<LinkAccountResponse>(`/players/${steamid64}/link`, { discordUserId, reason })
     return data
   },
 }

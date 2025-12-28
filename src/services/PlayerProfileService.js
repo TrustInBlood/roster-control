@@ -483,6 +483,27 @@ class PlayerProfileService {
         communityBanList = { found: false, error: cblResult.error || null };
       }
 
+      // If no verified link, check for potential links
+      let potentialLink = null;
+      if (!discordLink) {
+        const { PotentialPlayerLink } = require('../database/models');
+        const potentialLinks = await PotentialPlayerLink.findBySteamId(steamid64);
+        if (potentialLinks.length > 0) {
+          const pl = potentialLinks[0]; // Highest confidence first (sorted by model)
+          potentialLink = {
+            id: pl.id,
+            discord_user_id: pl.discord_user_id,
+            steamid64: pl.steamid64,
+            username: pl.username,
+            link_source: pl.link_source,
+            confidence_score: parseFloat(pl.confidence_score),
+            metadata: pl.metadata,
+            created_at: pl.created_at,
+            updated_at: pl.updated_at
+          };
+        }
+      }
+
       // Get latest username - prioritize Player model (updated on game join) over stored values
       const latestEntry = whitelistEntries[0];
       const username = player?.username || discordLink?.username || latestEntry?.username || null;
@@ -498,6 +519,7 @@ class PlayerProfileService {
           is_primary: discordLink.is_primary,
           created_at: discordLink.created_at
         } : null,
+        potentialLink,
         allLinks: allLinks.map(l => ({
           id: l.id,
           discord_user_id: l.discord_user_id,
@@ -841,6 +863,127 @@ class PlayerProfileService {
       return { accounts };
     } catch (error) {
       logger.error('Error getting linked accounts by Discord', { error: error.message, discordUserId });
+      throw error;
+    }
+  }
+
+  /**
+   * Get all potential links for a Steam ID
+   * Used for detailed view in Account tab
+   */
+  async getPotentialLinksForPlayer(steamid64) {
+    const { PotentialPlayerLink } = require('../database/models');
+
+    try {
+      const potentialLinks = await PotentialPlayerLink.findBySteamId(steamid64);
+
+      return {
+        potentialLinks: potentialLinks.map(pl => ({
+          id: pl.id,
+          discord_user_id: pl.discord_user_id,
+          steamid64: pl.steamid64,
+          username: pl.username,
+          link_source: pl.link_source,
+          confidence_score: parseFloat(pl.confidence_score),
+          metadata: pl.metadata,
+          created_at: pl.created_at,
+          updated_at: pl.updated_at
+        }))
+      };
+    } catch (error) {
+      logger.error('Error getting potential links for player', { error: error.message, steamid64 });
+      throw error;
+    }
+  }
+
+  /**
+   * Create a verified link from a potential link
+   * @param {string} steamid64 - Steam ID64
+   * @param {string} discordUserId - Discord user ID from potential link
+   * @param {Object} adminInfo - Admin action info (adminId, adminTag, reason)
+   */
+  async createLinkFromPotential(steamid64, discordUserId, adminInfo = {}) {
+    const { PlayerDiscordLink, PotentialPlayerLink, Player } = require('../database/models');
+
+    try {
+      // Get the potential link to verify it exists and get metadata
+      const potentialLink = await PotentialPlayerLink.findOne({
+        where: { discord_user_id: discordUserId, steamid64 }
+      });
+
+      if (!potentialLink) {
+        return {
+          success: false,
+          error: 'Potential link not found'
+        };
+      }
+
+      // Check if a verified link already exists for this Steam ID
+      const existingLink = await PlayerDiscordLink.findOne({
+        where: { steamid64 }
+      });
+
+      if (existingLink) {
+        return {
+          success: false,
+          error: 'This Steam ID is already linked to a Discord account'
+        };
+      }
+
+      // Get player data for username/eosID
+      const player = await Player.findOne({ where: { steamId: steamid64 } });
+
+      // Create verified link with 1.0 confidence
+      const metadata = {
+        promoted_from_potential: true,
+        original_source: potentialLink.link_source,
+        original_confidence: parseFloat(potentialLink.confidence_score),
+        original_metadata: potentialLink.metadata,
+        promoted_by: adminInfo.adminId,
+        promoted_by_tag: adminInfo.adminTag,
+        promoted_reason: adminInfo.reason,
+        promoted_at: new Date().toISOString()
+      };
+
+      const { link, created } = await PlayerDiscordLink.createOrUpdateLink(
+        discordUserId,
+        steamid64,
+        potentialLink.eosID || player?.eosId || null,
+        potentialLink.username || player?.username || null,
+        {
+          linkSource: 'manual',
+          isPrimary: true,
+          metadata
+        }
+      );
+
+      // Delete the potential link
+      await PotentialPlayerLink.removePotentialLink(discordUserId, steamid64);
+
+      logger.info('Created verified link from potential link', {
+        steamid64,
+        discordUserId,
+        originalSource: potentialLink.link_source,
+        originalConfidence: potentialLink.confidence_score,
+        promotedBy: adminInfo.adminTag
+      });
+
+      return {
+        success: true,
+        link: {
+          discord_user_id: link.discord_user_id,
+          steamid64: link.steamid64,
+          confidence_score: parseFloat(link.confidence_score),
+          link_source: link.link_source,
+          is_primary: link.is_primary,
+          created_at: link.created_at
+        },
+        created,
+        previousConfidence: parseFloat(potentialLink.confidence_score),
+        newConfidence: 1.0
+      };
+    } catch (error) {
+      logger.error('Error creating link from potential', { error: error.message, steamid64, discordUserId });
       throw error;
     }
   }

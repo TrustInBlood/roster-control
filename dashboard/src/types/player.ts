@@ -113,6 +113,7 @@ export interface PlayerProfile {
   eosID: string | null
   username: string | null
   discordLink: PlayerAccountLink | null
+  potentialLink: PotentialLink | null
   allLinks: PlayerLink[]
   discordInfo: DiscordInfo | null
   discordRoles: DiscordRole[]
@@ -200,6 +201,29 @@ export interface UnlinkHistoryEntry {
   unlinked_at: string
 }
 
+// Potential link metadata (from ticket extraction)
+export interface PotentialLinkMetadata {
+  ticketChannelId?: string
+  ticketChannelName?: string
+  messageId?: string
+  extractedAt?: string
+  originalMessage?: string
+  [key: string]: unknown
+}
+
+// Potential (unverified) link between Steam ID and Discord user
+export interface PotentialLink {
+  id: number
+  discord_user_id: string
+  steamid64: string
+  username: string | null
+  link_source: 'ticket' | 'manual' | 'whitelist'
+  confidence_score: number
+  metadata: PotentialLinkMetadata | null
+  created_at: string
+  updated_at: string | null
+}
+
 // Whitelist entry with calculated fields (reuse from whitelist.ts)
 export type PlayerWhitelistEntry = WhitelistEntry
 
@@ -265,6 +289,26 @@ export interface PlayerUnlinkResponse {
 
 export interface LinkedAccountsResponse {
   accounts: LinkedAccount[]
+}
+
+export interface PotentialLinksResponse {
+  potentialLinks: PotentialLink[]
+}
+
+export interface LinkAccountResponse {
+  success: boolean
+  link?: {
+    discord_user_id: string
+    steamid64: string
+    confidence_score: number
+    link_source: string
+    is_primary: boolean
+    created_at: string
+  }
+  created?: boolean
+  previousConfidence?: number
+  newConfidence?: number
+  error?: string
 }
 
 // Filter types for player search
