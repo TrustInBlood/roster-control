@@ -138,7 +138,7 @@ async function fetchStats(steamId) {
     const stats = await response.json();
     return { success: true, stats };
   } catch (error) {
-    loggerConsole.error('Stats fetch error:', error);
+    loggerConsole.error('Stats fetch error:', error.message, { stack: error.stack });
     return { success: false, error: error.message || 'Failed to retrieve player statistics.' };
   }
 }
