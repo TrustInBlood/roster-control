@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AlertTriangle, RefreshCw, Wifi, WifiOff, Server } from 'lucide-react'
 import { useServerStatus } from '../hooks/useServerStatus'
@@ -8,8 +8,19 @@ import { formatDistanceToNow } from 'date-fns'
 export default function Dashboard() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [showPermissionError, setShowPermissionError] = useState(false)
+  // Track which sections are expanded - persists across polling updates
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({})
 
   const { servers, isLoading, error, socketConnected, lastUpdate, refresh } = useServerStatus()
+
+  // Toggle a section's expanded state
+  const handleToggleSection = useCallback((serverId: string, section: string) => {
+    const key = `${serverId}-${section}`
+    setExpandedSections(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }))
+  }, [])
 
   // Check for permission denied error in URL
   useEffect(() => {
@@ -127,7 +138,7 @@ export default function Dashboard() {
             <div>
               <p className="text-xs text-gray-400">Staff Online</p>
               <p className="text-xl font-bold text-white">
-                {servers.reduce((sum, s) => sum + s.onlineStaff.length, 0)}
+                {servers.reduce((sum, s) => sum + (s.onlineStaff?.length ?? 0), 0)}
               </p>
             </div>
           </div>
@@ -159,7 +170,12 @@ export default function Dashboard() {
       {servers.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {servers.map((server) => (
-            <ServerCard key={server.id} server={server} />
+            <ServerCard
+              key={server.id}
+              server={server}
+              expandedSections={expandedSections}
+              onToggleSection={handleToggleSection}
+            />
           ))}
         </div>
       )}

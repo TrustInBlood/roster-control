@@ -1,8 +1,11 @@
-import { Users, Wifi, WifiOff, Shield, Clock } from 'lucide-react'
-import type { ServerStatus, OnlineStaff } from '../types/servers'
+import { Link } from 'react-router-dom'
+import { Users, Wifi, WifiOff, Shield, Clock, ChevronDown, ChevronRight, UserCheck } from 'lucide-react'
+import type { ServerStatus, OnlineStaff, OnlineMember, OnlinePublicPlayer } from '../types/servers'
 
 interface ServerCardProps {
   server: ServerStatus
+  expandedSections: Record<string, boolean>
+  onToggleSection: (serverId: string, section: string) => void
 }
 
 /**
@@ -70,12 +73,128 @@ function getConnectionState(server: ServerStatus): { color: string; label: strin
   }
 }
 
-export default function ServerCard({ server }: ServerCardProps) {
+interface CollapsibleSectionProps {
+  title: string
+  icon: React.ReactNode
+  iconColor: string
+  count: number
+  isExpanded: boolean
+  onToggle: () => void
+  children: React.ReactNode
+  emptyMessage?: string
+}
+
+function CollapsibleSection({
+  title,
+  icon,
+  iconColor,
+  count,
+  isExpanded,
+  onToggle,
+  children,
+  emptyMessage = 'None'
+}: CollapsibleSectionProps) {
+  return (
+    <div className="border-t border-discord-darker pt-3">
+      <button
+        onClick={onToggle}
+        className="flex items-center gap-1.5 w-full text-left hover:bg-discord-darker/50 -mx-2 px-2 py-1 rounded transition-colors"
+      >
+        {isExpanded ? (
+          <ChevronDown className="w-4 h-4 text-gray-500 flex-shrink-0" />
+        ) : (
+          <ChevronRight className="w-4 h-4 text-gray-500 flex-shrink-0" />
+        )}
+        <span className={`w-4 h-4 ${iconColor} flex-shrink-0`}>{icon}</span>
+        <span className="text-sm text-gray-400">
+          {title} ({count})
+        </span>
+      </button>
+
+      {isExpanded && (
+        <div className="mt-2 ml-6">
+          {count > 0 ? children : (
+            <p className="text-sm text-gray-500 italic">{emptyMessage}</p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function StaffList({ staff }: { staff: OnlineStaff[] }) {
+  return (
+    <div className="space-y-1.5">
+      {staff.map((s) => (
+        <div
+          key={s.discordId}
+          className="flex items-center justify-between text-sm"
+        >
+          <Link
+            to={`/players/${s.steamId}`}
+            className="text-white truncate flex-1 mr-2 hover:text-discord-blurple transition-colors"
+          >
+            {s.displayName}
+          </Link>
+          <span
+            className="text-xs px-2 py-0.5 rounded bg-discord-darker text-gray-300"
+            style={getRolePillStyles(s)}
+          >
+            {s.role}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function MemberList({ members }: { members: OnlineMember[] }) {
+  return (
+    <div className="space-y-1">
+      {members.map((m) => (
+        <Link
+          key={m.discordId}
+          to={`/players/${m.steamId}`}
+          className="block text-sm text-white truncate hover:text-discord-blurple transition-colors"
+        >
+          {m.displayName}
+        </Link>
+      ))}
+    </div>
+  )
+}
+
+function PublicPlayerList({ players }: { players: OnlinePublicPlayer[] }) {
+  return (
+    <div className="space-y-1 max-h-48 overflow-y-auto">
+      {players.map((p) => (
+        <Link
+          key={p.steamId}
+          to={`/players/${p.steamId}`}
+          className="block text-sm text-gray-400 truncate hover:text-discord-blurple transition-colors"
+        >
+          {p.displayName}
+        </Link>
+      ))}
+    </div>
+  )
+}
+
+export default function ServerCard({ server, expandedSections, onToggleSection }: ServerCardProps) {
   const connectionState = getConnectionState(server)
   const playerCountColor = getPlayerCountColor(server.playerCount, server.maxPlayers)
-  const hasStaffOnline = server.onlineStaff.length > 0
   const totalQueue = server.publicQueue + server.reserveQueue
   const hasQueue = totalQueue > 0
+
+  // Generate section keys for this server
+  const staffKey = `${server.id}-staff`
+  const membersKey = `${server.id}-members`
+  const publicKey = `${server.id}-public`
+
+  // Get counts with fallback for backwards compatibility
+  const staffCount = server.onlineStaff?.length ?? 0
+  const membersCount = server.onlineMembers?.length ?? 0
+  const publicCount = server.onlinePublic?.length ?? 0
 
   return (
     <div className="bg-discord-light rounded-lg p-5 hover:bg-discord-lighter transition-colors">
@@ -115,38 +234,44 @@ export default function ServerCard({ server }: ServerCardProps) {
         </div>
       </div>
 
-      {/* Staff Online */}
-      <div className="border-t border-discord-darker pt-3">
-        <div className="flex items-center gap-1.5 mb-2">
-          <Shield className="w-4 h-4 text-discord-blurple" />
-          <span className="text-sm text-gray-400">
-            Staff Online ({server.onlineStaff.length})
-          </span>
-        </div>
+      {/* Staff Section */}
+      <CollapsibleSection
+        title="Staff Online"
+        icon={<Shield className="w-4 h-4" />}
+        iconColor="text-discord-blurple"
+        count={staffCount}
+        isExpanded={expandedSections[staffKey] ?? false}
+        onToggle={() => onToggleSection(server.id, 'staff')}
+        emptyMessage="No staff online"
+      >
+        <StaffList staff={server.onlineStaff || []} />
+      </CollapsibleSection>
 
-        {hasStaffOnline ? (
-          <div className="space-y-1.5">
-            {server.onlineStaff.map((staff) => (
-              <div
-                key={staff.discordId}
-                className="flex items-center justify-between text-sm"
-              >
-                <span className="text-white truncate flex-1 mr-2">
-                  {staff.displayName}
-                </span>
-                <span
-                  className="text-xs px-2 py-0.5 rounded bg-discord-darker text-gray-300"
-                  style={getRolePillStyles(staff)}
-                >
-                  {staff.role}
-                </span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-gray-500 italic">No staff online</p>
-        )}
-      </div>
+      {/* Members Section */}
+      <CollapsibleSection
+        title="Members"
+        icon={<UserCheck className="w-4 h-4" />}
+        iconColor="text-green-400"
+        count={membersCount}
+        isExpanded={expandedSections[membersKey] ?? false}
+        onToggle={() => onToggleSection(server.id, 'members')}
+        emptyMessage="No members online"
+      >
+        <MemberList members={server.onlineMembers || []} />
+      </CollapsibleSection>
+
+      {/* Public Players Section */}
+      <CollapsibleSection
+        title="Public"
+        icon={<Users className="w-4 h-4" />}
+        iconColor="text-gray-400"
+        count={publicCount}
+        isExpanded={expandedSections[publicKey] ?? false}
+        onToggle={() => onToggleSection(server.id, 'public')}
+        emptyMessage="No public players"
+      >
+        <PublicPlayerList players={server.onlinePublic || []} />
+      </CollapsibleSection>
     </div>
   )
 }

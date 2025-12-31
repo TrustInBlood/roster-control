@@ -146,6 +146,143 @@ async function getOnlineStaff(steamIds) {
 }
 
 /**
+ * Categorize all players by their Discord link status and roles
+ * Returns { staff: [], members: [], public: [] }
+ */
+async function categorizeOnlinePlayers(steamIds, playerNames = {}) {
+  const staff = [];
+  const members = [];
+  const publicPlayers = [];
+
+  if (!steamIds || steamIds.length === 0) {
+    return { staff, members, public: publicPlayers };
+  }
+
+  const discordClient = global.discordClient;
+  if (!discordClient) {
+    // No Discord client - all players are public
+    for (const steamId of steamIds) {
+      publicPlayers.push({
+        steamId,
+        displayName: playerNames[steamId] || steamId
+      });
+    }
+    return { staff, members, public: publicPlayers };
+  }
+
+  // Get all Discord links for these Steam IDs with high confidence
+  const links = await PlayerDiscordLink.findAll({
+    where: {
+      steamid64: steamIds,
+      confidence_score: { [Op.gte]: 1.0 }
+    }
+  });
+
+  const linkedSteamIds = new Set(links.map(l => l.steamid64));
+
+  const guildId = process.env.DISCORD_GUILD_ID;
+  const guild = await discordClient.guilds.fetch(guildId).catch(() => null);
+
+  if (!guild) {
+    // No guild - all players are public
+    for (const steamId of steamIds) {
+      publicPlayers.push({
+        steamId,
+        displayName: playerNames[steamId] || steamId
+      });
+    }
+    return { staff, members, public: publicPlayers };
+  }
+
+  const allStaffRoles = getAllStaffRoles();
+
+  // Process linked players
+  for (const link of links) {
+    try {
+      const member = await guild.members.fetch(link.discord_user_id).catch(() => null);
+      if (!member) {
+        // Member no longer in Discord but has a link - treat as public
+        publicPlayers.push({
+          steamId: link.steamid64,
+          displayName: playerNames[link.steamid64] || link.steamid64
+        });
+        continue;
+      }
+
+      const memberRoleIds = member.roles.cache.map(r => r.id);
+      const isStaff = memberRoleIds.some(roleId => allStaffRoles.includes(roleId));
+      const isMemberRole = memberRoleIds.includes(DISCORD_ROLES.MEMBER);
+
+      if (isStaff) {
+        // Get the highest priority staff role
+        const highestRole = getHighestStaffRole(memberRoleIds);
+        let roleName = 'Staff';
+        let roleColor = null;
+        let rolePriority = 0;
+
+        if (highestRole?.roleId) {
+          const discordRole = member.roles.cache.get(highestRole.roleId);
+          if (discordRole) {
+            roleName = discordRole.name;
+            if (discordRole.color !== 0) {
+              roleColor = '#' + discordRole.color.toString(16).padStart(6, '0');
+            }
+          }
+          rolePriority = highestRole.priority || 0;
+        }
+
+        staff.push({
+          discordId: link.discord_user_id,
+          steamId: link.steamid64,
+          displayName: member.displayName || member.user.username,
+          role: roleName,
+          roleColor,
+          rolePriority
+        });
+      } else if (isMemberRole) {
+        members.push({
+          discordId: link.discord_user_id,
+          steamId: link.steamid64,
+          displayName: member.displayName || member.user.username
+        });
+      } else {
+        // Linked but not staff or member
+        publicPlayers.push({
+          steamId: link.steamid64,
+          displayName: member.displayName || member.user.username
+        });
+      }
+    } catch (error) {
+      logger.debug('Failed to fetch member for categorization', {
+        discordId: link.discord_user_id,
+        error: error.message
+      });
+      publicPlayers.push({
+        steamId: link.steamid64,
+        displayName: playerNames[link.steamid64] || link.steamid64
+      });
+    }
+  }
+
+  // Add unlinked players as public
+  for (const steamId of steamIds) {
+    if (!linkedSteamIds.has(steamId)) {
+      publicPlayers.push({
+        steamId,
+        displayName: playerNames[steamId] || steamId
+      });
+    }
+  }
+
+  // Sort staff by role priority, members and public alphabetically
+  staff.sort((a, b) => b.rolePriority - a.rolePriority);
+  members.sort((a, b) => a.displayName.localeCompare(b.displayName));
+  publicPlayers.sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+  return { staff, members, public: publicPlayers };
+}
+
+/**
  * Get player list directly from SquadJS socket
  * @param {Socket} socket - Socket.io connection
  * @returns {Promise<{success: boolean, players: Array}>} - Result object with success flag and players
@@ -153,19 +290,26 @@ async function getOnlineStaff(steamIds) {
 function getPlayerListFromSocket(socket) {
   return new Promise((resolve) => {
     if (!socket || !socket.connected) {
-      resolve({ success: false, players: [] });
+      resolve({ success: false, players: [], playerNames: {} });
       return;
     }
 
     const timeout = setTimeout(() => {
       logger.debug('Socket player list request timed out after 5s');
-      resolve({ success: false, players: [] });
+      resolve({ success: false, players: [], playerNames: {} });
     }, 5000);
 
     socket.emit('players', (playerList) => {
       clearTimeout(timeout);
-      // Socket responded successfully - trust the result even if empty
-      resolve({ success: true, players: playerList || [] });
+      const players = playerList || [];
+      // Build a map of steamId -> playerName
+      const playerNames = {};
+      for (const p of players) {
+        if (p.steamID && p.name) {
+          playerNames[p.steamID] = p.name;
+        }
+      }
+      resolve({ success: true, players, playerNames });
     });
   });
 }
@@ -173,6 +317,7 @@ function getPlayerListFromSocket(socket) {
 /**
  * Get active Steam IDs for a specific server - tries direct socket query first
  * Falls back to PlaytimeTrackingService cache only if socket query fails (timeout/error)
+ * Returns { steamIds: [], playerNames: {} }
  */
 async function getActiveSteamIdsForServer(playtimeService, serverId, socket) {
   // Try direct socket query first (most accurate)
@@ -186,7 +331,7 @@ async function getActiveSteamIdsForServer(playtimeService, serverId, socket) {
         .filter(p => p.steamID)
         .map(p => p.steamID);
       logger.debug(`Server ${serverId}: Socket returned ${steamIds.length} players (direct query)`);
-      return steamIds;
+      return { steamIds, playerNames: result.playerNames };
     }
 
     // Socket failed (timeout) - fall through to cache
@@ -197,7 +342,7 @@ async function getActiveSteamIdsForServer(playtimeService, serverId, socket) {
 
   // Fallback to PlaytimeTrackingService cache (only when socket unavailable/failed)
   if (!playtimeService) {
-    return [];
+    return { steamIds: [], playerNames: {} };
   }
 
   const activeSessions = playtimeService.getActiveSessions();
@@ -214,7 +359,7 @@ async function getActiveSteamIdsForServer(playtimeService, serverId, socket) {
   }
 
   logger.warn(`Server ${serverId}: Using cached sessions - ${steamIds.length} players (cache may be stale)`);
-  return steamIds;
+  return { steamIds, playerNames: {} };
 }
 
 /**
@@ -236,11 +381,11 @@ async function getServersStatus() {
     const { server, socket, state, serverInfo } = connectionData;
 
     // Get active Steam IDs for this server (try socket first, then cache)
-    const activeSteamIds = await getActiveSteamIdsForServer(playtimeService, serverId, socket);
+    const { steamIds: activeSteamIds, playerNames } = await getActiveSteamIdsForServer(playtimeService, serverId, socket);
     const playerCount = activeSteamIds.length;
 
-    // Get online staff for this server
-    const onlineStaff = await getOnlineStaff(activeSteamIds);
+    // Categorize all online players into staff, members, and public
+    const categorizedPlayers = await categorizeOnlinePlayers(activeSteamIds, playerNames);
 
     // Try to query server info directly if we don't have queue data cached
     let currentServerInfo = serverInfo;
@@ -262,7 +407,9 @@ async function getServersStatus() {
       maxPlayers: currentServerInfo?.maxPlayers || 100,
       publicQueue: currentServerInfo?.publicQueue || 0,
       reserveQueue: currentServerInfo?.reserveQueue || 0,
-      onlineStaff,
+      onlineStaff: categorizedPlayers.staff,
+      onlineMembers: categorizedPlayers.members,
+      onlinePublic: categorizedPlayers.public,
       lastUpdate: new Date().toISOString()
     });
   }

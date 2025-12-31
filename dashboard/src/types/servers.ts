@@ -11,6 +11,23 @@ export interface OnlineStaff {
 }
 
 /**
+ * Represents a member (with MEMBER role) currently online on a server
+ */
+export interface OnlineMember {
+  discordId: string
+  steamId: string
+  displayName: string
+}
+
+/**
+ * Represents a public player (not linked or no special roles) currently online
+ */
+export interface OnlinePublicPlayer {
+  steamId: string
+  displayName: string
+}
+
+/**
  * Server status information
  */
 export interface ServerStatus {
@@ -23,6 +40,8 @@ export interface ServerStatus {
   publicQueue: number
   reserveQueue: number
   onlineStaff: OnlineStaff[]
+  onlineMembers: OnlineMember[]
+  onlinePublic: OnlinePublicPlayer[]
   lastUpdate: string
 }
 
