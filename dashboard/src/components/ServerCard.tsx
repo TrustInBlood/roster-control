@@ -95,7 +95,7 @@ function CollapsibleSection({
   emptyMessage = 'None'
 }: CollapsibleSectionProps) {
   return (
-    <div className="border-t border-discord-darker pt-3">
+    <div className="border-t border-discord-darker pt-3 pb-3">
       <button
         onClick={onToggle}
         className="flex items-center gap-1.5 w-full text-left hover:bg-discord-darker/50 -mx-2 px-2 py-1 rounded transition-colors"
@@ -124,7 +124,7 @@ function CollapsibleSection({
 
 function StaffList({ staff }: { staff: OnlineStaff[] }) {
   return (
-    <div className="space-y-1.5 pb-2">
+    <div className="space-y-1.5">
       {staff.map((s) => (
         <div
           key={s.discordId}
@@ -150,7 +150,7 @@ function StaffList({ staff }: { staff: OnlineStaff[] }) {
 
 function MemberList({ members }: { members: OnlineMember[] }) {
   return (
-    <div className="space-y-1.5 pb-2">
+    <div className="space-y-1.5">
       {members.map((m) => (
         <div
           key={m.discordId}
@@ -176,7 +176,7 @@ function MemberList({ members }: { members: OnlineMember[] }) {
 
 function PublicPlayerList({ players }: { players: OnlinePublicPlayer[] }) {
   return (
-    <div className="space-y-1 pb-2 max-h-48 overflow-y-auto">
+    <div className="space-y-1 max-h-48 overflow-y-auto">
       {players.map((p) => (
         <Link
           key={p.steamId}
