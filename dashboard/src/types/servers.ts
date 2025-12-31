@@ -17,6 +17,7 @@ export interface OnlineMember {
   discordId: string
   steamId: string
   displayName: string
+  roleColor?: string // Hex color from Discord MEMBER role
 }
 
 /**

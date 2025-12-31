@@ -240,10 +240,18 @@ async function categorizeOnlinePlayers(steamIds, playerNames = {}) {
           rolePriority
         });
       } else if (isMemberRole) {
+        // Get the MEMBER role color
+        const memberRole = member.roles.cache.get(DISCORD_ROLES.MEMBER);
+        let roleColor = null;
+        if (memberRole && memberRole.color !== 0) {
+          roleColor = '#' + memberRole.color.toString(16).padStart(6, '0');
+        }
+
         members.push({
           discordId: link.discord_user_id,
           steamId: link.steamid64,
-          displayName: member.displayName || member.user.username
+          displayName: member.displayName || member.user.username,
+          roleColor
         });
       } else {
         // Linked but not staff or member

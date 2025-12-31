@@ -40,11 +40,11 @@ function getContrastTextColor(hexColor: string): string {
 /**
  * Get role pill styles based on Discord role color
  */
-function getRolePillStyles(staff: OnlineStaff): React.CSSProperties {
-  if (staff.roleColor) {
+function getRolePillStyles(roleColor?: string): React.CSSProperties {
+  if (roleColor) {
     return {
-      backgroundColor: staff.roleColor,
-      color: getContrastTextColor(staff.roleColor)
+      backgroundColor: roleColor,
+      color: getContrastTextColor(roleColor)
     }
   }
   // Default fallback style
@@ -138,7 +138,7 @@ function StaffList({ staff }: { staff: OnlineStaff[] }) {
           </Link>
           <span
             className="text-xs px-2 py-0.5 rounded bg-discord-darker text-gray-300 flex-shrink-0"
-            style={getRolePillStyles(s)}
+            style={getRolePillStyles(s.roleColor)}
           >
             {s.role}
           </span>
@@ -162,7 +162,10 @@ function MemberList({ members }: { members: OnlineMember[] }) {
           >
             {m.displayName}
           </Link>
-          <span className="text-xs px-2 py-0.5 rounded bg-green-500/20 text-green-400 flex-shrink-0">
+          <span
+            className="text-xs px-2 py-0.5 rounded bg-discord-darker text-gray-300 flex-shrink-0"
+            style={getRolePillStyles(m.roleColor)}
+          >
             Member
           </span>
         </div>
