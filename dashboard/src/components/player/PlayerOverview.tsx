@@ -288,20 +288,24 @@ export default function PlayerOverview({ profile, steamid64, onTabChange }: Play
         )}
       </div>
 
-      {/* Staff Roles Card (if applicable) */}
-      {profile.isStaff && profile.staffRoles.length > 0 && (
+      {/* Discord Roles Card (if applicable) */}
+      {profile.discordRoles && profile.discordRoles.length > 0 && (
         <div className="bg-discord-light rounded-lg p-4">
           <div className="flex items-center gap-2 mb-3">
             <Shield className="w-5 h-5 text-discord-blurple" />
-            <h3 className="font-medium text-white">Staff Roles</h3>
+            <h3 className="font-medium text-white">Discord Roles</h3>
           </div>
           <div className="flex flex-wrap gap-2">
-            {profile.staffRoles.map((role, index) => (
+            {profile.discordRoles.map((role) => (
               <span
-                key={index}
-                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-discord-blurple/20 text-discord-blurple border border-discord-blurple/30"
+                key={role.id}
+                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border"
+                style={{
+                  borderColor: role.color !== '#000000' ? role.color : undefined,
+                  color: role.color !== '#000000' ? role.color : undefined
+                }}
               >
-                {role}
+                {role.name}
               </span>
             ))}
           </div>
