@@ -330,7 +330,9 @@ router.get('/', requirePermission('VIEW_MEMBERS'), async (req, res) => {
       limit = 25,
       search,
       sortBy = 'username',
-      sortOrder = 'ASC'
+      sortOrder = 'ASC',
+      roleId,
+      linkStatus
     } = req.query;
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
@@ -355,7 +357,11 @@ router.get('/', requirePermission('VIEW_MEMBERS'), async (req, res) => {
 
     // Get members with MEMBER role using cache service
     const cacheService = getMemberCacheService();
-    const membersWithRole = await cacheService.getMembersByRole(guild, DISCORD_ROLES.MEMBER);
+
+    // If roleId filter is provided, get members with that specific role
+    // Otherwise, get members with the default MEMBER role
+    const targetRoleId = roleId || DISCORD_ROLES.MEMBER;
+    const membersWithRole = await cacheService.getMembersByRole(guild, targetRoleId);
 
     // Convert to array and enrich with link data
     let members = [];
@@ -395,6 +401,25 @@ router.get('/', requirePermission('VIEW_MEMBERS'), async (req, res) => {
         (m.steamid64 && m.steamid64.includes(search)) ||
         m.discord_user_id.includes(search)
       );
+    }
+
+    // Apply link status filter
+    if (linkStatus && linkStatus !== 'all') {
+      members = members.filter(m => {
+        switch (linkStatus) {
+        case 'linked':
+          // Full confidence (1.0) with Steam ID
+          return m.confidence_score === 1 && m.steamid64;
+        case 'partial':
+          // Has a link but not full confidence OR no Steam ID
+          return m.confidence_score !== null && (m.confidence_score < 1 || !m.steamid64);
+        case 'unlinked':
+          // No link at all
+          return m.confidence_score === null;
+        default:
+          return true;
+        }
+      });
     }
 
     // Sort
@@ -447,6 +472,55 @@ router.get('/', requirePermission('VIEW_MEMBERS'), async (req, res) => {
     res.status(500).json({
       error: 'Failed to list members',
       code: 'LIST_ERROR',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/v1/members/roles
+ * Get available Discord roles for filtering
+ * Permission: VIEW_MEMBERS
+ */
+router.get('/roles', requirePermission('VIEW_MEMBERS'), async (req, res) => {
+  try {
+    const discordClient = global.discordClient;
+    if (!discordClient) {
+      return res.status(503).json({
+        error: 'Discord client not available',
+        code: 'DISCORD_UNAVAILABLE'
+      });
+    }
+
+    const guildId = process.env.DISCORD_GUILD_ID;
+    const guild = await discordClient.guilds.fetch(guildId).catch(() => null);
+
+    if (!guild) {
+      return res.status(503).json({
+        error: 'Guild not found',
+        code: 'GUILD_NOT_FOUND'
+      });
+    }
+
+    // Get all roles sorted by position (highest first)
+    const roles = guild.roles.cache
+      .filter(role => role.id !== guild.id) // Exclude @everyone
+      .sort((a, b) => b.position - a.position)
+      .map(role => ({
+        id: role.id,
+        name: role.name,
+        color: role.hexColor,
+        position: role.position,
+        memberCount: role.members.size
+      }));
+
+    res.json({ roles });
+
+  } catch (error) {
+    logger.error('Error fetching roles:', error);
+    res.status(500).json({
+      error: 'Failed to fetch roles',
+      code: 'FETCH_ERROR',
       message: error.message
     });
   }

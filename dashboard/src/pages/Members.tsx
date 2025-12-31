@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
-import { UserPlus, Search, Users, Link2, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react'
-import { useMembersList } from '../hooks/useMembers'
+import { UserPlus, Search, Users, Link2, ChevronLeft, ChevronRight, ExternalLink, Filter, X } from 'lucide-react'
+import { useMembersList, useMemberRoles } from '../hooks/useMembers'
 import { useAuth } from '../hooks/useAuth'
 import AddMemberWizard from '../components/members/AddMemberWizard'
 import CopyButton from '../components/ui/CopyButton'
-import type { MemberFilters, Member } from '../types/members'
+import type { MemberFilters, Member, LinkStatusFilter } from '../types/members'
 import { formatRelativeTime } from '../lib/utils'
 
 export default function Members() {
@@ -22,9 +22,14 @@ export default function Members() {
     search: searchParams.get('search') || undefined,
     sortBy: (searchParams.get('sortBy') as MemberFilters['sortBy']) || 'username',
     sortOrder: (searchParams.get('sortOrder') as 'ASC' | 'DESC') || 'ASC',
+    roleId: searchParams.get('roleId') || undefined,
+    linkStatus: (searchParams.get('linkStatus') as LinkStatusFilter) || undefined,
   }
 
   const { data, isLoading } = useMembersList(filters)
+  const { data: rolesData } = useMemberRoles()
+
+  const activeFilterCount = [filters.roleId, filters.linkStatus].filter(Boolean).length
 
   const updateFilter = (key: string, value: string | undefined) => {
     const newParams = new URLSearchParams(searchParams)
@@ -53,6 +58,14 @@ export default function Members() {
       newParams.set('sortBy', column!)
       newParams.set('sortOrder', 'ASC')
     }
+    setSearchParams(newParams)
+  }
+
+  const clearFilters = () => {
+    const newParams = new URLSearchParams(searchParams)
+    newParams.delete('roleId')
+    newParams.delete('linkStatus')
+    newParams.set('page', '1')
     setSearchParams(newParams)
   }
 
@@ -113,6 +126,8 @@ export default function Members() {
               <CopyButton text={member.steamid64} size={3} />
             </span>
           </div>
+        ) : member.confidence_score !== null ? (
+          <span className="text-yellow-500">No Steam ID</span>
         ) : (
           <span className="text-gray-500">Not linked</span>
         )}
@@ -120,11 +135,11 @@ export default function Members() {
 
       {/* Link Status */}
       <td className="px-4 py-3">
-        {member.steamid64 ? (
+        {member.confidence_score !== null ? (
           <div className="flex items-center gap-1">
-            <Link2 className="w-4 h-4 text-green-400" />
-            <span className="text-green-400 text-sm">
-              {member.confidence_score === 1 ? 'Full' : `${(member.confidence_score || 0) * 100}%`}
+            <Link2 className={`w-4 h-4 ${member.confidence_score === 1 ? 'text-green-400' : 'text-yellow-500'}`} />
+            <span className={`text-sm ${member.confidence_score === 1 ? 'text-green-400' : 'text-yellow-500'}`}>
+              {member.confidence_score === 1 ? 'Full' : `${Math.round((member.confidence_score || 0) * 100)}%`}
             </span>
           </div>
         ) : (
@@ -180,8 +195,8 @@ export default function Members() {
         )}
       </div>
 
-      {/* Search */}
-      <div className="bg-discord-light rounded-lg p-4">
+      {/* Search and Filters */}
+      <div className="bg-discord-light rounded-lg p-4 space-y-4">
         <form onSubmit={handleSearch} className="flex gap-4" autoComplete="off">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -207,6 +222,51 @@ export default function Members() {
             Search
           </button>
         </form>
+
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-gray-400" />
+            <span className="text-sm text-gray-400">Filters:</span>
+          </div>
+
+          {/* Role Filter */}
+          <select
+            value={filters.roleId || ''}
+            onChange={(e) => updateFilter('roleId', e.target.value || undefined)}
+            className="bg-discord-darker border border-discord-lighter rounded-md px-3 py-1.5 text-sm text-white focus:outline-none focus:border-discord-blurple"
+          >
+            <option value="">All Roles</option>
+            {rolesData?.roles.map((role) => (
+              <option key={role.id} value={role.id}>
+                {role.name} ({role.memberCount})
+              </option>
+            ))}
+          </select>
+
+          {/* Link Status Filter */}
+          <select
+            value={filters.linkStatus || ''}
+            onChange={(e) => updateFilter('linkStatus', e.target.value || undefined)}
+            className="bg-discord-darker border border-discord-lighter rounded-md px-3 py-1.5 text-sm text-white focus:outline-none focus:border-discord-blurple"
+          >
+            <option value="">All Link Status</option>
+            <option value="linked">Linked (100%)</option>
+            <option value="partial">Partial Link</option>
+            <option value="unlinked">Not Linked</option>
+          </select>
+
+          {/* Clear Filters */}
+          {activeFilterCount > 0 && (
+            <button
+              onClick={clearFilters}
+              className="flex items-center gap-1 text-sm text-gray-400 hover:text-white transition-colors"
+            >
+              <X className="w-4 h-4" />
+              Clear ({activeFilterCount})
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Table */}

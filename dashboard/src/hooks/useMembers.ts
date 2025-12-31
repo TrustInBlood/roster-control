@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { discordApi, battlemetricsApi, membersApi } from '../lib/api'
 import { useAuth } from './useAuth'
-import type { MemberFilters, AddMemberRequest } from '../types/members'
+import type { MemberFilters, AddMemberRequest, MemberRolesResponse } from '../types/members'
 
 /**
  * Hook to search Discord guild members
@@ -60,6 +60,20 @@ export function useMembersList(filters: MemberFilters = {}) {
     queryKey: ['members', 'list', filters],
     queryFn: () => membersApi.list(filters),
     enabled: !!user,
+  })
+}
+
+/**
+ * Hook to get available Discord roles for filtering
+ */
+export function useMemberRoles() {
+  const { user } = useAuth()
+
+  return useQuery<MemberRolesResponse>({
+    queryKey: ['members', 'roles'],
+    queryFn: () => membersApi.getRoles(),
+    enabled: !!user,
+    staleTime: 1000 * 60 * 5, // 5 minutes - roles don't change often
   })
 }
 

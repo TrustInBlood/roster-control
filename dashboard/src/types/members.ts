@@ -101,12 +101,16 @@ export interface MemberDetail {
   battlemetrics: MemberBattleMetrics | null
 }
 
+export type LinkStatusFilter = 'all' | 'linked' | 'partial' | 'unlinked'
+
 export interface MemberFilters {
   page?: number
   limit?: number
   search?: string
   sortBy?: 'username' | 'nickname' | 'linked_at' | 'joinedAt'
   sortOrder?: 'ASC' | 'DESC'
+  roleId?: string
+  linkStatus?: LinkStatusFilter
 }
 
 export interface MembersListResponse {
@@ -121,6 +125,18 @@ export interface MembersListResponse {
 
 export interface DiscordMembersSearchResponse {
   members: DiscordMember[]
+}
+
+export interface FilterRole {
+  id: string
+  name: string
+  color: string
+  position: number
+  memberCount: number
+}
+
+export interface MemberRolesResponse {
+  roles: FilterRole[]
 }
 
 // Wizard step types
