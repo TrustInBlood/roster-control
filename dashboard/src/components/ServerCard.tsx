@@ -124,7 +124,7 @@ function CollapsibleSection({
 
 function StaffList({ staff }: { staff: OnlineStaff[] }) {
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1.5 pb-2">
       {staff.map((s) => (
         <div
           key={s.discordId}
@@ -137,7 +137,7 @@ function StaffList({ staff }: { staff: OnlineStaff[] }) {
             {s.displayName}
           </Link>
           <span
-            className="text-xs px-2 py-0.5 rounded bg-discord-darker text-gray-300"
+            className="text-xs px-2 py-0.5 rounded bg-discord-darker text-gray-300 flex-shrink-0"
             style={getRolePillStyles(s)}
           >
             {s.role}
@@ -150,15 +150,22 @@ function StaffList({ staff }: { staff: OnlineStaff[] }) {
 
 function MemberList({ members }: { members: OnlineMember[] }) {
   return (
-    <div className="space-y-1">
+    <div className="space-y-1.5 pb-2">
       {members.map((m) => (
-        <Link
+        <div
           key={m.discordId}
-          to={`/players/${m.steamId}`}
-          className="block text-sm text-white truncate hover:text-discord-blurple transition-colors"
+          className="flex items-center justify-between text-sm"
         >
-          {m.displayName}
-        </Link>
+          <Link
+            to={`/players/${m.steamId}`}
+            className="text-white truncate flex-1 mr-2 hover:text-discord-blurple transition-colors"
+          >
+            {m.displayName}
+          </Link>
+          <span className="text-xs px-2 py-0.5 rounded bg-green-500/20 text-green-400 flex-shrink-0">
+            Member
+          </span>
+        </div>
       ))}
     </div>
   )
@@ -166,7 +173,7 @@ function MemberList({ members }: { members: OnlineMember[] }) {
 
 function PublicPlayerList({ players }: { players: OnlinePublicPlayer[] }) {
   return (
-    <div className="space-y-1 max-h-48 overflow-y-auto">
+    <div className="space-y-1 pb-2 max-h-48 overflow-y-auto">
       {players.map((p) => (
         <Link
           key={p.steamId}
