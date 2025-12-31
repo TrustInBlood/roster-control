@@ -306,20 +306,42 @@ export default function PlayerAccountSection({ steamid64, profile }: PlayerAccou
               </div>
 
               <div className="bg-discord-darker rounded-lg p-4">
-                <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Discovered</p>
-                <span className="text-gray-300 flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  {formatDateTime(profile.potentialLink.created_at)}
-                </span>
+                <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Steam ID</p>
+                <div className="flex items-center gap-2">
+                  <code className="text-blue-400 font-mono text-sm">{steamid64}</code>
+                  <CopyButton text={steamid64} size={3} />
+                </div>
               </div>
 
-              {profile.potentialLink.username && (
-                <div className="bg-discord-darker rounded-lg p-4">
-                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">In-Game Name</p>
-                  <span className="text-gray-300">{profile.potentialLink.username}</span>
-                </div>
-              )}
+              <div className="bg-discord-darker rounded-lg p-4">
+                <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">In-Game Name</p>
+                {profile.battlemetrics?.found && profile.battlemetrics.playerName ? (
+                  <span className="text-gray-300">{profile.battlemetrics.playerName}</span>
+                ) : profile.username ? (
+                  <span className="text-gray-300">{profile.username}</span>
+                ) : (
+                  <span className="text-gray-500">Unknown</span>
+                )}
+              </div>
             </div>
+
+            {/* BattleMetrics Link */}
+            {profile.battlemetrics?.found && profile.battlemetrics.profileUrl && (
+              <div className="bg-discord-darker rounded-lg p-4 mt-4">
+                <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">BattleMetrics</p>
+                <a
+                  href={profile.battlemetrics.profileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-discord-blurple hover:underline text-sm flex items-center gap-1"
+                >
+                  View on BattleMetrics
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </a>
+              </div>
+            )}
 
             {/* Metadata (Ticket Info) */}
             {profile.potentialLink.metadata && (
