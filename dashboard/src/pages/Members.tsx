@@ -137,9 +137,9 @@ export default function Members() {
       <td className="px-4 py-3">
         {member.confidence_score !== null ? (
           <div className="flex items-center gap-1">
-            <Link2 className={`w-4 h-4 ${member.confidence_score === 1 ? 'text-green-400' : 'text-yellow-500'}`} />
-            <span className={`text-sm ${member.confidence_score === 1 ? 'text-green-400' : 'text-yellow-500'}`}>
-              {member.confidence_score === 1 ? 'Full' : `${Math.round((member.confidence_score || 0) * 100)}%`}
+            <Link2 className={`w-4 h-4 ${Number(member.confidence_score) >= 1 ? 'text-green-400' : 'text-yellow-500'}`} />
+            <span className={`text-sm ${Number(member.confidence_score) >= 1 ? 'text-green-400' : 'text-yellow-500'}`}>
+              {Number(member.confidence_score) >= 1 ? 'Full' : `${Math.round((member.confidence_score || 0) * 100)}%`}
             </span>
           </div>
         ) : (

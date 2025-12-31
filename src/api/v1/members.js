@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { requirePermission } = require('../middleware/auth');
-const { PlayerDiscordLink, AuditLog } = require('../../database/models');
+const { PlayerDiscordLink, PotentialPlayerLink, AuditLog } = require('../../database/models');
 const { isValidSteamId } = require('../../utils/steamId');
 const BattleMetricsService = require('../../services/BattleMetricsService');
 const BattleMetricsScrubService = require('../../services/BattleMetricsScrubService');
@@ -367,17 +367,42 @@ router.get('/', requirePermission('VIEW_MEMBERS'), async (req, res) => {
     let members = [];
     const memberIds = Array.from(membersWithRole.keys());
 
-    // Batch fetch PlayerDiscordLink data
-    const links = await PlayerDiscordLink.findAll({
+    // Batch fetch PlayerDiscordLink data (verified links with confidence >= 1.0)
+    const verifiedLinks = await PlayerDiscordLink.findAll({
       where: {
         discord_user_id: memberIds,
         is_primary: true
       }
     });
-    const linkMap = new Map(links.map(l => [l.discord_user_id, l]));
+    const verifiedLinkMap = new Map(verifiedLinks.map(l => [l.discord_user_id, l]));
+
+    // Batch fetch PotentialPlayerLink data (partial links with confidence < 1.0)
+    // Only fetch for members who don't have a verified link
+    const membersWithoutVerifiedLink = memberIds.filter(id => !verifiedLinkMap.has(id));
+    let potentialLinkMap = new Map();
+
+    if (membersWithoutVerifiedLink.length > 0) {
+      const potentialLinks = await PotentialPlayerLink.findAll({
+        where: {
+          discord_user_id: membersWithoutVerifiedLink
+        },
+        order: [['confidence_score', 'DESC']]
+      });
+
+      // Group by discord_user_id, keeping only the highest confidence link per user
+      for (const link of potentialLinks) {
+        if (!potentialLinkMap.has(link.discord_user_id)) {
+          potentialLinkMap.set(link.discord_user_id, link);
+        }
+      }
+    }
 
     for (const [memberId, member] of membersWithRole) {
-      const link = linkMap.get(memberId);
+      const verifiedLink = verifiedLinkMap.get(memberId);
+      const potentialLink = potentialLinkMap.get(memberId);
+
+      // Use verified link if available, otherwise use potential link
+      const link = verifiedLink || potentialLink;
 
       members.push({
         discord_user_id: memberId,
@@ -386,8 +411,8 @@ router.get('/', requirePermission('VIEW_MEMBERS'), async (req, res) => {
         nickname: member.nickname || null,
         avatarUrl: member.user.displayAvatarURL({ size: 64 }),
         steamid64: link?.steamid64 || null,
-        linked_at: link?.createdAt?.toISOString() || null,
-        confidence_score: link?.confidence_score || null,
+        linked_at: link?.createdAt?.toISOString() || link?.created_at?.toISOString() || null,
+        confidence_score: link?.confidence_score ?? null,
         joinedAt: member.joinedAt?.toISOString() || null
       });
     }
@@ -406,16 +431,17 @@ router.get('/', requirePermission('VIEW_MEMBERS'), async (req, res) => {
     // Apply link status filter
     if (linkStatus && linkStatus !== 'all') {
       members = members.filter(m => {
+        const score = m.confidence_score !== null ? parseFloat(m.confidence_score) : null;
         switch (linkStatus) {
         case 'linked':
-          // Full confidence (1.0) with Steam ID
-          return m.confidence_score === 1 && m.steamid64;
+          // Full confidence (>= 1.0) with Steam ID
+          return score !== null && score >= 1 && m.steamid64;
         case 'partial':
           // Has a link but not full confidence OR no Steam ID
-          return m.confidence_score !== null && (m.confidence_score < 1 || !m.steamid64);
+          return score !== null && (score < 1 || !m.steamid64);
         case 'unlinked':
           // No link at all
-          return m.confidence_score === null;
+          return score === null;
         default:
           return true;
         }
