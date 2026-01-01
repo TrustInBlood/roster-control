@@ -56,7 +56,6 @@ function loadConfigExports(configName, exports) {
 const squadGroups = loadConfig('squadGroups');
 const channels = loadConfig('channels');
 const discordRoles = loadConfig('discordRoles');
-let infoPosts = loadConfig('infoPosts');
 
 // Lazy-load SquadGroupService to avoid circular dependency
 let _squadGroupService = null;
@@ -65,28 +64,6 @@ function getSquadGroupService() {
     _squadGroupService = require('../services/SquadGroupService').squadGroupService;
   }
   return _squadGroupService;
-}
-
-/**
- * Reload the infoPosts configuration from disk
- * Clears the require cache and re-loads the config
- * @returns {object} - The reloaded INFO_POSTS config
- */
-function reloadInfoPosts() {
-  const configPath = getConfigPath('infoPosts');
-  const resolvedPath = require.resolve(configPath);
-
-  // Clear the require cache
-  delete require.cache[resolvedPath];
-
-  // Re-load the config
-  infoPosts = require(configPath);
-
-  // Update the exported reference
-  module.exports.infoPosts = infoPosts;
-  module.exports.INFO_POSTS = infoPosts.INFO_POSTS;
-
-  return infoPosts.INFO_POSTS;
 }
 
 module.exports = {
@@ -98,13 +75,11 @@ module.exports = {
   getConfigPath,
   loadConfig,
   loadConfigExports,
-  reloadInfoPosts,
 
   // Pre-loaded configurations
   squadGroups,
   channels,
   discordRoles,
-  infoPosts,
 
   // Commonly used destructured exports (sync - from config file)
   getHighestPriorityGroup: squadGroups.getHighestPriorityGroup,
@@ -113,7 +88,6 @@ module.exports = {
   isTrackedRole: squadGroups.isTrackedRole,
   CHANNELS: channels.CHANNELS,
   DISCORD_ROLES: discordRoles.DISCORD_ROLES,
-  INFO_POSTS: infoPosts.INFO_POSTS,
 
   // SquadGroupService (database-backed, async)
   getSquadGroupService,

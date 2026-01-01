@@ -96,6 +96,10 @@ const PERMISSION_DEFINITIONS = {
   MANAGE_ACCOUNT_LINKS: {
     description: 'Create and manage Steam-Discord account links',
     critical: false
+  },
+  MANAGE_INFO_BUTTONS: {
+    description: 'Manage whitelist post info buttons',
+    critical: false
   }
 };
 
@@ -170,6 +174,9 @@ function getDefaultPermissions() {
     ],
     MANAGE_ACCOUNT_LINKS: [
       ...getAllAdminRoles(),
+      DISCORD_ROLES.SUPER_ADMIN
+    ],
+    MANAGE_INFO_BUTTONS: [
       DISCORD_ROLES.SUPER_ADMIN
     ]
   };

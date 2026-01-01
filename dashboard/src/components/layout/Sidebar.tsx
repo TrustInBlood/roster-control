@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Users, UserSearch, Clock, Shield, UserX, Key, Layers, Image, Sprout, Settings } from 'lucide-react'
+import { LayoutDashboard, Users, UserSearch, Clock, Shield, UserX, Key, Layers, Image, Sprout, Settings, MessageSquare } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuth } from '../../hooks/useAuth'
 import type { Permission } from '../../types/auth'
@@ -24,6 +24,7 @@ const navigation: NavItem[] = [
   { name: 'Squad Groups', href: '/admin/squadgroups', icon: Layers, permission: 'MANAGE_PERMISSIONS' },
   { name: 'Stats Templates', href: '/admin/stats-templates', icon: Image, permission: 'VIEW_STATS_TEMPLATES' },
   { name: 'Duty Settings', href: '/admin/duty-settings', icon: Settings, permission: 'MANAGE_DUTY_SETTINGS' },
+  { name: 'Info Buttons', href: '/admin/info-buttons', icon: MessageSquare, permission: 'MANAGE_INFO_BUTTONS' },
 ]
 
 export default function Sidebar() {

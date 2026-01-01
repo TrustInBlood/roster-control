@@ -37,3 +37,5 @@ export type Permission =
   | 'VIEW_SEEDING'
   | 'MANAGE_SEEDING'
   | 'VIEW_PLAYERS'
+  | 'MANAGE_ACCOUNT_LINKS'
+  | 'MANAGE_INFO_BUTTONS'

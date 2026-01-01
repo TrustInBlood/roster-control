@@ -1,6 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { reloadInfoPosts } = require('../utils/environment');
 const WhitelistPostService = require('../services/WhitelistPostService');
+const { invalidateButtonCache, getEnabledButtonsForPost } = require('../api/v1/infoButtons');
 const { sendSuccess, sendError } = require('../utils/messageHandler');
 const { createServiceLogger } = require('../utils/logger');
 
@@ -9,7 +9,7 @@ const serviceLogger = createServiceLogger('ReloadPostsCommand');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('reloadposts')
-    .setDescription('Reload info post configuration and update the whitelist post')
+    .setDescription('Reload info button configuration and update the whitelist post')
     .addBooleanOption(option =>
       option
         .setName('recreate')
@@ -23,11 +23,14 @@ module.exports = {
     const recreate = interaction.options.getBoolean('recreate') || false;
 
     try {
-      // Reload the config from disk
-      const newConfig = reloadInfoPosts();
-      const buttonCount = Object.values(newConfig).filter(p => p.buttonId && p.buttonLabel).length;
+      // Invalidate the cache to fetch fresh buttons from database
+      invalidateButtonCache();
 
-      serviceLogger.info('Info posts config reloaded', {
+      // Get enabled buttons count from database
+      const buttons = await getEnabledButtonsForPost();
+      const buttonCount = buttons.length;
+
+      serviceLogger.info('Info buttons cache invalidated', {
         buttonCount,
         recreate,
         reloadedBy: interaction.user.tag
@@ -44,12 +47,12 @@ module.exports = {
 
       const message = recreate
         ? `Post recreated with ${buttonCount} info button(s).`
-        : `Config reloaded. Updated whitelist post with ${buttonCount} info button(s).`;
+        : `Cache invalidated. Updated whitelist post with ${buttonCount} info button(s).`;
 
       await sendSuccess(interaction, message);
 
     } catch (error) {
-      serviceLogger.error('Failed to reload info posts config:', error);
+      serviceLogger.error('Failed to reload info posts:', error);
       await sendError(interaction, `Failed to reload: ${error.message}`);
     }
   }

@@ -32,6 +32,7 @@ const SquadRolePermissionFactory = require('./SquadRolePermission');
 const StatsTemplateFactory = require('./StatsTemplate');
 const StatsTemplateRoleMappingFactory = require('./StatsTemplateRoleMapping');
 const PotentialPlayerLinkFactory = require('./PotentialPlayerLink');
+const InfoPostButtonFactory = require('./InfoPostButton');
 
 const Group = GroupFactory(sequelize);
 const Whitelist = WhitelistFactory(sequelize);
@@ -45,6 +46,7 @@ const SquadRolePermission = SquadRolePermissionFactory(sequelize);
 const StatsTemplate = StatsTemplateFactory(sequelize);
 const StatsTemplateRoleMapping = StatsTemplateRoleMappingFactory(sequelize);
 const PotentialPlayerLink = PotentialPlayerLinkFactory(sequelize);
+const InfoPostButton = InfoPostButtonFactory(sequelize);
 
 // Define associations
 PlayerSession.belongsTo(Player, { foreignKey: 'player_id', as: 'player' });
@@ -91,5 +93,6 @@ module.exports = {
   DutyLifetimeStats,
   SeedingTime,
   ServerSeedingSnapshot,
-  PotentialPlayerLink
+  PotentialPlayerLink,
+  InfoPostButton
 };

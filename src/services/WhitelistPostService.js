@@ -3,6 +3,7 @@ const { InteractivePost } = require('../database/models');
 const environment = require('../utils/environment');
 const { createServiceLogger } = require('../utils/logger');
 const { BUTTON_IDS } = require('../handlers/buttonInteractionHandler');
+const { getEnabledButtonsForPost } = require('../api/v1/infoButtons');
 
 // Use getter to always get fresh config after reloads
 const CHANNELS = environment.CHANNELS;
@@ -92,13 +93,26 @@ class WhitelistPostService {
   async updateExistingPost(channelId, messageId) {
     try {
       const channel = await this.client.channels.fetch(channelId);
-      if (!channel) return false;
+      if (!channel) {
+        serviceLogger.warn('Could not fetch channel for whitelist post update', { channelId });
+        return false;
+      }
 
       const message = await channel.messages.fetch(messageId);
-      if (!message) return false;
+      if (!message) {
+        serviceLogger.warn('Could not fetch message for whitelist post update', { channelId, messageId });
+        return false;
+      }
 
       const embed = this.createEmbed();
-      const buttonRows = this.createButtons();
+      const buttonRows = await this.createButtons();
+
+      serviceLogger.debug('Updating whitelist post', {
+        channelId,
+        messageId,
+        buttonRowCount: buttonRows.length,
+        totalButtons: buttonRows.reduce((sum, row) => sum + row.components.length, 0)
+      });
 
       await message.edit({
         embeds: [embed],
@@ -108,7 +122,12 @@ class WhitelistPostService {
       return true;
     } catch (error) {
       // Message doesn't exist or can't be edited
-      serviceLogger.warn('Could not update existing whitelist post:', error.message);
+      serviceLogger.error('Could not update existing whitelist post', {
+        channelId,
+        messageId,
+        error: error.message,
+        stack: error.stack
+      });
       return false;
     }
   }
@@ -159,7 +178,7 @@ class WhitelistPostService {
       }
 
       const embed = this.createEmbed();
-      const buttonRows = this.createButtons();
+      const buttonRows = await this.createButtons();
 
       const message = await channel.send({
         embeds: [embed],
@@ -209,9 +228,9 @@ class WhitelistPostService {
 
   /**
    * Create the buttons for the whitelist post
-   * @returns {ActionRowBuilder[]} - Array of action rows with buttons
+   * @returns {Promise<ActionRowBuilder[]>} - Array of action rows with buttons
    */
-  createButtons() {
+  async createButtons() {
     // Row 1: Account management buttons
     const row1 = new ActionRowBuilder()
       .addComponents(
@@ -227,18 +246,18 @@ class WhitelistPostService {
           .setEmoji('📋')
       );
 
-    // Row 2+: Info buttons (dynamically generated from config)
-    // Get INFO_POSTS fresh each time to pick up reloaded config
-    const infoButtons = Object.values(environment.INFO_POSTS)
-      .filter(post => post.buttonId && post.buttonLabel)
-      .map(post => {
+    // Row 2+: Info buttons (dynamically loaded from database)
+    const dbButtons = await getEnabledButtonsForPost();
+    const infoButtons = dbButtons
+      .filter(btn => btn.button_id && btn.button_label)
+      .map(btn => {
         const button = new ButtonBuilder()
-          .setCustomId(post.buttonId)
-          .setLabel(post.buttonLabel)
+          .setCustomId(btn.button_id)
+          .setLabel(btn.button_label)
           .setStyle(ButtonStyle.Secondary);
 
-        if (post.buttonEmoji) {
-          button.setEmoji(post.buttonEmoji);
+        if (btn.button_emoji) {
+          button.setEmoji(btn.button_emoji);
         }
 
         return button;
@@ -258,7 +277,7 @@ class WhitelistPostService {
   }
 
   /**
-   * Force recreate the whitelist post (delete and create new)
+   * Force recreate the whitelist post (delete old Discord message, create new one, update DB record)
    * @param {string} guildId - Discord guild ID
    */
   async deleteAndRecreate(guildId) {
@@ -267,7 +286,7 @@ class WhitelistPostService {
       throw new Error('WHITELIST_POST channel not configured');
     }
 
-    // Delete existing post from Discord if it exists
+    // Delete existing Discord message if it exists (but keep DB record)
     const existingPost = await InteractivePost.findByType(guildId, POST_TYPE);
     if (existingPost) {
       try {
@@ -277,14 +296,12 @@ class WhitelistPostService {
           await message.delete();
         }
       } catch (error) {
-        // Message may already be deleted
+        // Message may already be deleted - that's fine
         serviceLogger.warn('Could not delete existing whitelist post message:', error.message);
       }
-
-      await InteractivePost.deletePost(guildId, POST_TYPE);
     }
 
-    // Create new post
+    // Create new post (this will upsert the DB record with new message ID)
     await this.createPost(guildId, channelId);
   }
 }

@@ -101,6 +101,13 @@ import type {
   DutySettingsAuditResponse,
   ResetDutySettingsResponse,
 } from '../types/dutySettings'
+import type {
+  CreateInfoButtonRequest,
+  UpdateInfoButtonRequest,
+  InfoButtonsListResponse,
+  InfoButtonResponse,
+  InfoButtonMutationResponse,
+} from '../types/infoButtons'
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -688,6 +695,44 @@ export const dutySettingsApi = {
     const { data } = await api.post<ResetDutySettingsResponse>('/duty/settings/reset', {
       confirm: 'RESET_DUTY_SETTINGS',
     })
+    return data
+  },
+}
+
+// Info Buttons API
+export const infoButtonsApi = {
+  list: async (): Promise<InfoButtonsListResponse> => {
+    const { data } = await api.get<InfoButtonsListResponse>('/info-buttons')
+    return data
+  },
+
+  get: async (id: number): Promise<InfoButtonResponse> => {
+    const { data } = await api.get<InfoButtonResponse>(`/info-buttons/${id}`)
+    return data
+  },
+
+  create: async (request: CreateInfoButtonRequest): Promise<InfoButtonMutationResponse> => {
+    const { data } = await api.post<InfoButtonMutationResponse>('/info-buttons', request)
+    return data
+  },
+
+  update: async (id: number, request: UpdateInfoButtonRequest): Promise<InfoButtonMutationResponse> => {
+    const { data } = await api.put<InfoButtonMutationResponse>(`/info-buttons/${id}`, request)
+    return data
+  },
+
+  delete: async (id: number): Promise<InfoButtonMutationResponse> => {
+    const { data } = await api.delete<InfoButtonMutationResponse>(`/info-buttons/${id}`)
+    return data
+  },
+
+  reorder: async (order: Array<{ id: number; display_order: number }>): Promise<InfoButtonMutationResponse> => {
+    const { data } = await api.put<InfoButtonMutationResponse>('/info-buttons/reorder', { order })
+    return data
+  },
+
+  reloadPost: async (recreate = false): Promise<InfoButtonMutationResponse> => {
+    const { data } = await api.post<InfoButtonMutationResponse>('/info-buttons/reload-post', { recreate })
     return data
   },
 }

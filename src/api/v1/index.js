@@ -15,6 +15,7 @@ const statsTemplatesRoutes = require('./statsTemplates');
 const seedingRoutes = require('./seeding');
 const serversRoutes = require('./servers');
 const dutyRoutes = require('./duty');
+const infoButtonsRoutes = require('./infoButtons');
 const { requireStaff, refreshUserRoles } = require('../middleware/auth');
 
 // Mount routes
@@ -35,6 +36,7 @@ router.use('/stats-templates', refreshUserRoles, requireStaff, statsTemplatesRou
 router.use('/seeding', refreshUserRoles, requireStaff, seedingRoutes);
 router.use('/servers', refreshUserRoles, requireStaff, serversRoutes);
 router.use('/duty', refreshUserRoles, requireStaff, dutyRoutes);
+router.use('/info-buttons', refreshUserRoles, requireStaff, infoButtonsRoutes);
 
 // Health check endpoint (public)
 router.get('/health', (req, res) => {

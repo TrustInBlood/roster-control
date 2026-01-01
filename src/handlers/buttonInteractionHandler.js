@@ -29,6 +29,7 @@ const {
 const { STATS_BUTTON_ID } = require('../services/StatsService');
 const { Op } = require('sequelize');
 const { getDutySessionService } = require('../services/DutySessionService');
+const { findButtonByButtonId } = require('../api/v1/infoButtons');
 
 const serviceLogger = createServiceLogger('ButtonInteractionHandler');
 
@@ -890,15 +891,14 @@ function replaceChannelPlaceholders(text, channels) {
 /**
  * Handle info button clicks - display configurable ephemeral content
  * @param {import('discord.js').Interaction} interaction
- * @param {string} buttonId - Button ID to look up in INFO_POSTS config
+ * @param {string} buttonId - Button ID to look up in database
  */
 async function handleInfoButton(interaction, buttonId) {
   try {
-    // Find the info config that matches this buttonId
-    // Get INFO_POSTS fresh each time to pick up reloaded config
-    const infoConfig = Object.values(environment.INFO_POSTS).find(post => post.buttonId === buttonId);
+    // Find the button config from database
+    const buttonConfig = await findButtonByButtonId(buttonId);
 
-    if (!infoConfig) {
+    if (!buttonConfig) {
       serviceLogger.error('Unknown info button:', buttonId);
       await interaction.reply({
         content: 'This information is not available.',
@@ -907,20 +907,20 @@ async function handleInfoButton(interaction, buttonId) {
       return;
     }
 
-    const channels = infoConfig.channels || {};
+    const channels = buttonConfig.channels || {};
 
-    // Build embed from config with channel placeholder replacement
+    // Build embed from database config with channel placeholder replacement
     const embed = {
-      color: infoConfig.embed.color,
-      title: infoConfig.embed.title,
-      description: replaceChannelPlaceholders(infoConfig.embed.description, channels),
-      fields: (infoConfig.embed.fields || []).map(field => ({
+      color: buttonConfig.embed.color,
+      title: buttonConfig.embed.title,
+      description: replaceChannelPlaceholders(buttonConfig.embed.description, channels),
+      fields: (buttonConfig.embed.fields || []).map(field => ({
         name: field.name,
         value: replaceChannelPlaceholders(field.value, channels),
         inline: field.inline
       })),
       timestamp: new Date().toISOString(),
-      footer: infoConfig.embed.footer || { text: 'Roster Control System' }
+      footer: buttonConfig.embed.footer || { text: 'Roster Control System' }
     };
 
     await interaction.reply({
