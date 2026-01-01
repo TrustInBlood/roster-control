@@ -248,6 +248,65 @@ router.post('/', requirePermission('MANAGE_INFO_BUTTONS'), async (req, res) => {
   }
 });
 
+// ============================================
+// Reorder Endpoint (must be before /:id to avoid route conflict)
+// ============================================
+
+/**
+ * PUT /api/v1/info-buttons/reorder
+ * Update display order of buttons
+ * Requires: MANAGE_INFO_BUTTONS
+ * Body: { order: [{ id: number, display_order: number }] }
+ */
+router.put('/reorder', requirePermission('MANAGE_INFO_BUTTONS'), async (req, res) => {
+  try {
+    const { order } = req.body;
+
+    if (!Array.isArray(order) || order.length === 0) {
+      return res.status(400).json({ error: 'order must be a non-empty array' });
+    }
+
+    // Validate order array
+    for (const item of order) {
+      if (typeof item.id !== 'number' || typeof item.display_order !== 'number') {
+        return res.status(400).json({ error: 'Each order item must have id and display_order as numbers' });
+      }
+    }
+
+    await InfoPostButton.updateDisplayOrder(order);
+
+    // Invalidate cache
+    invalidateButtonCache();
+
+    // Audit log
+    await AuditLog.create({
+      actionType: 'INFO_BUTTON_REORDER',
+      actorType: 'user',
+      actorId: req.user.id,
+      actorName: req.user.username,
+      targetType: 'info_button',
+      targetId: 'all',
+      targetName: 'Info Buttons',
+      description: `Reordered ${order.length} info buttons`,
+      details: JSON.stringify({ order }),
+      severity: 'low',
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    logger.info('Info buttons reordered', { count: order.length, reorderedBy: req.user.username });
+
+    res.json({ success: true, message: 'Button order updated' });
+  } catch (error) {
+    logger.error('Failed to reorder info buttons', { error: error.message });
+    res.status(500).json({ error: 'Failed to reorder info buttons' });
+  }
+});
+
+// ============================================
+// Update Endpoint
+// ============================================
+
 /**
  * PUT /api/v1/info-buttons/:id
  * Update an info button
@@ -376,61 +435,6 @@ router.delete('/:id', requirePermission('MANAGE_INFO_BUTTONS'), async (req, res)
   } catch (error) {
     logger.error('Failed to delete info button', { id: req.params.id, error: error.message });
     res.status(500).json({ error: 'Failed to delete info button' });
-  }
-});
-
-// ============================================
-// Reorder Endpoint
-// ============================================
-
-/**
- * PUT /api/v1/info-buttons/reorder
- * Update display order of buttons
- * Requires: MANAGE_INFO_BUTTONS
- * Body: { order: [{ id: number, display_order: number }] }
- */
-router.put('/reorder', requirePermission('MANAGE_INFO_BUTTONS'), async (req, res) => {
-  try {
-    const { order } = req.body;
-
-    if (!Array.isArray(order) || order.length === 0) {
-      return res.status(400).json({ error: 'order must be a non-empty array' });
-    }
-
-    // Validate order array
-    for (const item of order) {
-      if (typeof item.id !== 'number' || typeof item.display_order !== 'number') {
-        return res.status(400).json({ error: 'Each order item must have id and display_order as numbers' });
-      }
-    }
-
-    await InfoPostButton.updateDisplayOrder(order);
-
-    // Invalidate cache
-    invalidateButtonCache();
-
-    // Audit log
-    await AuditLog.create({
-      actionType: 'INFO_BUTTON_REORDER',
-      actorType: 'user',
-      actorId: req.user.id,
-      actorName: req.user.username,
-      targetType: 'info_button',
-      targetId: 'all',
-      targetName: 'Info Buttons',
-      description: `Reordered ${order.length} info buttons`,
-      details: JSON.stringify({ order }),
-      severity: 'low',
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent']
-    });
-
-    logger.info('Info buttons reordered', { count: order.length, reorderedBy: req.user.username });
-
-    res.json({ success: true, message: 'Button order updated' });
-  } catch (error) {
-    logger.error('Failed to reorder info buttons', { error: error.message });
-    res.status(500).json({ error: 'Failed to reorder info buttons' });
   }
 });
 
