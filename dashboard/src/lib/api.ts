@@ -108,6 +108,11 @@ import type {
   InfoButtonResponse,
   InfoButtonMutationResponse,
 } from '../types/infoButtons'
+import type {
+  UserPreferencesResponse,
+  UpdatePreferencesResponse,
+  PartialUserPreferences,
+} from '../types/preferences'
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -733,6 +738,19 @@ export const infoButtonsApi = {
 
   reloadPost: async (recreate = false): Promise<InfoButtonMutationResponse> => {
     const { data } = await api.post<InfoButtonMutationResponse>('/info-buttons/reload-post', { recreate })
+    return data
+  },
+}
+
+// User Preferences API
+export const userPreferencesApi = {
+  get: async (): Promise<UserPreferencesResponse> => {
+    const { data } = await api.get<UserPreferencesResponse>('/user/preferences')
+    return data
+  },
+
+  update: async (preferences: PartialUserPreferences): Promise<UpdatePreferencesResponse> => {
+    const { data } = await api.put<UpdatePreferencesResponse>('/user/preferences', { preferences })
     return data
   },
 }

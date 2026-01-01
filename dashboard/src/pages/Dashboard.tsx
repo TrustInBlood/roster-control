@@ -1,7 +1,8 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AlertTriangle, RefreshCw, Wifi, WifiOff, Server } from 'lucide-react'
 import { useServerStatus } from '../hooks/useServerStatus'
+import { useUserPreferences } from '../hooks/useUserPreferences'
 import ServerCard from '../components/ServerCard'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -10,8 +11,29 @@ export default function Dashboard() {
   const [showPermissionError, setShowPermissionError] = useState(false)
   // Track which sections are expanded - persists across polling updates
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({})
+  // Track if we've initialized expanded sections from preferences
+  const hasInitializedExpanded = useRef(false)
 
   const { servers, isLoading, error, socketConnected, lastUpdate, refresh } = useServerStatus()
+  const { getAllSectionPreferences } = useUserPreferences()
+
+  // Get current section preferences
+  const sectionPreferences = getAllSectionPreferences()
+
+  // Initialize expanded sections from preferences when servers first load
+  useEffect(() => {
+    if (servers.length > 0 && !hasInitializedExpanded.current) {
+      const prefs = getAllSectionPreferences()
+      const initial: Record<string, boolean> = {}
+      servers.forEach(server => {
+        initial[`${server.id}-staff`] = prefs.staff.defaultExpanded
+        initial[`${server.id}-members`] = prefs.members.defaultExpanded
+        initial[`${server.id}-public`] = prefs.public.defaultExpanded
+      })
+      setExpandedSections(initial)
+      hasInitializedExpanded.current = true
+    }
+  }, [servers, getAllSectionPreferences])
 
   // Toggle a section's expanded state
   const handleToggleSection = useCallback((serverId: string, section: string) => {
@@ -175,6 +197,7 @@ export default function Dashboard() {
               server={server}
               expandedSections={expandedSections}
               onToggleSection={handleToggleSection}
+              sectionPreferences={sectionPreferences}
             />
           ))}
         </div>

@@ -25,6 +25,7 @@ const navigation: NavItem[] = [
   { name: 'Stats Templates', href: '/admin/stats-templates', icon: Image, permission: 'VIEW_STATS_TEMPLATES' },
   { name: 'Duty Settings', href: '/admin/duty-settings', icon: Settings, permission: 'MANAGE_DUTY_SETTINGS' },
   { name: 'Info Buttons', href: '/admin/info-buttons', icon: MessageSquare, permission: 'MANAGE_INFO_BUTTONS' },
+  { name: 'My Settings', href: '/settings', icon: Settings },
 ]
 
 export default function Sidebar() {

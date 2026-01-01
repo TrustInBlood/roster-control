@@ -1,11 +1,19 @@
 import { Link } from 'react-router-dom'
 import { Users, Wifi, WifiOff, Shield, Clock, ChevronDown, ChevronRight, UserCheck } from 'lucide-react'
 import type { ServerStatus, OnlineStaff, OnlineMember, OnlinePublicPlayer } from '../types/servers'
+import type { SectionPreference } from '../types/preferences'
+
+interface SectionPreferences {
+  staff: SectionPreference
+  members: SectionPreference
+  public: SectionPreference
+}
 
 interface ServerCardProps {
   server: ServerStatus
   expandedSections: Record<string, boolean>
   onToggleSection: (serverId: string, section: string) => void
+  sectionPreferences?: SectionPreferences
 }
 
 /**
@@ -82,6 +90,7 @@ interface CollapsibleSectionProps {
   onToggle: () => void
   children: React.ReactNode
   emptyMessage?: string
+  hidden?: boolean
 }
 
 function CollapsibleSection({
@@ -92,8 +101,14 @@ function CollapsibleSection({
   isExpanded,
   onToggle,
   children,
-  emptyMessage = 'None'
+  emptyMessage = 'None',
+  hidden,
 }: CollapsibleSectionProps) {
+  // If hidden via preferences, don't render
+  if (hidden) {
+    return null
+  }
+
   return (
     <div className="border-t border-discord-darker pt-3 pb-3">
       <button
@@ -190,7 +205,12 @@ function PublicPlayerList({ players }: { players: OnlinePublicPlayer[] }) {
   )
 }
 
-export default function ServerCard({ server, expandedSections, onToggleSection }: ServerCardProps) {
+export default function ServerCard({
+  server,
+  expandedSections,
+  onToggleSection,
+  sectionPreferences,
+}: ServerCardProps) {
   const connectionState = getConnectionState(server)
   const playerCountColor = getPlayerCountColor(server.playerCount, server.maxPlayers)
   const totalQueue = server.publicQueue + server.reserveQueue
@@ -253,6 +273,7 @@ export default function ServerCard({ server, expandedSections, onToggleSection }
         isExpanded={expandedSections[staffKey] ?? false}
         onToggle={() => onToggleSection(server.id, 'staff')}
         emptyMessage="No staff online"
+        hidden={sectionPreferences?.staff?.hidden}
       >
         <StaffList staff={server.onlineStaff || []} />
       </CollapsibleSection>
@@ -266,6 +287,7 @@ export default function ServerCard({ server, expandedSections, onToggleSection }
         isExpanded={expandedSections[membersKey] ?? false}
         onToggle={() => onToggleSection(server.id, 'members')}
         emptyMessage="No members online"
+        hidden={sectionPreferences?.members?.hidden}
       >
         <MemberList members={server.onlineMembers || []} />
       </CollapsibleSection>
@@ -279,6 +301,7 @@ export default function ServerCard({ server, expandedSections, onToggleSection }
         isExpanded={expandedSections[publicKey] ?? false}
         onToggle={() => onToggleSection(server.id, 'public')}
         emptyMessage="No public players"
+        hidden={sectionPreferences?.public?.hidden}
       >
         <PublicPlayerList players={server.onlinePublic || []} />
       </CollapsibleSection>
