@@ -196,35 +196,35 @@ export default function StaffOverview({
                     </span>
                   </td>
 
-                  {/* Voice (On/Off) */}
+                  {/* Voice (Total with On/Off breakdown) */}
                   <td className="px-4 py-3 whitespace-nowrap">
                     <div className="flex flex-col">
                       <span className="text-purple-400">
-                        {formatMinutes(entry.onDutyVoiceMinutes, true)}
+                        {formatMinutes(entry.totalVoiceMinutes, true)}
                       </span>
                       {entry.offDutyVoiceMinutes > 0 && (
                         <span className="text-xs text-gray-500">
-                          +{formatMinutes(entry.offDutyVoiceMinutes, true)} off-duty
+                          {formatMinutes(entry.offDutyVoiceMinutes, true)} off-duty
                         </span>
                       )}
                     </div>
                   </td>
 
-                  {/* Tickets (On/Off) */}
+                  {/* Tickets (Total with On/Off breakdown) */}
                   <td className="px-4 py-3 whitespace-nowrap">
                     <div className="flex flex-col">
                       <span className="text-amber-400">
-                        {entry.onDutyTicketResponses}
+                        {entry.totalTicketResponses}
                       </span>
                       {entry.offDutyTicketResponses > 0 && (
                         <span className="text-xs text-gray-500">
-                          +{entry.offDutyTicketResponses} off-duty
+                          {entry.offDutyTicketResponses} off-duty
                         </span>
                       )}
                     </div>
                   </td>
 
-                  {/* Total Points */}
+                  {/* Total Points (with On/Off breakdown) */}
                   <td className="px-4 py-3 whitespace-nowrap">
                     <div className="flex flex-col">
                       <span className="text-yellow-400 font-semibold">
@@ -232,7 +232,7 @@ export default function StaffOverview({
                       </span>
                       {entry.offDutyPoints > 0 && (
                         <span className="text-xs text-gray-500">
-                          ({entry.offDutyPoints.toLocaleString()} off-duty)
+                          {entry.offDutyPoints.toLocaleString()} off-duty
                         </span>
                       )}
                     </div>
