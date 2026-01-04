@@ -1,11 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const { createServiceLogger } = require('../../utils/logger');
+const { loadConfig } = require('../../utils/environment');
 const { requireAuth, requirePermission } = require('../middleware/auth');
 const { DutyStatusChange, DutySession, DutyLifetimeStats, DutyActivityEvent, PlayerDiscordLink, Player, PlayerSession } = require('../../database/models');
 const { getMemberCacheService } = require('../../services/MemberCacheService');
 const { getDutyConfigService } = require('../../services/DutyConfigService');
 const { getDutySessionService } = require('../../services/DutySessionService');
+
+// Load Discord roles configuration
+const { getAllStaffRoles } = loadConfig('discordRoles');
 
 const logger = createServiceLogger('DutyAPI');
 
@@ -332,21 +336,59 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
       }
     }
 
-    // Fetch server time for users already in userStatsMap (from duty/activity)
-    // and add Steam ID mapping for player profile links
+    // First, get ALL staff members from Discord and add them to userStatsMap
+    // This ensures staff appear even if they have no activity
     const steamIdMap = new Map();
     const serverTimeMap = new Map();
+    const discordClient = global.discordClient;
+    const allStaffRoles = getAllStaffRoles();
+
+    if (discordClient) {
+      try {
+        const guild = await discordClient.guilds.fetch(guildId).catch(() => null);
+        if (guild) {
+          const cacheService = getMemberCacheService();
+          const allMembers = await cacheService.getAllMembers(guild);
+
+          // Add all staff members to userStatsMap if not already there
+          for (const [memberId, member] of allMembers) {
+            if (member && member.roles && member.roles.cache) {
+              const memberRoleIds = member.roles.cache.map(r => r.id);
+              const isStaff = memberRoleIds.some(roleId => allStaffRoles.includes(roleId));
+
+              if (isStaff && !userStatsMap.has(memberId)) {
+                userStatsMap.set(memberId, {
+                  discordUserId: memberId,
+                  totalVoiceMinutes: 0,
+                  onDutyVoiceMinutes: 0,
+                  offDutyVoiceMinutes: 0,
+                  totalTicketResponses: 0,
+                  onDutyTicketResponses: 0,
+                  offDutyTicketResponses: 0,
+                  totalDutyMinutes: 0,
+                  totalSessions: 0
+                });
+              }
+            }
+          }
+        }
+      } catch (err) {
+        logger.warn('Failed to fetch staff members from Discord', { error: err.message });
+      }
+    }
+
+    // Now fetch server time for all users in userStatsMap
     try {
       const { Op, fn, col } = require('sequelize');
 
-      // Get Discord user IDs we already have from duty sessions and activity events
-      const existingUserIds = Array.from(userStatsMap.keys());
+      // Get Discord user IDs from userStatsMap (now includes all staff)
+      const allUserIds = Array.from(userStatsMap.keys());
 
-      // Get Discord links for these users only
+      // Get Discord links for these users
       const allLinks = await PlayerDiscordLink.findAll({
         where: {
           is_primary: true,
-          discord_user_id: existingUserIds
+          discord_user_id: allUserIds
         },
         raw: true
       });
@@ -463,7 +505,6 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
     }));
 
     // Fetch Discord member info for display names and avatars
-    const discordClient = global.discordClient;
     let memberMap = new Map();
 
     if (discordClient) {
