@@ -2,6 +2,18 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { dutySettingsApi } from '../lib/api'
 import { useAuth } from './useAuth'
 
+export function useVoiceChannels() {
+  const { user, hasPermission } = useAuth()
+  const canView = hasPermission('VIEW_DUTY')
+
+  return useQuery({
+    queryKey: ['voiceChannels'],
+    queryFn: () => dutySettingsApi.getVoiceChannels(),
+    enabled: !!user && canView,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  })
+}
+
 export function useDutySettings() {
   const { user, hasPermission } = useAuth()
   const canView = hasPermission('MANAGE_DUTY_SETTINGS')

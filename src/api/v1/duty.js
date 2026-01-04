@@ -639,6 +639,54 @@ router.get('/user/:discordId', requireAuth, requirePermission('VIEW_DUTY'), asyn
 // Settings Endpoints (Transparency)
 // ============================================
 
+// GET /api/v1/duty/voice-channels - Get list of voice channels in the guild
+router.get('/voice-channels', requireAuth, requirePermission('VIEW_DUTY'), async (req, res) => {
+  try {
+    const guildId = process.env.DISCORD_GUILD_ID;
+    const discordClient = global.discordClient;
+
+    if (!discordClient) {
+      return res.status(503).json({ error: 'Discord client not available' });
+    }
+
+    const guild = await discordClient.guilds.fetch(guildId).catch(() => null);
+    if (!guild) {
+      return res.status(404).json({ error: 'Guild not found' });
+    }
+
+    // Get all voice channels
+    const channels = guild.channels.cache
+      .filter(channel => channel.type === 2) // 2 = GuildVoice
+      .map(channel => ({
+        id: channel.id,
+        name: channel.name,
+        parentId: channel.parentId,
+        parentName: channel.parent?.name || null,
+        position: channel.position
+      }))
+      .sort((a, b) => {
+        // Sort by parent category first, then by position
+        if (a.parentName !== b.parentName) {
+          if (!a.parentName) return -1;
+          if (!b.parentName) return 1;
+          return a.parentName.localeCompare(b.parentName);
+        }
+        return a.position - b.position;
+      });
+
+    res.json({
+      success: true,
+      data: {
+        channels,
+        totalCount: channels.length
+      }
+    });
+  } catch (error) {
+    logger.error('Error getting voice channels', { error: error.message });
+    res.status(500).json({ error: 'Failed to get voice channels' });
+  }
+});
+
 // GET /api/v1/duty/settings - Get duty tracking settings (all staff can view)
 router.get('/settings', requireAuth, requirePermission('VIEW_DUTY'), async (req, res) => {
   try {

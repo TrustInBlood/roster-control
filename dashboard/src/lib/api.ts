@@ -103,6 +103,7 @@ import type {
   UpdateDutySettingsResponse,
   DutySettingsAuditResponse,
   ResetDutySettingsResponse,
+  VoiceChannelsResponse,
 } from '../types/dutySettings'
 import type {
   CreateInfoButtonRequest,
@@ -694,6 +695,11 @@ export const dutyApi = {
 export const dutySettingsApi = {
   get: async (): Promise<DutySettingsResponse> => {
     const { data } = await api.get<DutySettingsResponse>('/duty/settings')
+    return data
+  },
+
+  getVoiceChannels: async (): Promise<VoiceChannelsResponse> => {
+    const { data } = await api.get<VoiceChannelsResponse>('/duty/voice-channels')
     return data
   },
 

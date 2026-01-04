@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react'
 import { RefreshCw, Settings, RotateCcw, Clock, Activity, Award, Users, History, CheckSquare, Square, Save, AlertCircle, Hash } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useDutySettings, useUpdateDutySettings, useDutySettingsAudit, useResetDutySettings } from '../hooks/useDutySettings'
+import { useDutySettings, useUpdateDutySettings, useDutySettingsAudit, useResetDutySettings, useVoiceChannels } from '../hooks/useDutySettings'
 import { useAuth } from '../hooks/useAuth'
-import type { DutyConfig, ConfigItem } from '../types/dutySettings'
+import { VoiceChannelSelect } from '../components/duty'
+import type { DutyConfig, ConfigItem, VoiceChannel } from '../types/dutySettings'
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   timeout: Clock,
@@ -43,9 +44,10 @@ interface ConfigInputProps {
   value: boolean | number | string | string[]
   onChange: (key: string, value: boolean | number | string | string[]) => void
   disabled?: boolean
+  voiceChannels?: VoiceChannel[]
 }
 
-function ConfigInput({ configKey, item, value, onChange, disabled }: ConfigInputProps) {
+function ConfigInput({ configKey, item, value, onChange, disabled, voiceChannels }: ConfigInputProps) {
   const isSquadJSRequired = item.requiresSquadJS
 
   if (item.type === 'boolean') {
@@ -143,16 +145,34 @@ function ConfigInput({ configKey, item, value, onChange, disabled }: ConfigInput
     )
   }
 
-  // JSON type (arrays) - simplified display
+  // JSON type (arrays) - use VoiceChannelSelect for voice channel configs
   if (item.type === 'json' && Array.isArray(value)) {
+    // Check if this is a voice channel config
+    if ((configKey === 'excluded_voice_channels' || configKey === 'tracked_voice_channels') && voiceChannels) {
+      return (
+        <VoiceChannelSelect
+          channels={voiceChannels}
+          selectedIds={value as string[]}
+          onChange={(ids) => onChange(configKey, ids)}
+          disabled={disabled}
+          label={item.label}
+          description={configKey === 'excluded_voice_channels'
+            ? 'Voice activity in these channels will not be tracked (e.g., AFK channel)'
+            : 'Only track voice activity in these channels (leave empty to track all)'
+          }
+        />
+      )
+    }
+
+    // Default display for other JSON arrays
     return (
       <div>
         <label className="block text-sm font-medium text-gray-300 mb-2">{item.label}</label>
         <div className="text-sm text-gray-400 bg-discord-darker rounded-md px-3 py-2">
           {value.length === 0 ? (
-            <span className="text-gray-500 italic">No channels configured (using defaults)</span>
+            <span className="text-gray-500 italic">No items configured</span>
           ) : (
-            <span>{value.length} channel(s) configured</span>
+            <span>{value.length} item(s) configured</span>
           )}
         </div>
       </div>
@@ -168,9 +188,12 @@ export default function DutySettings() {
   const canEdit = hasPermission('MANAGE_DUTY_SETTINGS') // Only super admins can edit
 
   const { data, isLoading, isRefetching, error } = useDutySettings()
+  const { data: voiceChannelsData } = useVoiceChannels()
   const updateMutation = useUpdateDutySettings()
   const resetMutation = useResetDutySettings()
   const { data: auditData } = useDutySettingsAudit(10)
+
+  const voiceChannels = voiceChannelsData?.data?.channels || []
 
   const [localConfig, setLocalConfig] = useState<DutyConfig | null>(null)
   const [showResetConfirm, setShowResetConfirm] = useState(false)
@@ -377,6 +400,7 @@ export default function DutySettings() {
                     value={config[key]?.value ?? item.value}
                     onChange={handleConfigChange}
                     disabled={!canEdit}
+                    voiceChannels={voiceChannels}
                   />
                 ))}
               </SettingsSection>

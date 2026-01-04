@@ -69,6 +69,23 @@ export interface ResetDutySettingsResponse {
   message: string
 }
 
+// Voice channel type for channel selector
+export interface VoiceChannel {
+  id: string
+  name: string
+  parentId: string | null
+  parentName: string | null
+  position: number
+}
+
+export interface VoiceChannelsResponse {
+  success: boolean
+  data: {
+    channels: VoiceChannel[]
+    totalCount: number
+  }
+}
+
 // Config key constants for type safety
 export const CONFIG_KEYS = {
   // Auto-timeout
