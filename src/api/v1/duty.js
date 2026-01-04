@@ -291,9 +291,10 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
     });
 
     for (const session of dutySessions) {
-      const userId = session.discord_user_id;
+      // With raw: true, Sequelize returns camelCase attribute names, not column names
+      const userId = session.discordUserId;
       const current = dutyTimeByUser.get(userId) || { dutyMinutes: 0, sessionCount: 0 };
-      current.dutyMinutes += session.duration_minutes || 0;
+      current.dutyMinutes += session.durationMinutes || 0;
       current.sessionCount += 1;
       dutyTimeByUser.set(userId, current);
     }
@@ -398,7 +399,7 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
           const members = await Promise.all(memberPromises);
 
           members.forEach((member, index) => {
-            if (member) {
+            if (member && member.user) {
               memberMap.set(userIds[index], {
                 displayName: member.displayName || member.user.username,
                 avatarUrl: member.user.displayAvatarURL({ size: 64 })
