@@ -1,6 +1,7 @@
 import { Clock, MessageSquare, Mic, Star, User, ArrowUpDown } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import type { StaffOverviewEntry, StaffOverviewSortBy } from '../../types/duty'
-import { formatMinutes, getRankBadge } from '../../lib/dutyUtils'
+import { formatMinutes } from '../../lib/dutyUtils'
 
 interface StaffOverviewProps {
   entries: StaffOverviewEntry[]
@@ -120,42 +121,56 @@ export default function StaffOverview({
             </tr>
           </thead>
           <tbody className="divide-y divide-discord-lighter">
-            {entries.map((entry) => {
-              const badge = getRankBadge(entry.rank)
-              return (
+            {entries.map((entry) => (
                 <tr
                   key={entry.discordUserId}
                   className="hover:bg-discord-lighter/50 transition-colors"
                 >
                   {/* Rank */}
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="text-white font-medium">
-                      {badge ? (
-                        <span className="text-lg">{badge}</span>
-                      ) : (
-                        <span className="text-gray-400">#{entry.rank}</span>
-                      )}
-                    </span>
+                    <span className="text-gray-400">#{entry.rank}</span>
                   </td>
 
                   {/* Staff Member */}
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <div className="flex items-center gap-2">
-                      {entry.avatarUrl ? (
-                        <img
-                          src={entry.avatarUrl}
-                          alt={entry.displayName}
-                          className="w-8 h-8 rounded-full"
-                        />
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-discord-blurple/30 flex items-center justify-center">
-                          <User className="w-4 h-4 text-discord-blurple" />
-                        </div>
-                      )}
-                      <span className="text-white font-medium">
-                        {entry.displayName}
-                      </span>
-                    </div>
+                    {entry.steamId ? (
+                      <Link
+                        to={`/players/${entry.steamId}`}
+                        className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                      >
+                        {entry.avatarUrl ? (
+                          <img
+                            src={entry.avatarUrl}
+                            alt={entry.displayName}
+                            className="w-8 h-8 rounded-full"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-discord-blurple/30 flex items-center justify-center">
+                            <User className="w-4 h-4 text-discord-blurple" />
+                          </div>
+                        )}
+                        <span className="text-white font-medium hover:text-discord-blurple transition-colors">
+                          {entry.displayName}
+                        </span>
+                      </Link>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        {entry.avatarUrl ? (
+                          <img
+                            src={entry.avatarUrl}
+                            alt={entry.displayName}
+                            className="w-8 h-8 rounded-full"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-discord-blurple/30 flex items-center justify-center">
+                            <User className="w-4 h-4 text-discord-blurple" />
+                          </div>
+                        )}
+                        <span className="text-white font-medium">
+                          {entry.displayName}
+                        </span>
+                      </div>
+                    )}
                   </td>
 
                   {/* Duty Time */}
@@ -212,8 +227,7 @@ export default function StaffOverview({
                     </div>
                   </td>
                 </tr>
-              )
-            })}
+            ))}
           </tbody>
         </table>
       </div>

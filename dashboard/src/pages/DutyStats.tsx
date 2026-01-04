@@ -1,13 +1,15 @@
 import { useState } from 'react'
-import { RefreshCw, Settings } from 'lucide-react'
+import { RefreshCw, Settings, Calendar } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useStaffOverview } from '../hooks/useDutyStats'
 import { DutySummaryCards, StaffOverview } from '../components/duty'
 import { useAuth } from '../hooks/useAuth'
-import type { StaffOverviewSortBy, DutySummaryStats } from '../types/duty'
+import type { StaffOverviewSortBy, StaffOverviewPeriod, DutySummaryStats } from '../types/duty'
+import { STAFF_OVERVIEW_PERIOD_LABELS } from '../types/duty'
 
 export default function DutyStats() {
   const [staffOverviewSort, setStaffOverviewSort] = useState<StaffOverviewSortBy>('points')
+  const [period, setPeriod] = useState<StaffOverviewPeriod>('week')
   const { hasPermission } = useAuth()
   const canManageSettings = hasPermission('MANAGE_DUTY_SETTINGS')
 
@@ -16,7 +18,7 @@ export default function DutyStats() {
     isLoading: staffOverviewLoading,
     refetch: refetchStaffOverview,
     isFetching: staffOverviewFetching,
-  } = useStaffOverview(staffOverviewSort)
+  } = useStaffOverview(staffOverviewSort, period)
 
   const handleRefresh = () => {
     refetchStaffOverview()
@@ -25,7 +27,7 @@ export default function DutyStats() {
   // Build summary stats from staff overview data
   const summaryStats: DutySummaryStats | undefined = staffOverviewData?.data?.entries
     ? {
-        period: 'all-time',
+        period: staffOverviewData.data.period === 'week' ? 'week' : 'month',
         dutyType: 'both',
         totalUsers: staffOverviewData.data.entries.length,
         totalTime: staffOverviewData.data.entries.reduce((sum, e) => sum + e.totalDutyMinutes * 60 * 1000, 0),
@@ -36,14 +38,8 @@ export default function DutyStats() {
         averageSessionsPerUser: staffOverviewData.data.entries.length > 0
           ? staffOverviewData.data.entries.reduce((sum, e) => sum + e.totalSessions, 0) / staffOverviewData.data.entries.length
           : 0,
-        currentlyOnDuty: 0, // Not tracked in lifetime stats
-        topPerformers: staffOverviewData.data.entries.slice(0, 3).map(e => ({
-          discordUserId: e.discordUserId,
-          discordUsername: e.displayName,
-          displayName: e.displayName,
-          avatarUrl: e.avatarUrl,
-          totalTime: e.totalDutyMinutes * 60 * 1000,
-        })),
+        currentlyOnDuty: staffOverviewData.data.currentlyOnDuty ?? 0,
+        topPerformers: [],
       }
     : undefined
 
@@ -54,10 +50,25 @@ export default function DutyStats() {
         <div>
           <h1 className="text-2xl font-bold text-white">Duty Stats</h1>
           <p className="text-gray-400 mt-1">
-            All-time staff activity including off-duty contributions
+            Staff activity including off-duty contributions
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {/* Period Selector */}
+          <div className="flex items-center gap-2 bg-discord-lighter rounded-md px-3 py-2">
+            <Calendar className="w-4 h-4 text-gray-400" />
+            <select
+              value={period}
+              onChange={(e) => setPeriod(e.target.value as StaffOverviewPeriod)}
+              className="bg-transparent text-white text-sm font-medium focus:outline-none cursor-pointer"
+            >
+              {(Object.keys(STAFF_OVERVIEW_PERIOD_LABELS) as StaffOverviewPeriod[]).map((p) => (
+                <option key={p} value={p} className="bg-discord-dark">
+                  {STAFF_OVERVIEW_PERIOD_LABELS[p]}
+                </option>
+              ))}
+            </select>
+          </div>
           {canManageSettings && (
             <Link
               to="/admin/duty-settings"

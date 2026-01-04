@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { createServiceLogger } = require('../../utils/logger');
 const { requireAuth, requirePermission } = require('../middleware/auth');
-const { DutyStatusChange, DutySession, DutyLifetimeStats } = require('../../database/models');
+const { DutyStatusChange, DutySession, DutyLifetimeStats, DutyActivityEvent, PlayerDiscordLink } = require('../../database/models');
 const { getMemberCacheService } = require('../../services/MemberCacheService');
 const { getDutyConfigService } = require('../../services/DutyConfigService');
 const { getDutySessionService } = require('../../services/DutySessionService');
@@ -238,6 +238,7 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
   try {
     const {
       sortBy = 'points',
+      period = 'week',
       limit = 50
     } = req.query;
 
@@ -247,23 +248,138 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
       return res.status(400).json({ error: 'Invalid sortBy. Must be: points, time, tickets, or voice' });
     }
 
+    // Validate period parameter
+    const validPeriods = ['week', 'month'];
+    if (!validPeriods.includes(period)) {
+      return res.status(400).json({ error: 'Invalid period. Must be: week or month' });
+    }
+
     const parsedLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
     const guildId = process.env.DISCORD_GUILD_ID;
 
-    // Map sortBy to database field
-    const sortFieldMap = {
-      'points': 'total_points',
-      'time': 'total_duty_minutes',
-      'tickets': 'total_ticket_responses',
-      'voice': 'total_voice_minutes'
-    };
+    // Calculate date range based on period
+    const now = new Date();
+    let startDate;
+    if (period === 'week') {
+      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    } else {
+      startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    }
 
-    // Get all lifetime stats, sorted by the requested field
-    const lifetimeStats = await DutyLifetimeStats.findAll({
-      where: { guildId },
-      order: [[sortFieldMap[sortBy], 'DESC']],
-      limit: parsedLimit
+    // Get point config values for dynamic calculation
+    const configService = getDutyConfigService();
+    const pointsBasePerMinute = await configService.getValue(guildId, 'points_base_per_minute') || 1;
+    const pointsVoicePerMinute = await configService.getValue(guildId, 'points_voice_per_minute') || 0.5;
+    const pointsTicketResponse = await configService.getValue(guildId, 'points_ticket_response') || 5;
+
+    // Get activity events for the period (new data with timestamps)
+    const activityStats = await DutyActivityEvent.getStaffOverviewForPeriod(guildId, startDate, now);
+
+    // Also get duty sessions for the period for duty time
+    const { startDate: periodStart, endDate: periodEnd } = getDateRange(period);
+    const dutyTimeByUser = new Map();
+
+    // Query duty sessions in range
+    const dutySessions = await DutySession.findAll({
+      where: {
+        guildId,
+        sessionStart: {
+          [require('sequelize').Op.between]: [periodStart || new Date(0), periodEnd || new Date()]
+        }
+      },
+      raw: true
     });
+
+    for (const session of dutySessions) {
+      const userId = session.discord_user_id;
+      const current = dutyTimeByUser.get(userId) || { dutyMinutes: 0, sessionCount: 0 };
+      current.dutyMinutes += session.duration_minutes || 0;
+      current.sessionCount += 1;
+      dutyTimeByUser.set(userId, current);
+    }
+
+    // Merge activity stats with duty time
+    const userStatsMap = new Map();
+
+    // Add activity event data
+    for (const activity of activityStats) {
+      userStatsMap.set(activity.discordUserId, {
+        ...activity,
+        totalDutyMinutes: 0,
+        totalSessions: 0
+      });
+    }
+
+    // Add duty session data
+    for (const [userId, dutyData] of dutyTimeByUser) {
+      if (userStatsMap.has(userId)) {
+        const stats = userStatsMap.get(userId);
+        stats.totalDutyMinutes = dutyData.dutyMinutes;
+        stats.totalSessions = dutyData.sessionCount;
+      } else {
+        userStatsMap.set(userId, {
+          discordUserId: userId,
+          totalVoiceMinutes: 0,
+          onDutyVoiceMinutes: 0,
+          offDutyVoiceMinutes: 0,
+          totalTicketResponses: 0,
+          onDutyTicketResponses: 0,
+          offDutyTicketResponses: 0,
+          totalDutyMinutes: dutyData.dutyMinutes,
+          totalSessions: dutyData.sessionCount
+        });
+      }
+    }
+
+    // Calculate dynamic points and convert to array
+    let entries = Array.from(userStatsMap.values()).map(stats => {
+      // Calculate points dynamically from config
+      const dutyPoints = Math.floor(stats.totalDutyMinutes * pointsBasePerMinute);
+      const voicePoints = Math.floor(stats.totalVoiceMinutes * pointsVoicePerMinute);
+      const ticketPoints = Math.floor(stats.totalTicketResponses * pointsTicketResponse);
+      const totalPoints = dutyPoints + voicePoints + ticketPoints;
+
+      // Calculate on-duty points
+      const onDutyVoicePoints = Math.floor(stats.onDutyVoiceMinutes * pointsVoicePerMinute);
+      const onDutyTicketPoints = Math.floor(stats.onDutyTicketResponses * pointsTicketResponse);
+      const onDutyPoints = dutyPoints + onDutyVoicePoints + onDutyTicketPoints;
+
+      // Off-duty points
+      const offDutyVoicePoints = Math.floor(stats.offDutyVoiceMinutes * pointsVoicePerMinute);
+      const offDutyTicketPoints = Math.floor(stats.offDutyTicketResponses * pointsTicketResponse);
+      const offDutyPoints = offDutyVoicePoints + offDutyTicketPoints;
+
+      return {
+        discordUserId: stats.discordUserId,
+        totalDutyMinutes: stats.totalDutyMinutes,
+        totalSessions: stats.totalSessions,
+        totalVoiceMinutes: stats.totalVoiceMinutes,
+        onDutyVoiceMinutes: stats.onDutyVoiceMinutes,
+        offDutyVoiceMinutes: stats.offDutyVoiceMinutes,
+        totalTicketResponses: stats.totalTicketResponses,
+        onDutyTicketResponses: stats.onDutyTicketResponses,
+        offDutyTicketResponses: stats.offDutyTicketResponses,
+        totalPoints,
+        onDutyPoints,
+        offDutyPoints
+      };
+    });
+
+    // Sort by requested field
+    const sortFunctions = {
+      'points': (a, b) => b.totalPoints - a.totalPoints,
+      'time': (a, b) => b.totalDutyMinutes - a.totalDutyMinutes,
+      'tickets': (a, b) => b.totalTicketResponses - a.totalTicketResponses,
+      'voice': (a, b) => b.totalVoiceMinutes - a.totalVoiceMinutes
+    };
+    entries.sort(sortFunctions[sortBy]);
+    entries = entries.slice(0, parsedLimit);
+
+    // Add ranks
+    entries = entries.map((entry, index) => ({
+      rank: index + 1,
+      ...entry
+    }));
 
     // Fetch Discord member info for display names and avatars
     const discordClient = global.discordClient;
@@ -274,7 +390,7 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
         const guild = await discordClient.guilds.fetch(guildId).catch(() => null);
         if (guild) {
           const cacheService = getMemberCacheService();
-          const userIds = lifetimeStats.map(s => s.discordUserId);
+          const userIds = entries.map(e => e.discordUserId);
 
           const memberPromises = userIds.map(id =>
             cacheService.getMember(guild, id).catch(() => null)
@@ -295,52 +411,47 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
       }
     }
 
-    // Transform to response format
-    const entries = lifetimeStats.map((stats, index) => {
-      const memberInfo = memberMap.get(stats.discordUserId);
+    // Fetch Steam IDs for all staff (they're required to have linked accounts)
+    const steamIdMap = new Map();
+    try {
+      const userIds = entries.map(e => e.discordUserId);
+      const links = await PlayerDiscordLink.findAll({
+        where: {
+          discord_user_id: userIds,
+          is_primary: true
+        },
+        raw: true
+      });
+      for (const link of links) {
+        steamIdMap.set(link.discord_user_id, link.steamid64);
+      }
+    } catch (err) {
+      logger.warn('Failed to fetch Steam IDs for staff overview', { error: err.message });
+    }
 
-      // Calculate on-duty values (total - off-duty)
-      const onDutyVoiceMinutes = stats.totalVoiceMinutes - stats.offDutyVoiceMinutes;
-      const onDutyTicketResponses = stats.totalTicketResponses - stats.offDutyTicketResponses;
-      const onDutyPoints = stats.totalPoints - stats.offDutyPoints;
-
+    // Add display names, avatars, and Steam IDs
+    entries = entries.map(entry => {
+      const memberInfo = memberMap.get(entry.discordUserId);
       return {
-        rank: index + 1,
-        discordUserId: stats.discordUserId,
-        displayName: memberInfo?.displayName || stats.discordUserId,
+        ...entry,
+        displayName: memberInfo?.displayName || entry.discordUserId,
         avatarUrl: memberInfo?.avatarUrl || null,
-
-        // Time metrics (in minutes)
-        totalDutyMinutes: stats.totalDutyMinutes,
-        totalSessions: stats.totalSessions,
-
-        // Voice metrics
-        totalVoiceMinutes: stats.totalVoiceMinutes,
-        onDutyVoiceMinutes,
-        offDutyVoiceMinutes: stats.offDutyVoiceMinutes,
-
-        // Ticket metrics
-        totalTicketResponses: stats.totalTicketResponses,
-        onDutyTicketResponses,
-        offDutyTicketResponses: stats.offDutyTicketResponses,
-
-        // Other activity
-        totalAdminCamEvents: stats.totalAdminCamEvents,
-        totalIngameChatMessages: stats.totalIngameChatMessages,
-
-        // Points
-        totalPoints: stats.totalPoints,
-        onDutyPoints,
-        offDutyPoints: stats.offDutyPoints
+        steamId: steamIdMap.get(entry.discordUserId) || null
       };
     });
+
+    // Get currently on duty count
+    const activeSessions = await DutySession.getActiveSessions(guildId);
+    const currentlyOnDuty = activeSessions.length;
 
     res.json({
       success: true,
       data: {
         entries,
         totalEntries: entries.length,
-        sortBy
+        sortBy,
+        period,
+        currentlyOnDuty
       }
     });
   } catch (error) {

@@ -126,12 +126,19 @@ export const DUTY_TYPE_LABELS: Record<DutyType, string> = {
 
 // Staff Overview Types (lifetime stats with on/off duty breakdown)
 export type StaffOverviewSortBy = 'points' | 'time' | 'tickets' | 'voice';
+export type StaffOverviewPeriod = 'week' | 'month';
+
+export const STAFF_OVERVIEW_PERIOD_LABELS: Record<StaffOverviewPeriod, string> = {
+  'week': 'This Week',
+  'month': 'This Month',
+};
 
 export interface StaffOverviewEntry {
   rank: number;
   discordUserId: string;
   displayName: string;
   avatarUrl: string | null;
+  steamId: string | null;
 
   // Time metrics (in minutes)
   totalDutyMinutes: number;
@@ -147,9 +154,9 @@ export interface StaffOverviewEntry {
   onDutyTicketResponses: number;
   offDutyTicketResponses: number;
 
-  // Other activity
-  totalAdminCamEvents: number;
-  totalIngameChatMessages: number;
+  // Other activity (not yet implemented)
+  totalAdminCamEvents?: number;
+  totalIngameChatMessages?: number;
 
   // Points
   totalPoints: number;
@@ -163,5 +170,7 @@ export interface StaffOverviewResponse {
     entries: StaffOverviewEntry[];
     totalEntries: number;
     sortBy: StaffOverviewSortBy;
+    period: StaffOverviewPeriod;
+    currentlyOnDuty: number;
   };
 }

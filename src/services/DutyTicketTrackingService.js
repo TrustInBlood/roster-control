@@ -1,7 +1,7 @@
 const { createServiceLogger } = require('../utils/logger');
 const { getDutyConfigService } = require('./DutyConfigService');
 const { getDutySessionService } = require('./DutySessionService');
-const { DutySession, DutyLifetimeStats } = require('../database/models');
+const { DutySession, DutyLifetimeStats, DutyActivityEvent } = require('../database/models');
 
 const logger = createServiceLogger('DutyTicketTrackingService');
 
@@ -101,6 +101,19 @@ class DutyTicketTrackingService {
             channelName
           });
         }
+
+        // Record activity event for period tracking
+        try {
+          await DutyActivityEvent.recordTicketResponse(
+            userId,
+            guildId,
+            dutySession.id,
+            channelId,
+            true // isOnDuty
+          );
+        } catch (eventError) {
+          logger.warn('Could not record ticket activity event', { userId, error: eventError.message });
+        }
       } else {
         // Off duty: Credit directly to lifetime stats
         try {
@@ -117,6 +130,19 @@ class DutyTicketTrackingService {
             userId,
             error: lifetimeError.message
           });
+        }
+
+        // Record activity event for period tracking
+        try {
+          await DutyActivityEvent.recordTicketResponse(
+            userId,
+            guildId,
+            null, // no session
+            channelId,
+            false // isOnDuty
+          );
+        } catch (eventError) {
+          logger.warn('Could not record off-duty ticket activity event', { userId, error: eventError.message });
         }
       }
     } catch (error) {

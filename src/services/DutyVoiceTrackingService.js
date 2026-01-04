@@ -1,7 +1,7 @@
 const { createServiceLogger } = require('../utils/logger');
 const { getDutyConfigService } = require('./DutyConfigService');
 const { getDutySessionService } = require('./DutySessionService');
-const { DutySession, DutyLifetimeStats } = require('../database/models');
+const { DutySession, DutyLifetimeStats, DutyActivityEvent } = require('../database/models');
 
 const logger = createServiceLogger('DutyVoiceTrackingService');
 
@@ -228,6 +228,20 @@ class DutyVoiceTrackingService {
           channelName: voiceSession.channelName,
           durationMinutes
         });
+
+        // Record activity event for period tracking
+        try {
+          await DutyActivityEvent.recordVoiceSession(
+            userId,
+            voiceSession.guildId,
+            dutySession.id,
+            durationMinutes,
+            voiceSession.channelId,
+            true // isOnDuty
+          );
+        } catch (eventError) {
+          logger.warn('Could not record voice activity event', { userId, error: eventError.message });
+        }
       } else {
         // Off duty: Credit directly to lifetime stats
         try {
@@ -245,6 +259,20 @@ class DutyVoiceTrackingService {
             userId,
             error: lifetimeError.message
           });
+        }
+
+        // Record activity event for period tracking
+        try {
+          await DutyActivityEvent.recordVoiceSession(
+            userId,
+            voiceSession.guildId,
+            null, // no session
+            durationMinutes,
+            voiceSession.channelId,
+            false // isOnDuty
+          );
+        } catch (eventError) {
+          logger.warn('Could not record off-duty voice activity event', { userId, error: eventError.message });
         }
       }
     } catch (error) {
@@ -298,6 +326,20 @@ class DutyVoiceTrackingService {
             sessionId: dutySession.id,
             durationMinutes
           });
+
+          // Record activity event for period tracking
+          try {
+            await DutyActivityEvent.recordVoiceSession(
+              userId,
+              voiceSession.guildId,
+              dutySession.id,
+              durationMinutes,
+              voiceSession.channelId,
+              true
+            );
+          } catch (eventError) {
+            logger.warn('Could not record periodic voice activity event', { userId, error: eventError.message });
+          }
         } else {
           // Off duty: Credit directly to lifetime stats
           try {
@@ -314,6 +356,20 @@ class DutyVoiceTrackingService {
               userId,
               error: lifetimeError.message
             });
+          }
+
+          // Record activity event for period tracking
+          try {
+            await DutyActivityEvent.recordVoiceSession(
+              userId,
+              voiceSession.guildId,
+              null,
+              durationMinutes,
+              voiceSession.channelId,
+              false
+            );
+          } catch (eventError) {
+            logger.warn('Could not record periodic off-duty voice activity event', { userId, error: eventError.message });
           }
         }
 

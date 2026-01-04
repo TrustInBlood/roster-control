@@ -14,6 +14,7 @@ const SeedingParticipant = require('./SeedingParticipant');
 const DutySession = require('./DutySession');
 const { DutyTrackingConfig, DutyTrackingConfigAudit } = require('./DutyTrackingConfig');
 const DutyLifetimeStats = require('./DutyLifetimeStats');
+const DutyActivityEvent = require('./DutyActivityEvent');
 
 // Import seeding time tracking models
 const SeedingTime = require('./SeedingTime');
@@ -93,6 +94,7 @@ module.exports = {
   DutyTrackingConfig,
   DutyTrackingConfigAudit,
   DutyLifetimeStats,
+  DutyActivityEvent,
   SeedingTime,
   ServerSeedingSnapshot,
   PotentialPlayerLink,

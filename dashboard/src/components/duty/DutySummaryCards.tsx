@@ -1,4 +1,4 @@
-import { Users, Clock, CalendarDays, TrendingUp, Activity, User } from 'lucide-react'
+import { Users, Clock, CalendarDays, TrendingUp } from 'lucide-react'
 import type { DutySummaryStats } from '../../types/duty'
 import { formatDuration } from '../../lib/dutyUtils'
 import { DUTY_PERIOD_LABELS, DUTY_TYPE_LABELS } from '../../types/duty'
@@ -81,43 +81,6 @@ export default function DutySummaryCards({ stats, isLoading }: DutySummaryCardsP
           </div>
         ))}
       </div>
-
-      {/* Top Performers */}
-      {stats.topPerformers && stats.topPerformers.length > 0 && (
-        <div className="bg-discord-light rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Activity className="w-4 h-4 text-yellow-400" />
-            <h4 className="text-white font-medium">Top Performers</h4>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {stats.topPerformers.map((performer, index) => (
-              <div
-                key={performer.discordUserId}
-                className="flex items-center gap-2 bg-discord-darker px-3 py-1.5 rounded-full"
-              >
-                <span className="text-yellow-400 text-sm">
-                  {index === 0 ? '1st' : index === 1 ? '2nd' : '3rd'}
-                </span>
-                {performer.avatarUrl ? (
-                  <img
-                    src={performer.avatarUrl}
-                    alt={performer.displayName}
-                    className="w-5 h-5 rounded-full"
-                  />
-                ) : (
-                  <div className="w-5 h-5 rounded-full bg-discord-blurple/30 flex items-center justify-center">
-                    <User className="w-3 h-3 text-discord-blurple" />
-                  </div>
-                )}
-                <span className="text-white text-sm">{performer.displayName}</span>
-                <span className="text-gray-400 text-xs">
-                  {formatDuration(performer.totalTime, true)}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 }

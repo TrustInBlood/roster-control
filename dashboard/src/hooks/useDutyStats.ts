@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { dutyApi } from '../lib/api'
-import type { DutyPeriod, DutyType, StaffOverviewSortBy } from '../types/duty'
+import type { DutyPeriod, DutyType, StaffOverviewSortBy, StaffOverviewPeriod } from '../types/duty'
 import { useAuth } from './useAuth'
 
 export function useDutyLeaderboard(
@@ -73,14 +73,15 @@ export function useExtendSession() {
 
 export function useStaffOverview(
   sortBy: StaffOverviewSortBy = 'points',
+  period: StaffOverviewPeriod = 'week',
   limit = 50
 ) {
   const { user, hasPermission } = useAuth()
   const canView = hasPermission('VIEW_DUTY')
 
   return useQuery({
-    queryKey: ['duty', 'staff-overview', sortBy, limit],
-    queryFn: () => dutyApi.getStaffOverview(sortBy, limit),
+    queryKey: ['duty', 'staff-overview', sortBy, period, limit],
+    queryFn: () => dutyApi.getStaffOverview(sortBy, period, limit),
     enabled: !!user && canView,
     staleTime: 60 * 1000, // 1 minute
   })
