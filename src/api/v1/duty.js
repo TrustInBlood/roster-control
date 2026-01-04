@@ -332,16 +332,22 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
       }
     }
 
-    // Fetch ALL staff with linked Steam accounts and their server time
-    // This ensures staff appear even if they only have server time (no duty/activity)
+    // Fetch server time for users already in userStatsMap (from duty/activity)
+    // and add Steam ID mapping for player profile links
     const steamIdMap = new Map();
     const serverTimeMap = new Map();
     try {
       const { Op, fn, col } = require('sequelize');
 
-      // Get all staff Discord links
+      // Get Discord user IDs we already have from duty sessions and activity events
+      const existingUserIds = Array.from(userStatsMap.keys());
+
+      // Get Discord links for these users only
       const allLinks = await PlayerDiscordLink.findAll({
-        where: { is_primary: true },
+        where: {
+          is_primary: true,
+          discord_user_id: existingUserIds
+        },
         raw: true
       });
 
@@ -386,7 +392,7 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
             raw: true
           });
 
-          // Build steamId -> serverMinutes map and add staff to userStatsMap
+          // Build discordUserId -> serverMinutes map
           for (const row of sessionSums) {
             const steamId = playerIdToSteamId.get(row.player_id);
             if (steamId) {
@@ -395,21 +401,6 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
 
               if (discordUserId && minutes > 0) {
                 serverTimeMap.set(discordUserId, minutes);
-
-                // Add to userStatsMap if not already there (staff with only server time)
-                if (!userStatsMap.has(discordUserId)) {
-                  userStatsMap.set(discordUserId, {
-                    discordUserId,
-                    totalVoiceMinutes: 0,
-                    onDutyVoiceMinutes: 0,
-                    offDutyVoiceMinutes: 0,
-                    totalTicketResponses: 0,
-                    onDutyTicketResponses: 0,
-                    offDutyTicketResponses: 0,
-                    totalDutyMinutes: 0,
-                    totalSessions: 0
-                  });
-                }
               }
             }
           }
