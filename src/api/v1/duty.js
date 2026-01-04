@@ -94,7 +94,7 @@ router.get('/leaderboard', requireAuth, requirePermission('VIEW_DUTY'), async (r
           const members = await Promise.all(memberPromises);
 
           members.forEach((member, index) => {
-            if (member) {
+            if (member && member.user) {
               memberMap.set(userIds[index], {
                 displayName: member.displayName || member.user.username,
                 avatarUrl: member.user.displayAvatarURL({ size: 64 })
@@ -188,7 +188,7 @@ router.get('/summary', requireAuth, requirePermission('VIEW_DUTY'), async (req, 
           const members = await Promise.all(memberPromises);
 
           members.forEach((member, index) => {
-            if (member) {
+            if (member && member.user) {
               memberMap.set(topUserIds[index], {
                 displayName: member.displayName || member.user.username,
                 avatarUrl: member.user.displayAvatarURL({ size: 64 })
@@ -660,7 +660,7 @@ router.get('/sessions', requireAuth, requirePermission('VIEW_DUTY'), async (req,
           const members = await Promise.all(memberPromises);
 
           members.forEach((member, index) => {
-            if (member) {
+            if (member && member.user) {
               memberMap.set(userIds[index], {
                 displayName: member.displayName || member.user.username,
                 avatarUrl: member.user.displayAvatarURL({ size: 64 })
