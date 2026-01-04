@@ -332,34 +332,32 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
       }
     }
 
-    // Get all user IDs for fetching Steam links and server time
-    const allUserIds = Array.from(userStatsMap.keys());
-
-    // Fetch Steam IDs for all staff (needed for server time calculation)
+    // Fetch ALL staff with linked Steam accounts and their server time
+    // This ensures staff appear even if they only have server time (no duty/activity)
     const steamIdMap = new Map();
-    try {
-      const links = await PlayerDiscordLink.findAll({
-        where: {
-          discord_user_id: allUserIds,
-          is_primary: true
-        },
-        raw: true
-      });
-      for (const link of links) {
-        steamIdMap.set(link.discord_user_id, link.steamid64);
-      }
-    } catch (err) {
-      logger.warn('Failed to fetch Steam IDs for staff overview', { error: err.message });
-    }
-
-    // Fetch server time for staff members via their linked Steam accounts
     const serverTimeMap = new Map();
     try {
-      const steamIds = Array.from(steamIdMap.values()).filter(Boolean);
-      if (steamIds.length > 0) {
+      const { Op, fn, col } = require('sequelize');
+
+      // Get all staff Discord links
+      const allLinks = await PlayerDiscordLink.findAll({
+        where: { is_primary: true },
+        raw: true
+      });
+
+      // Build steamId -> discordUserId mapping
+      const steamToDiscord = new Map();
+      for (const link of allLinks) {
+        steamIdMap.set(link.discord_user_id, link.steamid64);
+        steamToDiscord.set(link.steamid64, link.discord_user_id);
+      }
+
+      const allSteamIds = Array.from(steamIdMap.values()).filter(Boolean);
+
+      if (allSteamIds.length > 0) {
         // Get player IDs for these Steam IDs
         const players = await Player.findAll({
-          where: { steamId: steamIds },
+          where: { steamId: allSteamIds },
           attributes: ['id', 'steamId'],
           raw: true
         });
@@ -373,7 +371,6 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
 
         if (playerIds.length > 0) {
           // Sum player session time for the period
-          const { Op, fn, col } = require('sequelize');
           const sessionSums = await PlayerSession.findAll({
             where: {
               player_id: playerIds,
@@ -389,19 +386,32 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
             raw: true
           });
 
-          // Build steamId -> serverMinutes map
-          const steamIdToMinutes = new Map();
+          // Build steamId -> serverMinutes map and add staff to userStatsMap
           for (const row of sessionSums) {
             const steamId = playerIdToSteamId.get(row.player_id);
             if (steamId) {
-              steamIdToMinutes.set(steamId, parseInt(row.totalMinutes) || 0);
-            }
-          }
+              const minutes = parseInt(row.totalMinutes) || 0;
+              const discordUserId = steamToDiscord.get(steamId);
 
-          // Map back to discord user IDs
-          for (const [discordUserId, steamId] of steamIdMap) {
-            const minutes = steamIdToMinutes.get(steamId) || 0;
-            serverTimeMap.set(discordUserId, minutes);
+              if (discordUserId && minutes > 0) {
+                serverTimeMap.set(discordUserId, minutes);
+
+                // Add to userStatsMap if not already there (staff with only server time)
+                if (!userStatsMap.has(discordUserId)) {
+                  userStatsMap.set(discordUserId, {
+                    discordUserId,
+                    totalVoiceMinutes: 0,
+                    onDutyVoiceMinutes: 0,
+                    offDutyVoiceMinutes: 0,
+                    totalTicketResponses: 0,
+                    onDutyTicketResponses: 0,
+                    offDutyTicketResponses: 0,
+                    totalDutyMinutes: 0,
+                    totalSessions: 0
+                  });
+                }
+              }
+            }
           }
         }
       }
