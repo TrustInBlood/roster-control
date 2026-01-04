@@ -1,9 +1,13 @@
 const { createServiceLogger } = require('../utils/logger');
+const { loadConfig } = require('../utils/environment');
 const { getDutyConfigService } = require('./DutyConfigService');
 const { getDutySessionService } = require('./DutySessionService');
 const { DutySession, DutyLifetimeStats, DutyActivityEvent } = require('../database/models');
 
 const logger = createServiceLogger('DutyTicketTrackingService');
+
+// Load Discord roles configuration
+const { getAllStaffRoles } = loadConfig('discordRoles');
 
 /**
  * Tracks ticket responses from users who are on duty.
@@ -70,6 +74,15 @@ class DutyTicketTrackingService {
       // Check if channel matches ticket pattern
       const isTicketChannel = await this.configService.isTicketChannel(guildId, channelName);
       if (!isTicketChannel) return;
+
+      // Only track staff members - non-staff should not get credit for ticket responses
+      const member = message.member;
+      if (!member) return;
+
+      const allStaffRoles = getAllStaffRoles();
+      const memberRoleIds = member.roles.cache.map(r => r.id);
+      const isStaff = memberRoleIds.some(roleId => allStaffRoles.includes(roleId));
+      if (!isStaff) return;
 
       // Deduplication: Only count one message per user per channel per minute
       const minuteKey = Math.floor(Date.now() / this.DEDUP_WINDOW_MS);

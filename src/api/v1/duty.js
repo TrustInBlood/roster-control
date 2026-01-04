@@ -276,6 +276,36 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
     const pointsVoicePerMinute = await configService.getValue(guildId, 'points_voice_per_minute') || 0.5;
     const pointsTicketResponse = await configService.getValue(guildId, 'points_ticket_response') || 5;
 
+    // FIRST: Get all staff member IDs from Discord
+    // This is the authoritative list - only these users will appear in the overview
+    const staffDiscordIds = new Set();
+    const steamIdMap = new Map();
+    const serverTimeMap = new Map();
+    const discordClient = global.discordClient;
+    const allStaffRoles = getAllStaffRoles();
+
+    if (discordClient) {
+      try {
+        const guild = await discordClient.guilds.fetch(guildId).catch(() => null);
+        if (guild) {
+          const cacheService = getMemberCacheService();
+          const allMembers = await cacheService.getAllMembers(guild);
+
+          for (const [memberId, member] of allMembers) {
+            if (member && member.roles && member.roles.cache) {
+              const memberRoleIds = member.roles.cache.map(r => r.id);
+              const isStaff = memberRoleIds.some(roleId => allStaffRoles.includes(roleId));
+              if (isStaff) {
+                staffDiscordIds.add(memberId);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        logger.warn('Failed to fetch staff members from Discord', { error: err.message });
+      }
+    }
+
     // Get activity events for the period (new data with timestamps)
     const activityStats = await DutyActivityEvent.getStaffOverviewForPeriod(guildId, startDate, now);
 
@@ -295,85 +325,55 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
     });
 
     for (const session of dutySessions) {
-      // With raw: true, Sequelize returns camelCase attribute names, not column names
       const userId = session.discordUserId;
+      // Only include if user is staff
+      if (!staffDiscordIds.has(userId)) continue;
+
       const current = dutyTimeByUser.get(userId) || { dutyMinutes: 0, sessionCount: 0 };
       current.dutyMinutes += session.durationMinutes || 0;
       current.sessionCount += 1;
       dutyTimeByUser.set(userId, current);
     }
 
-    // Merge activity stats with duty time
+    // Build userStatsMap - start with all staff members
     const userStatsMap = new Map();
 
-    // Add activity event data
-    for (const activity of activityStats) {
-      userStatsMap.set(activity.discordUserId, {
-        ...activity,
+    // Initialize all staff with zero values
+    for (const staffId of staffDiscordIds) {
+      userStatsMap.set(staffId, {
+        discordUserId: staffId,
+        totalVoiceMinutes: 0,
+        onDutyVoiceMinutes: 0,
+        offDutyVoiceMinutes: 0,
+        totalTicketResponses: 0,
+        onDutyTicketResponses: 0,
+        offDutyTicketResponses: 0,
         totalDutyMinutes: 0,
         totalSessions: 0
       });
     }
 
-    // Add duty session data
-    for (const [userId, dutyData] of dutyTimeByUser) {
-      if (userStatsMap.has(userId)) {
-        const stats = userStatsMap.get(userId);
-        stats.totalDutyMinutes = dutyData.dutyMinutes;
-        stats.totalSessions = dutyData.sessionCount;
-      } else {
-        userStatsMap.set(userId, {
-          discordUserId: userId,
-          totalVoiceMinutes: 0,
-          onDutyVoiceMinutes: 0,
-          offDutyVoiceMinutes: 0,
-          totalTicketResponses: 0,
-          onDutyTicketResponses: 0,
-          offDutyTicketResponses: 0,
-          totalDutyMinutes: dutyData.dutyMinutes,
-          totalSessions: dutyData.sessionCount
-        });
+    // Add activity event data (only for staff)
+    for (const activity of activityStats) {
+      if (!staffDiscordIds.has(activity.discordUserId)) continue;
+
+      const stats = userStatsMap.get(activity.discordUserId);
+      if (stats) {
+        stats.totalVoiceMinutes = activity.totalVoiceMinutes || 0;
+        stats.onDutyVoiceMinutes = activity.onDutyVoiceMinutes || 0;
+        stats.offDutyVoiceMinutes = activity.offDutyVoiceMinutes || 0;
+        stats.totalTicketResponses = activity.totalTicketResponses || 0;
+        stats.onDutyTicketResponses = activity.onDutyTicketResponses || 0;
+        stats.offDutyTicketResponses = activity.offDutyTicketResponses || 0;
       }
     }
 
-    // First, get ALL staff members from Discord and add them to userStatsMap
-    // This ensures staff appear even if they have no activity
-    const steamIdMap = new Map();
-    const serverTimeMap = new Map();
-    const discordClient = global.discordClient;
-    const allStaffRoles = getAllStaffRoles();
-
-    if (discordClient) {
-      try {
-        const guild = await discordClient.guilds.fetch(guildId).catch(() => null);
-        if (guild) {
-          const cacheService = getMemberCacheService();
-          const allMembers = await cacheService.getAllMembers(guild);
-
-          // Add all staff members to userStatsMap if not already there
-          for (const [memberId, member] of allMembers) {
-            if (member && member.roles && member.roles.cache) {
-              const memberRoleIds = member.roles.cache.map(r => r.id);
-              const isStaff = memberRoleIds.some(roleId => allStaffRoles.includes(roleId));
-
-              if (isStaff && !userStatsMap.has(memberId)) {
-                userStatsMap.set(memberId, {
-                  discordUserId: memberId,
-                  totalVoiceMinutes: 0,
-                  onDutyVoiceMinutes: 0,
-                  offDutyVoiceMinutes: 0,
-                  totalTicketResponses: 0,
-                  onDutyTicketResponses: 0,
-                  offDutyTicketResponses: 0,
-                  totalDutyMinutes: 0,
-                  totalSessions: 0
-                });
-              }
-            }
-          }
-        }
-      } catch (err) {
-        logger.warn('Failed to fetch staff members from Discord', { error: err.message });
+    // Add duty session data (only for staff)
+    for (const [userId, dutyData] of dutyTimeByUser) {
+      const stats = userStatsMap.get(userId);
+      if (stats) {
+        stats.totalDutyMinutes = dutyData.dutyMinutes;
+        stats.totalSessions = dutyData.sessionCount;
       }
     }
 

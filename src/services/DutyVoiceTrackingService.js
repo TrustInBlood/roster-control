@@ -1,9 +1,13 @@
 const { createServiceLogger } = require('../utils/logger');
+const { loadConfig } = require('../utils/environment');
 const { getDutyConfigService } = require('./DutyConfigService');
 const { getDutySessionService } = require('./DutySessionService');
 const { DutySession, DutyLifetimeStats, DutyActivityEvent } = require('../database/models');
 
 const logger = createServiceLogger('DutyVoiceTrackingService');
+
+// Load Discord roles configuration
+const { getAllStaffRoles } = loadConfig('discordRoles');
 
 /**
  * Tracks voice channel presence for all users.
@@ -83,8 +87,17 @@ class DutyVoiceTrackingService {
         const activeSessions = await DutySession.getActiveSessions(guildId);
         const onDutyUserIds = new Set(activeSessions.map(s => s.discordUserId));
 
+        const allStaffRoles = getAllStaffRoles();
+
         for (const [memberId, voiceState] of guild.voiceStates.cache) {
           if (!voiceState.channel) continue;
+
+          // Only track staff members
+          const member = voiceState.member;
+          if (!member) continue;
+          const memberRoleIds = member.roles.cache.map(r => r.id);
+          const isStaff = memberRoleIds.some(roleId => allStaffRoles.includes(roleId));
+          if (!isStaff) continue;
 
           // Check if channel should be tracked
           const isTracked = await this.configService.isTrackedVoiceChannel(guildId, voiceState.channel.id);
@@ -151,6 +164,26 @@ class DutyVoiceTrackingService {
    * Handle user joining a voice channel
    */
   async handleVoiceJoin(userId, channel, guildId) {
+    // Only track staff members
+    try {
+      const guild = this.client.guilds.cache.get(guildId);
+      if (!guild) return;
+
+      const member = await guild.members.fetch(userId).catch(() => null);
+      if (!member) return;
+
+      const allStaffRoles = getAllStaffRoles();
+      const memberRoleIds = member.roles.cache.map(r => r.id);
+      const isStaff = memberRoleIds.some(roleId => allStaffRoles.includes(roleId));
+      if (!isStaff) {
+        logger.debug('Ignoring voice join - not a staff member', { userId });
+        return;
+      }
+    } catch (err) {
+      logger.warn('Could not verify staff status for voice join', { userId, error: err.message });
+      return;
+    }
+
     // Check if channel should be tracked
     const isTracked = await this.configService.isTrackedVoiceChannel(guildId, channel.id);
 
