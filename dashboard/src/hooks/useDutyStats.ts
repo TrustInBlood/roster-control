@@ -73,15 +73,14 @@ export function useExtendSession() {
 
 export function useStaffOverview(
   sortBy: StaffOverviewSortBy = 'points',
-  period: StaffOverviewPeriod = 'week',
-  limit = 50
+  period: StaffOverviewPeriod = 'week'
 ) {
   const { user, hasPermission } = useAuth()
   const canView = hasPermission('VIEW_DUTY')
 
   return useQuery({
-    queryKey: ['duty', 'staff-overview', sortBy, period, limit],
-    queryFn: () => dutyApi.getStaffOverview(sortBy, period, limit),
+    queryKey: ['duty', 'staff-overview', sortBy, period],
+    queryFn: () => dutyApi.getStaffOverview(sortBy, period),
     enabled: !!user && canView,
     staleTime: 60 * 1000, // 1 minute
   })

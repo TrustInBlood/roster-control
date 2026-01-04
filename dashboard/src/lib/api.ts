@@ -681,11 +681,10 @@ export const dutyApi = {
 
   getStaffOverview: async (
     sortBy: StaffOverviewSortBy = 'points',
-    period: StaffOverviewPeriod = 'week',
-    limit = 200
+    period: StaffOverviewPeriod = 'week'
   ): Promise<StaffOverviewResponse> => {
     const { data } = await api.get<StaffOverviewResponse>('/duty/staff-overview', {
-      params: { sortBy, period, limit },
+      params: { sortBy, period },
     })
     return data
   },
