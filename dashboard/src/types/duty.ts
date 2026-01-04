@@ -123,3 +123,45 @@ export const DUTY_TYPE_LABELS: Record<DutyType, string> = {
   'tutor': 'Tutor',
   'both': 'All Staff'
 };
+
+// Staff Overview Types (lifetime stats with on/off duty breakdown)
+export type StaffOverviewSortBy = 'points' | 'time' | 'tickets' | 'voice';
+
+export interface StaffOverviewEntry {
+  rank: number;
+  discordUserId: string;
+  displayName: string;
+  avatarUrl: string | null;
+
+  // Time metrics (in minutes)
+  totalDutyMinutes: number;
+  totalSessions: number;
+
+  // Voice metrics
+  totalVoiceMinutes: number;
+  onDutyVoiceMinutes: number;
+  offDutyVoiceMinutes: number;
+
+  // Ticket metrics
+  totalTicketResponses: number;
+  onDutyTicketResponses: number;
+  offDutyTicketResponses: number;
+
+  // Other activity
+  totalAdminCamEvents: number;
+  totalIngameChatMessages: number;
+
+  // Points
+  totalPoints: number;
+  onDutyPoints: number;
+  offDutyPoints: number;
+}
+
+export interface StaffOverviewResponse {
+  success: boolean;
+  data: {
+    entries: StaffOverviewEntry[];
+    totalEntries: number;
+    sortBy: StaffOverviewSortBy;
+  };
+}

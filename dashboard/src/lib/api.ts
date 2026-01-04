@@ -94,6 +94,8 @@ import type {
   DutyUserStatsResponse,
   DutySessionsResponse,
   DutySessionResponse,
+  StaffOverviewSortBy,
+  StaffOverviewResponse,
 } from '../types/duty'
 import type {
   DutySettingsResponse,
@@ -673,6 +675,16 @@ export const dutyApi = {
 
   extendSession: async (id: number): Promise<{ success: boolean; message: string }> => {
     const { data } = await api.post<{ success: boolean; message: string }>(`/duty/sessions/${id}/extend`)
+    return data
+  },
+
+  getStaffOverview: async (
+    sortBy: StaffOverviewSortBy = 'points',
+    limit = 50
+  ): Promise<StaffOverviewResponse> => {
+    const { data } = await api.get<StaffOverviewResponse>('/duty/staff-overview', {
+      params: { sortBy, limit },
+    })
     return data
   },
 }

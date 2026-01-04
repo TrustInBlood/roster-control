@@ -89,3 +89,13 @@ export function getRankBadge(rank: number): string | null {
     default: return null
   }
 }
+
+/**
+ * Format minutes to human-readable string
+ * @param minutes Duration in minutes
+ * @param compact If true, returns compact format (e.g., "2h 30m")
+ * @returns Formatted duration string
+ */
+export function formatMinutes(minutes: number, compact = false): string {
+  return formatDuration(minutes * 60 * 1000, compact)
+}

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { createServiceLogger } = require('../../utils/logger');
 const { requireAuth, requirePermission } = require('../middleware/auth');
-const { DutyStatusChange, DutySession } = require('../../database/models');
+const { DutyStatusChange, DutySession, DutyLifetimeStats } = require('../../database/models');
 const { getMemberCacheService } = require('../../services/MemberCacheService');
 const { getDutyConfigService } = require('../../services/DutyConfigService');
 const { getDutySessionService } = require('../../services/DutySessionService');
@@ -230,6 +230,122 @@ router.get('/summary', requireAuth, requirePermission('VIEW_DUTY'), async (req, 
   } catch (error) {
     logger.error('Error getting duty summary', { error: error.message });
     res.status(500).json({ error: 'Failed to get duty summary' });
+  }
+});
+
+// GET /api/v1/duty/staff-overview - Get all staff activity including off-duty contributions
+router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async (req, res) => {
+  try {
+    const {
+      sortBy = 'points',
+      limit = 50
+    } = req.query;
+
+    // Validate sortBy parameter
+    const validSortFields = ['points', 'time', 'tickets', 'voice'];
+    if (!validSortFields.includes(sortBy)) {
+      return res.status(400).json({ error: 'Invalid sortBy. Must be: points, time, tickets, or voice' });
+    }
+
+    const parsedLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
+    const guildId = process.env.DISCORD_GUILD_ID;
+
+    // Map sortBy to database field
+    const sortFieldMap = {
+      'points': 'total_points',
+      'time': 'total_duty_minutes',
+      'tickets': 'total_ticket_responses',
+      'voice': 'total_voice_minutes'
+    };
+
+    // Get all lifetime stats, sorted by the requested field
+    const lifetimeStats = await DutyLifetimeStats.findAll({
+      where: { guildId },
+      order: [[sortFieldMap[sortBy], 'DESC']],
+      limit: parsedLimit
+    });
+
+    // Fetch Discord member info for display names and avatars
+    const discordClient = global.discordClient;
+    let memberMap = new Map();
+
+    if (discordClient) {
+      try {
+        const guild = await discordClient.guilds.fetch(guildId).catch(() => null);
+        if (guild) {
+          const cacheService = getMemberCacheService();
+          const userIds = lifetimeStats.map(s => s.discordUserId);
+
+          const memberPromises = userIds.map(id =>
+            cacheService.getMember(guild, id).catch(() => null)
+          );
+          const members = await Promise.all(memberPromises);
+
+          members.forEach((member, index) => {
+            if (member) {
+              memberMap.set(userIds[index], {
+                displayName: member.displayName || member.user.username,
+                avatarUrl: member.user.displayAvatarURL({ size: 64 })
+              });
+            }
+          });
+        }
+      } catch (err) {
+        logger.warn('Failed to fetch Discord member info for staff overview', { error: err.message });
+      }
+    }
+
+    // Transform to response format
+    const entries = lifetimeStats.map((stats, index) => {
+      const memberInfo = memberMap.get(stats.discordUserId);
+
+      // Calculate on-duty values (total - off-duty)
+      const onDutyVoiceMinutes = stats.totalVoiceMinutes - stats.offDutyVoiceMinutes;
+      const onDutyTicketResponses = stats.totalTicketResponses - stats.offDutyTicketResponses;
+      const onDutyPoints = stats.totalPoints - stats.offDutyPoints;
+
+      return {
+        rank: index + 1,
+        discordUserId: stats.discordUserId,
+        displayName: memberInfo?.displayName || stats.discordUserId,
+        avatarUrl: memberInfo?.avatarUrl || null,
+
+        // Time metrics (in minutes)
+        totalDutyMinutes: stats.totalDutyMinutes,
+        totalSessions: stats.totalSessions,
+
+        // Voice metrics
+        totalVoiceMinutes: stats.totalVoiceMinutes,
+        onDutyVoiceMinutes,
+        offDutyVoiceMinutes: stats.offDutyVoiceMinutes,
+
+        // Ticket metrics
+        totalTicketResponses: stats.totalTicketResponses,
+        onDutyTicketResponses,
+        offDutyTicketResponses: stats.offDutyTicketResponses,
+
+        // Other activity
+        totalAdminCamEvents: stats.totalAdminCamEvents,
+        totalIngameChatMessages: stats.totalIngameChatMessages,
+
+        // Points
+        totalPoints: stats.totalPoints,
+        onDutyPoints,
+        offDutyPoints: stats.offDutyPoints
+      };
+    });
+
+    res.json({
+      success: true,
+      data: {
+        entries,
+        totalEntries: entries.length,
+        sortBy
+      }
+    });
+  } catch (error) {
+    logger.error('Error getting staff overview', { error: error.message });
+    res.status(500).json({ error: 'Failed to get staff overview' });
   }
 });
 
