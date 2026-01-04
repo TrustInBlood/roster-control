@@ -243,7 +243,7 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
     const {
       sortBy = 'points',
       period = 'week',
-      limit = 50
+      limit = 200
     } = req.query;
 
     // Validate sortBy parameter
@@ -258,7 +258,7 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
       return res.status(400).json({ error: 'Invalid period. Must be: week or month' });
     }
 
-    const parsedLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
+    const parsedLimit = Math.min(Math.max(parseInt(limit) || 200, 1), 500);
     const guildId = process.env.DISCORD_GUILD_ID;
 
     // Calculate date range based on period
