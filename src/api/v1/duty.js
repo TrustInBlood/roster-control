@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { createServiceLogger } = require('../../utils/logger');
 const { requireAuth, requirePermission } = require('../middleware/auth');
-const { DutyStatusChange, DutySession, DutyLifetimeStats, DutyActivityEvent, PlayerDiscordLink } = require('../../database/models');
+const { DutyStatusChange, DutySession, DutyLifetimeStats, DutyActivityEvent, PlayerDiscordLink, Player, PlayerSession } = require('../../database/models');
 const { getMemberCacheService } = require('../../services/MemberCacheService');
 const { getDutyConfigService } = require('../../services/DutyConfigService');
 const { getDutySessionService } = require('../../services/DutySessionService');
@@ -243,9 +243,9 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
     } = req.query;
 
     // Validate sortBy parameter
-    const validSortFields = ['points', 'time', 'tickets', 'voice'];
+    const validSortFields = ['points', 'time', 'tickets', 'voice', 'server'];
     if (!validSortFields.includes(sortBy)) {
-      return res.status(400).json({ error: 'Invalid sortBy. Must be: points, time, tickets, or voice' });
+      return res.status(400).json({ error: 'Invalid sortBy. Must be: points, time, tickets, voice, or server' });
     }
 
     // Validate period parameter
@@ -332,6 +332,83 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
       }
     }
 
+    // Get all user IDs for fetching Steam links and server time
+    const allUserIds = Array.from(userStatsMap.keys());
+
+    // Fetch Steam IDs for all staff (needed for server time calculation)
+    const steamIdMap = new Map();
+    try {
+      const links = await PlayerDiscordLink.findAll({
+        where: {
+          discord_user_id: allUserIds,
+          is_primary: true
+        },
+        raw: true
+      });
+      for (const link of links) {
+        steamIdMap.set(link.discord_user_id, link.steamid64);
+      }
+    } catch (err) {
+      logger.warn('Failed to fetch Steam IDs for staff overview', { error: err.message });
+    }
+
+    // Fetch server time for staff members via their linked Steam accounts
+    const serverTimeMap = new Map();
+    try {
+      const steamIds = Array.from(steamIdMap.values()).filter(Boolean);
+      if (steamIds.length > 0) {
+        // Get player IDs for these Steam IDs
+        const players = await Player.findAll({
+          where: { steamId: steamIds },
+          attributes: ['id', 'steamId'],
+          raw: true
+        });
+
+        const playerIdToSteamId = new Map();
+        const playerIds = [];
+        for (const player of players) {
+          playerIdToSteamId.set(player.id, player.steamId);
+          playerIds.push(player.id);
+        }
+
+        if (playerIds.length > 0) {
+          // Sum player session time for the period
+          const { Op, fn, col } = require('sequelize');
+          const sessionSums = await PlayerSession.findAll({
+            where: {
+              player_id: playerIds,
+              sessionStart: {
+                [Op.between]: [periodStart || new Date(0), periodEnd || new Date()]
+              }
+            },
+            attributes: [
+              'player_id',
+              [fn('SUM', col('durationMinutes')), 'totalMinutes']
+            ],
+            group: ['player_id'],
+            raw: true
+          });
+
+          // Build steamId -> serverMinutes map
+          const steamIdToMinutes = new Map();
+          for (const row of sessionSums) {
+            const steamId = playerIdToSteamId.get(row.player_id);
+            if (steamId) {
+              steamIdToMinutes.set(steamId, parseInt(row.totalMinutes) || 0);
+            }
+          }
+
+          // Map back to discord user IDs
+          for (const [discordUserId, steamId] of steamIdMap) {
+            const minutes = steamIdToMinutes.get(steamId) || 0;
+            serverTimeMap.set(discordUserId, minutes);
+          }
+        }
+      }
+    } catch (err) {
+      logger.warn('Failed to fetch server time for staff overview', { error: err.message });
+    }
+
     // Calculate dynamic points and convert to array
     let entries = Array.from(userStatsMap.values()).map(stats => {
       // Calculate points dynamically from config
@@ -354,6 +431,7 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
         discordUserId: stats.discordUserId,
         totalDutyMinutes: stats.totalDutyMinutes,
         totalSessions: stats.totalSessions,
+        totalServerMinutes: serverTimeMap.get(stats.discordUserId) || 0,
         totalVoiceMinutes: stats.totalVoiceMinutes,
         onDutyVoiceMinutes: stats.onDutyVoiceMinutes,
         offDutyVoiceMinutes: stats.offDutyVoiceMinutes,
@@ -371,7 +449,8 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
       'points': (a, b) => b.totalPoints - a.totalPoints,
       'time': (a, b) => b.totalDutyMinutes - a.totalDutyMinutes,
       'tickets': (a, b) => b.totalTicketResponses - a.totalTicketResponses,
-      'voice': (a, b) => b.totalVoiceMinutes - a.totalVoiceMinutes
+      'voice': (a, b) => b.totalVoiceMinutes - a.totalVoiceMinutes,
+      'server': (a, b) => b.totalServerMinutes - a.totalServerMinutes
     };
     entries.sort(sortFunctions[sortBy]);
     entries = entries.slice(0, parsedLimit);
@@ -410,24 +489,6 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
       } catch (err) {
         logger.warn('Failed to fetch Discord member info for staff overview', { error: err.message });
       }
-    }
-
-    // Fetch Steam IDs for all staff (they're required to have linked accounts)
-    const steamIdMap = new Map();
-    try {
-      const userIds = entries.map(e => e.discordUserId);
-      const links = await PlayerDiscordLink.findAll({
-        where: {
-          discord_user_id: userIds,
-          is_primary: true
-        },
-        raw: true
-      });
-      for (const link of links) {
-        steamIdMap.set(link.discord_user_id, link.steamid64);
-      }
-    } catch (err) {
-      logger.warn('Failed to fetch Steam IDs for staff overview', { error: err.message });
     }
 
     // Add display names, avatars, and Steam IDs

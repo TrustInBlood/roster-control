@@ -1,4 +1,4 @@
-import { Clock, MessageSquare, Mic, Star, User, ArrowUpDown } from 'lucide-react'
+import { Clock, MessageSquare, Mic, Star, User, ArrowUpDown, Gamepad2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { StaffOverviewEntry, StaffOverviewSortBy } from '../../types/duty'
 import { formatMinutes } from '../../lib/dutyUtils'
@@ -16,6 +16,7 @@ const SORT_LABELS: Record<StaffOverviewSortBy, string> = {
   time: 'Duty Time',
   tickets: 'Tickets',
   voice: 'Voice Time',
+  server: 'Server Time',
 }
 
 export default function StaffOverview({
@@ -109,6 +110,9 @@ export default function StaffOverview({
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                 Sessions
               </th>
+              <SortableHeader field="server" icon={Gamepad2}>
+                Server
+              </SortableHeader>
               <SortableHeader field="voice" icon={Mic}>
                 Voice
               </SortableHeader>
@@ -183,6 +187,13 @@ export default function StaffOverview({
                   {/* Sessions */}
                   <td className="px-4 py-3 whitespace-nowrap text-gray-300">
                     {entry.totalSessions}
+                  </td>
+
+                  {/* Server Time */}
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <span className="text-blue-400">
+                      {formatMinutes(entry.totalServerMinutes, true)}
+                    </span>
                   </td>
 
                   {/* Voice (On/Off) */}
