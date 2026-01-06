@@ -1,7 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { permissionMiddleware } = require('../handlers/permissionHandler');
 const { sendSuccess, sendError, createResponseEmbed } = require('../utils/messageHandler');
-const { SPECIALTY_ROLES } = require('../../config/discord');
+const { SPECIALTY_ROLES, TUTOR_ROLE_ID } = require('../../config/discord');
 const { AuditLog } = require('../database/models');
 const notificationService = require('../services/NotificationService');
 const { console: loggerConsole } = require('../utils/logger');
@@ -78,7 +78,24 @@ module.exports = {
           return sendError(interaction, `${targetUser} already has the ${specialty.name} role.`);
         }
 
-        // Add the role
+        // Add the base Tutor role if user doesn't have it
+        let addedTutorRole = false;
+        if (!targetMember.roles.cache.has(TUTOR_ROLE_ID)) {
+          const tutorRole = interaction.guild.roles.cache.get(TUTOR_ROLE_ID);
+          if (tutorRole) {
+            try {
+              await targetMember.roles.add(tutorRole, `Tutor role assigned along with specialty by ${interaction.user.tag}`);
+              addedTutorRole = true;
+            } catch (error) {
+              loggerConsole.error('Failed to add base tutor role:', error);
+              return sendError(interaction, 'Failed to assign the base Tutor role. Please check bot permissions.');
+            }
+          } else {
+            loggerConsole.warn('Base Tutor role not found in guild');
+          }
+        }
+
+        // Add the specialty role
         try {
           await targetMember.roles.add(role, `Specialty assigned by ${interaction.user.tag}`);
         } catch (error) {
@@ -96,13 +113,14 @@ module.exports = {
             targetType: 'user',
             targetId: targetUser.id,
             targetName: targetUser.username,
-            description: `${specialty.name} role assigned to ${targetUser.username} by ${interaction.user.username}`,
+            description: `${specialty.name} role assigned to ${targetUser.username} by ${interaction.user.username}${addedTutorRole ? ' (also added base Tutor role)' : ''}`,
             guildId: interaction.guild.id,
             channelId: interaction.channelId,
             metadata: {
               specialty: subcommand,
               roleId: specialty.role,
-              roleName: specialty.name
+              roleName: specialty.name,
+              addedTutorRole
             }
           });
         } catch (dbError) {
@@ -127,14 +145,18 @@ module.exports = {
         }
 
         // Create success embed
+        const embedFields = [
+          { name: 'User', value: `${targetUser}`, inline: true },
+          { name: 'Specialty', value: specialty.name, inline: true },
+          { name: 'Assigned By', value: `${interaction.user}`, inline: true }
+        ];
+        if (addedTutorRole) {
+          embedFields.push({ name: 'Note', value: 'Base Tutor role was also assigned', inline: false });
+        }
         const embed = createResponseEmbed({
           title: '✅ Specialty Assigned',
           description: `Successfully assigned **${specialty.name}** role to ${targetUser}`,
-          fields: [
-            { name: 'User', value: `${targetUser}`, inline: true },
-            { name: 'Specialty', value: specialty.name, inline: true },
-            { name: 'Assigned By', value: `${interaction.user}`, inline: true }
-          ],
+          fields: embedFields,
           color: 0x00FF00
         });
 
