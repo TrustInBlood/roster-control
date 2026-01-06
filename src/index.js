@@ -403,10 +403,10 @@ client.on('interactionCreate', async interaction => {
   if (!command) return;
 
   try {
-    // Use permission middleware
+    // Use permission middleware (skip subcommand check - commands handle their own subcommand permissions)
     await permissionMiddleware(interaction, async () => {
       await command.execute(interaction);
-    });
+    }, { skipSubcommandCheck: true });
   } catch (error) {
     await handleCommandError(error, interaction, logger);
   }
