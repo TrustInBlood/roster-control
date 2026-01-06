@@ -174,7 +174,7 @@ module.exports = {
         loggerConsole.error('Error in removespecialty command:', error);
         return sendError(interaction, 'An error occurred while removing the specialty.');
       }
-    });
+    }, { skipSubcommandCheck: true });
   },
 };
 
