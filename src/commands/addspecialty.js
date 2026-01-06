@@ -46,7 +46,6 @@ module.exports = {
   async execute(interaction) {
     await permissionMiddleware(interaction, async () => {
       try {
-
         const subcommand = interaction.options.getSubcommand();
         const targetUser = interaction.options.getUser('user');
         const targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
@@ -161,6 +160,6 @@ module.exports = {
         loggerConsole.error('Error in addspecialty command:', error);
         return sendError(interaction, 'An error occurred while assigning the specialty.');
       }
-    });
+    }, { skipSubcommandCheck: true });
   },
 };
