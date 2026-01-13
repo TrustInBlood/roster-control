@@ -177,9 +177,10 @@ module.exports = (sequelize) => {
     const now = new Date();
 
     for (const [steamid64, entries] of userGroups) {
-      // Check for permanent whitelist (any entry with null duration)
+      // Check for permanent whitelist (null/undefined duration, but not 0 which means expired)
       const hasPermanent = entries.some(entry =>
-        (entry.duration_value === null && entry.duration_type === null));
+        entry.duration_value !== 0 &&
+        (entry.duration_value == null || entry.duration_type == null));
 
       if (hasPermanent) {
         // User has permanent access - use the most recent entry for display
@@ -358,9 +359,10 @@ module.exports = (sequelize) => {
       return { hasWhitelist: false, status: 'No whitelist', expiration: null };
     }
 
-    // Check for permanent whitelist (any entry with null duration, but not 0 duration which means expired)
-    const hasPermanent = activeEntries.some(entry => 
-      (entry.duration_value === null && entry.duration_type === null));
+    // Check for permanent whitelist (null/undefined duration, but not 0 which means expired)
+    const hasPermanent = activeEntries.some(entry =>
+      entry.duration_value !== 0 &&
+      (entry.duration_value == null || entry.duration_type == null));
     if (hasPermanent) {
       return { hasWhitelist: true, status: 'Active (permanent)', expiration: null };
     }
