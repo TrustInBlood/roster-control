@@ -212,8 +212,10 @@ export default function ServerCard({
   sectionPreferences,
 }: ServerCardProps) {
   const connectionState = getConnectionState(server)
-  const playerCountColor = getPlayerCountColor(server.playerCount, server.maxPlayers)
-  const totalQueue = server.publicQueue + server.reserveQueue
+  // When disconnected, show 0 players and no queue (data is stale)
+  const displayPlayerCount = server.connected ? server.playerCount : 0
+  const playerCountColor = server.connected ? getPlayerCountColor(server.playerCount, server.maxPlayers) : 'text-gray-500'
+  const totalQueue = server.connected ? (server.publicQueue + server.reserveQueue) : 0
   const hasQueue = totalQueue > 0
 
   // Generate section keys for this server
@@ -222,9 +224,11 @@ export default function ServerCard({
   const publicKey = `${server.id}-public`
 
   // Get counts with fallback for backwards compatibility
-  const staffCount = server.onlineStaff?.length ?? 0
-  const membersCount = server.onlineMembers?.length ?? 0
-  const publicCount = server.onlinePublic?.length ?? 0
+  // When disconnected, don't show player data (it's stale)
+  const isConnected = server.connected
+  const staffCount = isConnected ? (server.onlineStaff?.length ?? 0) : 0
+  const membersCount = isConnected ? (server.onlineMembers?.length ?? 0) : 0
+  const publicCount = isConnected ? (server.onlinePublic?.length ?? 0) : 0
 
   return (
     <div className="bg-discord-light rounded-lg p-5 hover:bg-discord-lighter transition-colors">
@@ -245,7 +249,7 @@ export default function ServerCard({
         {/* Player Count & Queue */}
         <div className="text-right">
           <div className={`text-2xl font-bold ${playerCountColor}`}>
-            {server.playerCount}
+            {displayPlayerCount}
             <span className="text-gray-500 text-lg">/{server.maxPlayers}</span>
           </div>
           <div className="flex items-center gap-1 justify-end text-xs text-gray-400">
@@ -272,10 +276,10 @@ export default function ServerCard({
         count={staffCount}
         isExpanded={expandedSections[staffKey] ?? false}
         onToggle={() => onToggleSection(server.id, 'staff')}
-        emptyMessage="No staff online"
+        emptyMessage={isConnected ? 'No staff online' : 'Server disconnected'}
         hidden={sectionPreferences?.staff?.hidden}
       >
-        <StaffList staff={server.onlineStaff || []} />
+        <StaffList staff={isConnected ? (server.onlineStaff || []) : []} />
       </CollapsibleSection>
 
       {/* Members Section */}
@@ -286,10 +290,10 @@ export default function ServerCard({
         count={membersCount}
         isExpanded={expandedSections[membersKey] ?? false}
         onToggle={() => onToggleSection(server.id, 'members')}
-        emptyMessage="No members online"
+        emptyMessage={isConnected ? 'No members online' : 'Server disconnected'}
         hidden={sectionPreferences?.members?.hidden}
       >
-        <MemberList members={server.onlineMembers || []} />
+        <MemberList members={isConnected ? (server.onlineMembers || []) : []} />
       </CollapsibleSection>
 
       {/* Public Players Section */}
@@ -300,10 +304,10 @@ export default function ServerCard({
         count={publicCount}
         isExpanded={expandedSections[publicKey] ?? false}
         onToggle={() => onToggleSection(server.id, 'public')}
-        emptyMessage="No public players"
+        emptyMessage={isConnected ? 'No public players' : 'Server disconnected'}
         hidden={sectionPreferences?.public?.hidden}
       >
-        <PublicPlayerList players={server.onlinePublic || []} />
+        <PublicPlayerList players={isConnected ? (server.onlinePublic || []) : []} />
       </CollapsibleSection>
     </div>
   )
