@@ -106,6 +106,8 @@ export const CONFIG_KEYS = {
   POINTS_TICKET_RESPONSE: 'points_ticket_response',
   POINTS_ADMIN_CAM: 'points_admin_cam',
   POINTS_INGAME_CHAT: 'points_ingame_chat',
+  POINTS_SERVER_PER_MINUTE: 'points_server_per_minute',
+  ON_DUTY_MULTIPLIER: 'on_duty_multiplier',
 
   // Coverage
   COVERAGE_LOW_THRESHOLD: 'coverage_low_threshold',

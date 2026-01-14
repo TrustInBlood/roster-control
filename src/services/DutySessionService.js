@@ -214,6 +214,7 @@ class DutySessionService {
 
   /**
    * Calculate points for a session
+   * Note: Sessions are on-duty by definition, so the on-duty multiplier applies
    */
   async calculateSessionPoints(session) {
     const guildId = session.guildId;
@@ -224,20 +225,24 @@ class DutySessionService {
     const ticketPoints = await this.configService.getPointValue(guildId, 'ticket_response');
     const adminCamPoints = await this.configService.getPointValue(guildId, 'admin_cam');
     const ingameChatPoints = await this.configService.getPointValue(guildId, 'ingame_chat');
+    const onDutyMultiplier = await this.configService.getValue(guildId, 'on_duty_multiplier') || 1.0;
 
     // Calculate duration
     const durationMinutes = session.getDurationMinutes();
 
-    // Calculate base points
-    const basePoints = Math.floor(durationMinutes * basePerMinute);
+    // Calculate base points (before multiplier)
+    const rawBasePoints = durationMinutes * basePerMinute;
 
-    // Calculate bonus points from activities
-    const voiceBonus = Math.floor(session.voiceMinutes * voicePerMinute);
-    const ticketBonus = session.ticketResponses * ticketPoints;
-    const adminCamBonus = session.adminCamEvents * adminCamPoints;
-    const ingameChatBonus = session.ingameChatMessages * ingameChatPoints;
+    // Calculate bonus points from activities (before multiplier)
+    const rawVoiceBonus = session.voiceMinutes * voicePerMinute;
+    const rawTicketBonus = session.ticketResponses * ticketPoints;
+    const rawAdminCamBonus = session.adminCamEvents * adminCamPoints;
+    const rawIngameChatBonus = session.ingameChatMessages * ingameChatPoints;
+    const rawBonusPoints = rawVoiceBonus + rawTicketBonus + rawAdminCamBonus + rawIngameChatBonus;
 
-    const bonusPoints = voiceBonus + ticketBonus + adminCamBonus + ingameChatBonus;
+    // Apply on-duty multiplier to all points (sessions are on-duty by definition)
+    const basePoints = Math.floor(rawBasePoints * onDutyMultiplier);
+    const bonusPoints = Math.floor(rawBonusPoints * onDutyMultiplier);
 
     return {
       basePoints,
@@ -245,14 +250,15 @@ class DutySessionService {
       breakdown: {
         durationMinutes,
         basePerMinute,
+        onDutyMultiplier,
         voiceMinutes: session.voiceMinutes,
-        voiceBonus,
+        voiceBonus: Math.floor(rawVoiceBonus * onDutyMultiplier),
         ticketResponses: session.ticketResponses,
-        ticketBonus,
+        ticketBonus: Math.floor(rawTicketBonus * onDutyMultiplier),
         adminCamEvents: session.adminCamEvents,
-        adminCamBonus,
+        adminCamBonus: Math.floor(rawAdminCamBonus * onDutyMultiplier),
         ingameChatMessages: session.ingameChatMessages,
-        ingameChatBonus
+        ingameChatBonus: Math.floor(rawIngameChatBonus * onDutyMultiplier)
       }
     };
   }

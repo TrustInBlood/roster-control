@@ -275,6 +275,8 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
     const pointsBasePerMinute = await configService.getValue(guildId, 'points_base_per_minute') || 1;
     const pointsVoicePerMinute = await configService.getValue(guildId, 'points_voice_per_minute') || 0.5;
     const pointsTicketResponse = await configService.getValue(guildId, 'points_ticket_response') || 5;
+    const pointsServerPerMinute = await configService.getValue(guildId, 'points_server_per_minute') || 0.25;
+    const onDutyMultiplier = await configService.getValue(guildId, 'on_duty_multiplier') || 1.0;
 
     // FIRST: Get all staff member IDs from Discord
     // This is the authoritative list - only these users will appear in the overview
@@ -454,27 +456,33 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
 
     // Calculate dynamic points and convert to array
     let entries = Array.from(userStatsMap.values()).map(stats => {
-      // Calculate points dynamically from config
-      const dutyPoints = Math.floor(stats.totalDutyMinutes * pointsBasePerMinute);
-      const voicePoints = Math.floor(stats.totalVoiceMinutes * pointsVoicePerMinute);
-      const ticketPoints = Math.floor(stats.totalTicketResponses * pointsTicketResponse);
-      const totalPoints = dutyPoints + voicePoints + ticketPoints;
+      const serverMinutes = serverTimeMap.get(stats.discordUserId) || 0;
 
-      // Calculate on-duty points
-      const onDutyVoicePoints = Math.floor(stats.onDutyVoiceMinutes * pointsVoicePerMinute);
-      const onDutyTicketPoints = Math.floor(stats.onDutyTicketResponses * pointsTicketResponse);
-      const onDutyPoints = dutyPoints + onDutyVoicePoints + onDutyTicketPoints;
+      // Calculate base on-duty points (before multiplier)
+      const dutyPoints = stats.totalDutyMinutes * pointsBasePerMinute;
+      const onDutyVoicePoints = stats.onDutyVoiceMinutes * pointsVoicePerMinute;
+      const onDutyTicketPoints = stats.onDutyTicketResponses * pointsTicketResponse;
+      const baseOnDutyPoints = dutyPoints + onDutyVoicePoints + onDutyTicketPoints;
 
-      // Off-duty points
-      const offDutyVoicePoints = Math.floor(stats.offDutyVoiceMinutes * pointsVoicePerMinute);
-      const offDutyTicketPoints = Math.floor(stats.offDutyTicketResponses * pointsTicketResponse);
-      const offDutyPoints = offDutyVoicePoints + offDutyTicketPoints;
+      // Apply on-duty multiplier
+      const onDutyPoints = Math.floor(baseOnDutyPoints * onDutyMultiplier);
+
+      // Off-duty points (no multiplier)
+      const offDutyVoicePoints = stats.offDutyVoiceMinutes * pointsVoicePerMinute;
+      const offDutyTicketPoints = stats.offDutyTicketResponses * pointsTicketResponse;
+      const offDutyPoints = Math.floor(offDutyVoicePoints + offDutyTicketPoints);
+
+      // Server points (always earned, no multiplier - independent of duty status)
+      const serverPoints = Math.floor(serverMinutes * pointsServerPerMinute);
+
+      // Total points = on-duty (with multiplier) + off-duty + server
+      const totalPoints = onDutyPoints + offDutyPoints + serverPoints;
 
       return {
         discordUserId: stats.discordUserId,
         totalDutyMinutes: stats.totalDutyMinutes,
         totalSessions: stats.totalSessions,
-        totalServerMinutes: serverTimeMap.get(stats.discordUserId) || 0,
+        totalServerMinutes: serverMinutes,
         totalVoiceMinutes: stats.totalVoiceMinutes,
         onDutyVoiceMinutes: stats.onDutyVoiceMinutes,
         offDutyVoiceMinutes: stats.offDutyVoiceMinutes,
@@ -483,7 +491,8 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
         offDutyTicketResponses: stats.offDutyTicketResponses,
         totalPoints,
         onDutyPoints,
-        offDutyPoints
+        offDutyPoints,
+        serverPoints
       };
     });
 
