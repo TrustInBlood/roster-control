@@ -21,7 +21,7 @@ const DEFAULT_CONFIG = {
   points_ticket_response: { value: 5, type: 'number', category: 'points', label: 'Points per ticket response' },
   points_admin_cam: { value: 3, type: 'number', category: 'points', label: 'Points per admin cam use', requiresSquadJS: true },
   points_ingame_chat: { value: 1, type: 'number', category: 'points', label: 'Points per in-game message', requiresSquadJS: true },
-  points_server_per_minute: { value: 0.25, type: 'number', category: 'points', label: 'Points per minute on server', requiresSquadJS: true },
+  points_server_per_minute: { value: 0.25, type: 'number', category: 'points', label: 'Points per minute on server' },
   on_duty_multiplier: { value: 1.0, type: 'number', category: 'points', label: 'On-duty point multiplier' },
 
   // Coverage thresholds

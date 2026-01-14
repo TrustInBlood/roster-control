@@ -73,7 +73,7 @@ function ConfigInput({ configKey, item, value, onChange, disabled, voiceChannels
           {isSquadJSRequired && (
             <p className="text-yellow-500/70 text-xs mt-1 flex items-center gap-1">
               <AlertCircle className="w-3 h-3" />
-              Requires SquadJS integration (coming soon)
+              Coming soon
             </p>
           )}
         </div>
@@ -89,7 +89,7 @@ function ConfigInput({ configKey, item, value, onChange, disabled, voiceChannels
           {isSquadJSRequired && (
             <p className="text-yellow-500/70 text-xs mt-0.5 flex items-center gap-1">
               <AlertCircle className="w-3 h-3" />
-              Requires SquadJS
+              Coming soon
             </p>
           )}
         </div>
