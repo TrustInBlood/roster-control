@@ -709,6 +709,52 @@ class BattleMetricsService {
       throw new Error(`Failed to search players by flag: ${error.message}`);
     }
   }
+
+  /**
+   * Find all Squad servers at an IP address and return map by game port
+   * Used for auto-discovering BattleMetrics server info
+   * @param {string} ip - Server IP address
+   * @returns {Promise<Map<number, Object>>} Map of gamePort -> server info
+   */
+  async findServersByIP(ip) {
+    try {
+      loggerConsole.log('Searching BattleMetrics for servers at IP:', ip);
+
+      const response = await this.axiosInstance.get('/servers', {
+        params: {
+          'filter[search]': ip,
+          'filter[game]': 'squad'
+        }
+      });
+
+      const serverMap = new Map();
+      for (const server of response.data.data || []) {
+        // Only include servers that exactly match the IP
+        if (server.attributes.ip === ip) {
+          serverMap.set(server.attributes.port, {
+            id: server.id,
+            name: server.attributes.name,
+            ip: server.attributes.ip,
+            port: server.attributes.port,
+            queryPort: server.attributes.portQuery,
+            players: server.attributes.players,
+            maxPlayers: server.attributes.maxPlayers,
+            status: server.attributes.status
+          });
+        }
+      }
+
+      loggerConsole.log(`Found ${serverMap.size} servers at IP ${ip}`);
+      return serverMap;
+    } catch (error) {
+      loggerConsole.error('Error searching servers by IP:', {
+        ip,
+        error: error.message,
+        status: error.response?.status
+      });
+      throw new Error(`Failed to search servers by IP: ${error.message}`);
+    }
+  }
 }
 
 // Export singleton instance

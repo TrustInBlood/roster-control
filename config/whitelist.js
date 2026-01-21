@@ -36,6 +36,7 @@ const config = {
         name: 'Squad Server 1',
         host: '216.114.75.101',
         port: 10206,
+        gamePort: 10214, // =B&B= #1 Steel Division + SuperMod
         token: process.env.SQUADJS_TOKEN_SERVER1,
         enabled: true,
         seedThreshold: 50
@@ -45,6 +46,7 @@ const config = {
         name: 'Squad Server 2',
         host: '216.114.75.101',
         port: 10207,
+        gamePort: 10219, // =B&B= #2 King of the Hill
         token: process.env.SQUADJS_TOKEN_SERVER2,
         enabled: true,
         seedThreshold: 30
@@ -54,6 +56,7 @@ const config = {
         name: 'Squad Server 3',
         host: '216.114.75.101',
         port: 10205,
+        gamePort: 10209, // =B&B= #3 Supermod + Steel Division
         token: process.env.SQUADJS_TOKEN_SERVER3,
         enabled: true,
         seedThreshold: 50
@@ -63,6 +66,7 @@ const config = {
         name: 'Squad Server 4',
         host: '216.114.75.101',
         port: 10204,
+        gamePort: 10200, // =B&B= #4 Steel Division
         token: process.env.SQUADJS_TOKEN_SERVER4,
         enabled: true,
         seedThreshold: 50
@@ -72,6 +76,7 @@ const config = {
         name: 'Squad Server 5',
         host: '216.114.75.101',
         port: 10208,
+        gamePort: 10229, // =B&B= #5 Steel Division
         token: process.env.SQUADJS_TOKEN_SERVER5,
         enabled: true,
         seedThreshold: 50

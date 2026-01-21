@@ -1,4 +1,5 @@
 const { io } = require('socket.io-client');
+const battleMetricsService = require('./BattleMetricsService');
 
 class SquadJSConnectionManager {
   constructor(logger, config) {
@@ -22,6 +23,8 @@ class SquadJSConnectionManager {
     // Configuration
     this.MAX_ATTEMPTS = this.connectionConfig.reconnectionAttempts || 10;
     this.DEGRADED_RETRY_INTERVAL = 5 * 60 * 1000; // 5 minutes
+    this.BATTLEMETRICS_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
+    this.battleMetricsRefreshTimer = null;
   }
 
   async connect() {
@@ -43,6 +46,31 @@ class SquadJSConnectionManager {
     setTimeout(() => {
       this.probeAllConnectedServers();
     }, 5000);
+
+    // Fetch BattleMetrics server info for auto-discovery of server names
+    this.fetchAllBattleMetricsInfo();
+
+    // Start periodic refresh of BattleMetrics info
+    this.startBattleMetricsRefresh();
+  }
+
+  /**
+   * Start periodic refresh of BattleMetrics server info
+   */
+  startBattleMetricsRefresh() {
+    // Clear any existing timer
+    if (this.battleMetricsRefreshTimer) {
+      clearInterval(this.battleMetricsRefreshTimer);
+    }
+
+    this.battleMetricsRefreshTimer = setInterval(() => {
+      this.logger.debug('Refreshing BattleMetrics server info');
+      this.fetchAllBattleMetricsInfo();
+    }, this.BATTLEMETRICS_REFRESH_INTERVAL);
+
+    this.logger.info('BattleMetrics refresh started', {
+      intervalMinutes: this.BATTLEMETRICS_REFRESH_INTERVAL / 60000
+    });
   }
 
   /**
@@ -475,6 +503,12 @@ class SquadJSConnectionManager {
   }
 
   disconnect() {
+    // Clear BattleMetrics refresh timer
+    if (this.battleMetricsRefreshTimer) {
+      clearInterval(this.battleMetricsRefreshTimer);
+      this.battleMetricsRefreshTimer = null;
+    }
+
     // Clear all reconnection timers
     for (const [, timer] of this.reconnectTimers) {
       clearTimeout(timer);
@@ -664,6 +698,57 @@ class SquadJSConnectionManager {
         }
       });
     });
+  }
+
+  /**
+   * Fetch BattleMetrics server info for all configured servers
+   * Auto-discovers server names by matching gamePort from config to BM game port
+   */
+  async fetchAllBattleMetricsInfo() {
+    // Get unique IPs from all servers
+    const ips = [...new Set(this.servers.map(s => s.host))];
+
+    this.logger.info('Fetching BattleMetrics server info', { ips });
+
+    for (const ip of ips) {
+      try {
+        const bmServers = await battleMetricsService.findServersByIP(ip);
+
+        // Match to our servers by gamePort
+        for (const [serverId, connection] of this.connections) {
+          const server = connection.server;
+          if (server.host === ip && server.gamePort) {
+            const bmInfo = bmServers.get(server.gamePort);
+            if (bmInfo) {
+              connection.serverInfo = {
+                ...connection.serverInfo,
+                battlemetricsId: bmInfo.id,
+                battlemetricsName: bmInfo.name
+              };
+              this.logger.info('Matched BattleMetrics server', {
+                serverId,
+                bmId: bmInfo.id,
+                name: bmInfo.name,
+                gamePort: server.gamePort
+              });
+            } else {
+              this.logger.warn('No BattleMetrics match found for server', {
+                serverId,
+                gamePort: server.gamePort,
+                availablePorts: [...bmServers.keys()]
+              });
+            }
+          } else if (server.host === ip && !server.gamePort) {
+            this.logger.debug('Server missing gamePort config, skipping BM lookup', { serverId });
+          }
+        }
+      } catch (error) {
+        this.logger.warn('Failed to fetch BattleMetrics info for IP', {
+          ip,
+          error: error.message
+        });
+      }
+    }
   }
 }
 

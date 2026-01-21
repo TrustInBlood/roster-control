@@ -408,7 +408,8 @@ async function getServersStatus() {
 
     servers.push({
       id: serverId,
-      name: server.name,
+      name: currentServerInfo?.battlemetricsName || server.name,
+      battlemetricsId: currentServerInfo?.battlemetricsId || null,
       connected: socket && socket.connected,
       state: state || 'unknown',
       playerCount,
