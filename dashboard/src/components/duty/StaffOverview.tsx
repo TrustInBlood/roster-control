@@ -106,20 +106,23 @@ export default function StaffOverview({
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                 Staff Member
               </th>
+              {/* Duty Stats (Green) */}
               <SortableHeader field="time" icon={Clock}>
                 Duty Time
               </SortableHeader>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                 Sessions
               </th>
-              <SortableHeader field="server" icon={Gamepad2}>
-                Server
-              </SortableHeader>
+              {/* Discord Activity (Purple) */}
               <SortableHeader field="voice" icon={Mic}>
                 Voice
               </SortableHeader>
               <SortableHeader field="tickets" icon={MessageSquare}>
                 Tickets
+              </SortableHeader>
+              {/* In-Game Activity (Blue) */}
+              <SortableHeader field="server" icon={Gamepad2}>
+                Server
               </SortableHeader>
               <SortableHeader field="admin_cam" icon={Camera}>
                 Admin Cam
@@ -185,26 +188,21 @@ export default function StaffOverview({
                     )}
                   </td>
 
-                  {/* Duty Time */}
+                  {/* Duty Time (Green) */}
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span className="text-green-400 font-semibold">
                       {formatMinutes(entry.totalDutyMinutes, true)}
                     </span>
                   </td>
 
-                  {/* Sessions */}
-                  <td className="px-4 py-3 whitespace-nowrap text-gray-300">
-                    {entry.totalSessions}
-                  </td>
-
-                  {/* Server Time */}
+                  {/* Sessions (Green) */}
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="text-blue-400">
-                      {formatMinutes(entry.totalServerMinutes, true)}
+                    <span className="text-green-400">
+                      {entry.totalSessions}
                     </span>
                   </td>
 
-                  {/* Voice (Total with On/Off breakdown) */}
+                  {/* Voice (Purple) */}
                   <td className="px-4 py-3 whitespace-nowrap">
                     <div className="flex flex-col">
                       <span className="text-purple-400">
@@ -218,10 +216,10 @@ export default function StaffOverview({
                     </div>
                   </td>
 
-                  {/* Tickets (Total with On/Off breakdown) */}
+                  {/* Tickets (Purple) */}
                   <td className="px-4 py-3 whitespace-nowrap">
                     <div className="flex flex-col">
-                      <span className="text-amber-400">
+                      <span className="text-purple-400">
                         {entry.totalTicketResponses}
                       </span>
                       {entry.offDutyTicketResponses > 0 && (
@@ -232,16 +230,23 @@ export default function StaffOverview({
                     </div>
                   </td>
 
-                  {/* Admin Cam Events */}
+                  {/* Server Time (Blue) */}
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="text-cyan-400">
+                    <span className="text-blue-400">
+                      {formatMinutes(entry.totalServerMinutes, true)}
+                    </span>
+                  </td>
+
+                  {/* Admin Cam Events (Blue) */}
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <span className="text-blue-400">
                       {entry.totalAdminCamEvents}
                     </span>
                   </td>
 
-                  {/* In-Game Chat Messages */}
+                  {/* In-Game Chat Messages (Blue) */}
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="text-pink-400">
+                    <span className="text-blue-400">
                       {entry.totalIngameChatMessages}
                     </span>
                   </td>
