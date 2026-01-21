@@ -1,4 +1,4 @@
-import { Clock, MessageSquare, Mic, Star, User, ArrowUpDown, Gamepad2 } from 'lucide-react'
+import { Clock, MessageSquare, Mic, Star, User, ArrowUpDown, Gamepad2, Camera, MessageCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { StaffOverviewEntry, StaffOverviewSortBy } from '../../types/duty'
 import { formatMinutes } from '../../lib/dutyUtils'
@@ -17,6 +17,8 @@ const SORT_LABELS: Record<StaffOverviewSortBy, string> = {
   tickets: 'Tickets',
   voice: 'Voice Time',
   server: 'Server Time',
+  admin_cam: 'Admin Cam',
+  chat: 'Chat',
 }
 
 export default function StaffOverview({
@@ -118,6 +120,12 @@ export default function StaffOverview({
               </SortableHeader>
               <SortableHeader field="tickets" icon={MessageSquare}>
                 Tickets
+              </SortableHeader>
+              <SortableHeader field="admin_cam" icon={Camera}>
+                Admin Cam
+              </SortableHeader>
+              <SortableHeader field="chat" icon={MessageCircle}>
+                Chat
               </SortableHeader>
               <SortableHeader field="points" icon={Star}>
                 Points
@@ -222,6 +230,20 @@ export default function StaffOverview({
                         </span>
                       )}
                     </div>
+                  </td>
+
+                  {/* Admin Cam Events */}
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <span className="text-cyan-400">
+                      {entry.totalAdminCamEvents}
+                    </span>
+                  </td>
+
+                  {/* In-Game Chat Messages */}
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <span className="text-pink-400">
+                      {entry.totalIngameChatMessages}
+                    </span>
                   </td>
 
                   {/* Total Points (with On/Off breakdown) */}

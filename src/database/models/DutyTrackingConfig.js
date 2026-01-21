@@ -9,18 +9,12 @@ const DEFAULT_CONFIG = {
   auto_timeout_warning_minutes: { value: 30, type: 'number', category: 'timeout', label: 'Warning before (minutes)' },
   auto_timeout_extend_on_activity: { value: true, type: 'boolean', category: 'timeout', label: 'Extend timeout on activity' },
 
-  // What activities are tracked (checkboxes)
-  track_voice_presence: { value: true, type: 'boolean', category: 'tracking', label: 'Track voice channel presence' },
-  track_ticket_responses: { value: true, type: 'boolean', category: 'tracking', label: 'Track ticket responses' },
-  track_admin_cam: { value: false, type: 'boolean', category: 'tracking', label: 'Track admin cam usage', requiresSquadJS: true },
-  track_ingame_chat: { value: false, type: 'boolean', category: 'tracking', label: 'Track in-game chat', requiresSquadJS: true },
-
   // Point values (editable)
   points_base_per_minute: { value: 1, type: 'number', category: 'points', label: 'Points per minute on duty' },
   points_voice_per_minute: { value: 0.5, type: 'number', category: 'points', label: 'Points per minute in voice' },
   points_ticket_response: { value: 5, type: 'number', category: 'points', label: 'Points per ticket response' },
-  points_admin_cam: { value: 3, type: 'number', category: 'points', label: 'Points per admin cam use', requiresSquadJS: true },
-  points_ingame_chat: { value: 1, type: 'number', category: 'points', label: 'Points per in-game message', requiresSquadJS: true },
+  points_admin_cam: { value: 3, type: 'number', category: 'points', label: 'Points per admin cam use' },
+  points_ingame_chat: { value: 1, type: 'number', category: 'points', label: 'Points per in-game message' },
   points_server_per_minute: { value: 0.25, type: 'number', category: 'points', label: 'Points per minute on server' },
   on_duty_multiplier: { value: 1.0, type: 'number', category: 'points', label: 'On-duty point multiplier' },
 
@@ -362,7 +356,6 @@ DutyTrackingConfig.setEnabled = async function(guildId, key, enabled, changedBy,
 DutyTrackingConfig.getCategories = function() {
   return {
     timeout: { label: 'Auto-Timeout', description: 'Automatic session timeout settings' },
-    tracking: { label: 'Activity Tracking', description: 'What activities to track for points' },
     points: { label: 'Point Values', description: 'How many points each activity awards' },
     coverage: { label: 'Coverage Settings', description: 'Server coverage tracking settings' },
     channels: { label: 'Channel Configuration', description: 'Voice and ticket channel settings' }

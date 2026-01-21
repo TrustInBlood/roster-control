@@ -247,9 +247,9 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
     } = req.query;
 
     // Validate sortBy parameter
-    const validSortFields = ['points', 'time', 'tickets', 'voice', 'server'];
+    const validSortFields = ['points', 'time', 'tickets', 'voice', 'server', 'admin_cam', 'chat'];
     if (!validSortFields.includes(sortBy)) {
-      return res.status(400).json({ error: 'Invalid sortBy. Must be: points, time, tickets, voice, or server' });
+      return res.status(400).json({ error: 'Invalid sortBy. Must be: points, time, tickets, voice, server, admin_cam, or chat' });
     }
 
     // Validate period parameter
@@ -351,7 +351,9 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
         onDutyTicketResponses: 0,
         offDutyTicketResponses: 0,
         totalDutyMinutes: 0,
-        totalSessions: 0
+        totalSessions: 0,
+        totalAdminCamEvents: 0,
+        totalIngameChatMessages: 0
       });
     }
 
@@ -367,6 +369,8 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
         stats.totalTicketResponses = activity.totalTicketResponses || 0;
         stats.onDutyTicketResponses = activity.onDutyTicketResponses || 0;
         stats.offDutyTicketResponses = activity.offDutyTicketResponses || 0;
+        stats.totalAdminCamEvents = activity.totalAdminCamEvents || 0;
+        stats.totalIngameChatMessages = activity.totalIngameChatMessages || 0;
       }
     }
 
@@ -489,6 +493,8 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
         totalTicketResponses: stats.totalTicketResponses,
         onDutyTicketResponses: stats.onDutyTicketResponses,
         offDutyTicketResponses: stats.offDutyTicketResponses,
+        totalAdminCamEvents: stats.totalAdminCamEvents,
+        totalIngameChatMessages: stats.totalIngameChatMessages,
         totalPoints,
         onDutyPoints,
         offDutyPoints,
@@ -502,7 +508,9 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
       'time': (a, b) => b.totalDutyMinutes - a.totalDutyMinutes,
       'tickets': (a, b) => b.totalTicketResponses - a.totalTicketResponses,
       'voice': (a, b) => b.totalVoiceMinutes - a.totalVoiceMinutes,
-      'server': (a, b) => b.totalServerMinutes - a.totalServerMinutes
+      'server': (a, b) => b.totalServerMinutes - a.totalServerMinutes,
+      'admin_cam': (a, b) => b.totalAdminCamEvents - a.totalAdminCamEvents,
+      'chat': (a, b) => b.totalIngameChatMessages - a.totalIngameChatMessages
     };
     entries.sort(sortFunctions[sortBy]);
     entries = entries.slice(0, parsedLimit);

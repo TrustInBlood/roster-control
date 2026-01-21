@@ -94,13 +94,13 @@ function getAllMemberRoles() {
   ].filter(Boolean);
 }
 
+// Note: TICKET_SUPPORT is intentionally excluded - it's an identifier for bots, not a permission-granting role
 function getAllStaffRoles() {
   const staffRoles = [
     ...getAllAdminRoles(),
     DISCORD_ROLES_DEV.MODERATOR_T1,
     DISCORD_ROLES_DEV.MODERATOR_T2,
-    DISCORD_ROLES_DEV.STAFF,
-    DISCORD_ROLES_DEV.TICKET_SUPPORT
+    DISCORD_ROLES_DEV.STAFF
   ].filter(Boolean);
 
   // SECURITY: If no staff roles are configured, return a special marker

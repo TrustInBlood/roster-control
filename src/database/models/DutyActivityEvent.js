@@ -228,7 +228,9 @@ DutyActivityEvent.getStaffOverviewForPeriod = async function(guildId, startDate,
         offDutyVoiceMinutes: 0,
         totalTicketResponses: 0,
         onDutyTicketResponses: 0,
-        offDutyTicketResponses: 0
+        offDutyTicketResponses: 0,
+        totalAdminCamEvents: 0,
+        totalIngameChatMessages: 0
       });
     }
 
@@ -249,6 +251,10 @@ DutyActivityEvent.getStaffOverviewForPeriod = async function(guildId, startDate,
       } else {
         stats.offDutyTicketResponses += 1;
       }
+    } else if (event.eventType === 'admin_cam') {
+      stats.totalAdminCamEvents += 1;
+    } else if (event.eventType === 'ingame_chat') {
+      stats.totalIngameChatMessages += 1;
     }
   }
 

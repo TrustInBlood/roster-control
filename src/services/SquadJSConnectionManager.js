@@ -245,6 +245,7 @@ class SquadJSConnectionManager {
       'PLAYER_DAMAGED',
       'PLAYER_WOUNDED',
       'PLAYER_DIED',
+      'POSSESSED_ADMIN_CAMERA',
       'TEAMKILL',
       'SQUAD_CREATED',
       'SQUAD_DISBANDED',

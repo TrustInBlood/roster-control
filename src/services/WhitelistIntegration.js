@@ -5,6 +5,7 @@ const SquadJSConnectionManager = require('./SquadJSConnectionManager');
 const SquadJSLinkingService = require('./SquadJSLinkingService');
 const PlaytimeTrackingService = require('./PlaytimeTrackingService');
 const InGameCommandService = require('./InGameCommandService');
+const { initializeDutySquadJSTrackingService, getDutySquadJSTrackingService } = require('./DutySquadJSTrackingService');
 const { VerificationCode } = require('../database/models');
 const { config: whitelistConfig, validateConfig } = require('../../config/whitelist');
 
@@ -95,12 +96,14 @@ async function setupWhitelistRoutes(app, _sequelize, logger, discordClient) {
   const squadJSService = new SquadJSLinkingService(logger, discordClient, whitelistConfig, whitelistService, connectionManager);
   const playtimeTrackingService = new PlaytimeTrackingService(logger, connectionManager);
   const inGameCommandService = new InGameCommandService(connectionManager, whitelistConfig);
+  const dutySquadJSTrackingService = initializeDutySquadJSTrackingService(connectionManager, discordClient);
 
   try {
     await connectionManager.connect();
     squadJSService.initialize();
     await playtimeTrackingService.initialize();
     inGameCommandService.initialize();
+    dutySquadJSTrackingService.initialize();
   } catch (error) {
     logger.error('Failed to connect to SquadJS servers', { error: error.message });
   }
@@ -125,6 +128,7 @@ async function setupWhitelistRoutes(app, _sequelize, logger, discordClient) {
     whitelistService.shutdown();
     await playtimeTrackingService.shutdown();
     inGameCommandService.shutdown();
+    dutySquadJSTrackingService.shutdown();
     squadJSService.destroy();
     connectionManager.disconnect();
   };

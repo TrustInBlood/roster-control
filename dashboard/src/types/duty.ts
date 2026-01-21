@@ -125,7 +125,7 @@ export const DUTY_TYPE_LABELS: Record<DutyType, string> = {
 };
 
 // Staff Overview Types (lifetime stats with on/off duty breakdown)
-export type StaffOverviewSortBy = 'points' | 'time' | 'tickets' | 'voice' | 'server';
+export type StaffOverviewSortBy = 'points' | 'time' | 'tickets' | 'voice' | 'server' | 'admin_cam' | 'chat';
 export type StaffOverviewPeriod = 'week' | 'month';
 
 export const STAFF_OVERVIEW_PERIOD_LABELS: Record<StaffOverviewPeriod, string> = {
@@ -155,9 +155,9 @@ export interface StaffOverviewEntry {
   onDutyTicketResponses: number;
   offDutyTicketResponses: number;
 
-  // Other activity (not yet implemented)
-  totalAdminCamEvents?: number;
-  totalIngameChatMessages?: number;
+  // SquadJS activity metrics
+  totalAdminCamEvents: number;
+  totalIngameChatMessages: number;
 
   // Points
   totalPoints: number;

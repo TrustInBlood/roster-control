@@ -98,14 +98,14 @@ function getAllMemberRoles() {
   ].filter(Boolean);
 }
 
-// Helper function to get all staff role IDs (admins + moderators + ticket support)
+// Helper function to get all staff role IDs (admins + moderators + staff)
+// Note: TICKET_SUPPORT is intentionally excluded - it's an identifier for bots, not a permission-granting role
 function getAllStaffRoles() {
   const staffRoles = [
     ...getAllAdminRoles(),
     DISCORD_ROLES.MODERATOR_T1,
     DISCORD_ROLES.MODERATOR_T2,
-    DISCORD_ROLES.STAFF,
-    DISCORD_ROLES.TICKET_SUPPORT
+    DISCORD_ROLES.STAFF
   ].filter(Boolean);
 
   // SECURITY: If no staff roles are configured, return a special marker
