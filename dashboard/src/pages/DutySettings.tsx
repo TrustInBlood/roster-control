@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
-import { RefreshCw, Settings, RotateCcw, Clock, Activity, Award, Users, History, CheckSquare, Square, Save, AlertCircle, Hash, Target } from 'lucide-react'
-import { useQueryClient } from '@tanstack/react-query'
-import { useDutySettings, useUpdateDutySettings, useDutySettingsAudit, useResetDutySettings, useVoiceChannels } from '../hooks/useDutySettings'
+import { Settings, Clock, Activity, Award, Users, History, CheckSquare, Square, Save, AlertCircle, Hash, Target } from 'lucide-react'
+import { useDutySettings, useUpdateDutySettings, useDutySettingsAudit, useVoiceChannels } from '../hooks/useDutySettings'
 import { useAuth } from '../hooks/useAuth'
 import { VoiceChannelSelect, ActivityTargetCalculator } from '../components/duty'
 import InfoTooltip from '../components/ui/InfoTooltip'
@@ -252,20 +251,17 @@ function ConfigInput({ configKey, item, value, onChange, disabled, voiceChannels
 }
 
 export default function DutySettings() {
-  const queryClient = useQueryClient()
   const { hasPermission } = useAuth()
   const canEdit = hasPermission('MANAGE_DUTY_SETTINGS') // Only super admins can edit
 
-  const { data, isLoading, isRefetching, error } = useDutySettings()
+  const { data, isLoading, error } = useDutySettings()
   const { data: voiceChannelsData } = useVoiceChannels()
   const updateMutation = useUpdateDutySettings()
-  const resetMutation = useResetDutySettings()
   const { data: auditData } = useDutySettingsAudit(10)
 
   const voiceChannels = voiceChannelsData?.data?.channels || []
 
   const [localConfig, setLocalConfig] = useState<DutyConfig | null>(null)
-  const [showResetConfirm, setShowResetConfirm] = useState(false)
 
   // Initialize local config from server data
   useEffect(() => {
@@ -303,26 +299,11 @@ export default function DutySettings() {
     return changes
   }, [localConfig, data])
 
-  const handleRefresh = () => {
-    queryClient.invalidateQueries({ queryKey: ['dutySettings'] })
-    setLocalConfig(null) // Reset local state to sync with server
-  }
-
   const handleSave = async () => {
     if (Object.keys(pendingChanges).length === 0) return
 
     try {
       await updateMutation.mutateAsync(pendingChanges)
-    } catch {
-      // Error handled by mutation state
-    }
-  }
-
-  const handleReset = async () => {
-    try {
-      await resetMutation.mutateAsync()
-      setShowResetConfirm(false)
-      setLocalConfig(null)
     } catch {
       // Error handled by mutation state
     }
@@ -350,12 +331,6 @@ export default function DutySettings() {
           <p className="text-gray-400">
             {(error as Error).message || 'Failed to load duty settings. Please try again.'}
           </p>
-          <button
-            onClick={handleRefresh}
-            className="mt-4 bg-discord-blurple hover:bg-discord-blurple/80 text-white px-4 py-2 rounded-md text-sm font-medium"
-          >
-            Retry
-          </button>
         </div>
       </div>
     )
@@ -374,36 +349,16 @@ export default function DutySettings() {
             Configure auto-timeout, activity tracking, and point values
           </p>
         </div>
-        <div className="flex gap-2">
-          {canEdit && (
-            <button
-              onClick={() => setShowResetConfirm(true)}
-              className="flex items-center gap-2 bg-discord-darker hover:bg-discord-lighter text-gray-300 px-4 py-2 rounded-md text-sm font-medium transition-colors"
-              title="Reset to defaults"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Reset
-            </button>
-          )}
+        {canEdit && (
           <button
-            onClick={handleRefresh}
-            disabled={isRefetching}
-            className="flex items-center gap-2 bg-discord-lighter hover:bg-discord-light text-gray-300 px-4 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-50"
+            onClick={handleSave}
+            disabled={!hasChanges || updateMutation.isPending}
+            className="flex items-center gap-2 bg-discord-blurple hover:bg-discord-blurple/80 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-50"
           >
-            <RefreshCw className={`w-4 h-4 ${isRefetching ? 'animate-spin' : ''}`} />
-            Refresh
+            <Save className="w-4 h-4" />
+            {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
           </button>
-          {canEdit && (
-            <button
-              onClick={handleSave}
-              disabled={!hasChanges || updateMutation.isPending}
-              className="flex items-center gap-2 bg-discord-blurple hover:bg-discord-blurple/80 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-50"
-            >
-              <Save className="w-4 h-4" />
-              {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
-            </button>
-          )}
-        </div>
+        )}
       </div>
 
       {/* Read-only notice for non-admins */}
@@ -574,43 +529,6 @@ export default function DutySettings() {
           </div>
         </div>
       ) : null}
-
-      {/* Reset Confirmation Modal */}
-      {showResetConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-discord-light rounded-lg w-full max-w-md mx-4 p-6">
-            <h3 className="text-lg font-semibold text-white mb-2">Reset Duty Settings?</h3>
-            <p className="text-gray-400 text-sm mb-4">
-              This will reset all duty settings to their default values.
-              Auto-timeout, point values, and tracking preferences will be restored to defaults.
-            </p>
-
-            {resetMutation.error && (
-              <div className="bg-red-500/20 border border-red-500/30 rounded-md p-3 mb-4">
-                <p className="text-sm text-red-400">
-                  {(resetMutation.error as Error).message || 'Failed to reset settings'}
-                </p>
-              </div>
-            )}
-
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setShowResetConfirm(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-white transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleReset}
-                disabled={resetMutation.isPending}
-                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-50"
-              >
-                {resetMutation.isPending ? 'Resetting...' : 'Reset to Defaults'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
