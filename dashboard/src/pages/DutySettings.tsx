@@ -1,10 +1,46 @@
 import { useState, useEffect, useMemo } from 'react'
-import { RefreshCw, Settings, RotateCcw, Clock, Activity, Award, Users, History, CheckSquare, Square, Save, AlertCircle, Hash } from 'lucide-react'
+import { RefreshCw, Settings, RotateCcw, Clock, Activity, Award, Users, History, CheckSquare, Square, Save, AlertCircle, Hash, Target } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useDutySettings, useUpdateDutySettings, useDutySettingsAudit, useResetDutySettings, useVoiceChannels } from '../hooks/useDutySettings'
 import { useAuth } from '../hooks/useAuth'
-import { VoiceChannelSelect } from '../components/duty'
+import { VoiceChannelSelect, ActivityTargetCalculator } from '../components/duty'
+import InfoTooltip from '../components/ui/InfoTooltip'
+import NumberInput from '../components/ui/NumberInput'
 import type { DutyConfig, ConfigItem, VoiceChannel } from '../types/dutySettings'
+
+// Descriptions for each config setting (shown in tooltips)
+const CONFIG_DESCRIPTIONS: Record<string, string> = {
+  // Timeout settings
+  auto_timeout_enabled: 'Automatically end duty sessions after a period of inactivity to ensure accurate tracking.',
+  auto_timeout_hours: 'Maximum duration (in hours) a duty session can last before automatic timeout. Helps prevent forgotten sessions.',
+  auto_timeout_warning_minutes: 'Send a warning message this many minutes before the session times out.',
+  auto_timeout_extend_on_activity: 'Reset the timeout timer when staff activity is detected (voice, tickets, etc.).',
+
+  // Tracking settings
+  track_voice_presence: 'Track time spent in voice channels while on duty.',
+  track_ticket_responses: 'Track responses to support tickets while on duty.',
+  track_admin_cam: 'Track admin camera usage on game servers (requires SquadJS).',
+  track_ingame_chat: 'Track in-game admin chat messages (requires SquadJS).',
+
+  // Points settings
+  points_base_per_minute: 'Base points earned per minute while on duty, regardless of activity.',
+  points_voice_per_minute: 'Additional points earned per minute while in a tracked voice channel.',
+  points_ticket_response: 'Points awarded for each ticket response.',
+  points_admin_cam: 'Points awarded for using admin camera on the game server.',
+  points_ingame_chat: 'Points awarded for each in-game admin chat message.',
+  points_server_per_minute: 'Points per minute while connected to a tracked game server.',
+  on_duty_multiplier: 'Multiplier applied to all point earnings while on duty (e.g., 1.5 = 50% bonus).',
+  weekly_points_target: 'Target number of points to earn per week. Used in the activity calculator.',
+
+  // Coverage settings
+  coverage_low_threshold: 'Minimum number of admins required before coverage is considered "low".',
+  coverage_snapshot_interval_minutes: 'How often (in minutes) to record a coverage snapshot for analytics.',
+
+  // Channel settings
+  tracked_voice_channels: 'Limit voice tracking to these channels only. Leave empty to track all voice channels.',
+  excluded_voice_channels: 'Never track voice activity in these channels (e.g., AFK channel).',
+  ticket_channel_pattern: 'Pattern to identify ticket channels (supports wildcards like ticket-*).',
+}
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   timeout: Clock,
@@ -12,6 +48,39 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
   points: Award,
   coverage: Users,
   channels: Hash,
+}
+
+// Helper to format voice channel changes in audit log
+function formatVoiceChannelChange(
+  oldValue: string | null,
+  newValue: string,
+  voiceChannels: VoiceChannel[]
+): { added: string[]; removed: string[] } | null {
+  try {
+    const oldIds: string[] = oldValue ? JSON.parse(oldValue) : []
+    const newIds: string[] = JSON.parse(newValue)
+
+    const added = newIds.filter(id => !oldIds.includes(id))
+    const removed = oldIds.filter(id => !newIds.includes(id))
+
+    const resolveNames = (ids: string[]) =>
+      ids.map(id => {
+        const channel = voiceChannels.find(c => c.id === id)
+        return channel?.name || `Unknown (${id.slice(-6)})`
+      })
+
+    return {
+      added: resolveNames(added),
+      removed: resolveNames(removed),
+    }
+  } catch {
+    return null
+  }
+}
+
+// Check if a config key is a voice channel array
+function isVoiceChannelConfig(configKey: string): boolean {
+  return configKey === 'excluded_voice_channels' || configKey === 'tracked_voice_channels'
 }
 
 interface SettingsSectionProps {
@@ -49,6 +118,7 @@ interface ConfigInputProps {
 
 function ConfigInput({ configKey, item, value, onChange, disabled, voiceChannels }: ConfigInputProps) {
   const isSquadJSRequired = item.requiresSquadJS
+  const description = CONFIG_DESCRIPTIONS[configKey]
 
   if (item.type === 'boolean') {
     return (
@@ -69,7 +139,10 @@ function ConfigInput({ configKey, item, value, onChange, disabled, voiceChannels
           )}
         </button>
         <div className="flex-1">
-          <span className="text-white text-sm font-medium">{item.label}</span>
+          <span className="text-white text-sm font-medium flex items-center">
+            {item.label}
+            {description && <InfoTooltip text={description} />}
+          </span>
           {isSquadJSRequired && (
             <p className="text-yellow-500/70 text-xs mt-1 flex items-center gap-1">
               <AlertCircle className="w-3 h-3" />
@@ -82,10 +155,16 @@ function ConfigInput({ configKey, item, value, onChange, disabled, voiceChannels
   }
 
   if (item.type === 'number') {
+    // Determine min value - multiplier should never be 0
+    const minValue = configKey === 'on_duty_multiplier' ? 0.01 : undefined
+
     return (
       <div className="flex items-center justify-between">
         <div className="flex-1">
-          <label className="block text-sm font-medium text-gray-300">{item.label}</label>
+          <label className="text-sm font-medium text-gray-300 flex items-center">
+            {item.label}
+            {description && <InfoTooltip text={description} />}
+          </label>
           {isSquadJSRequired && (
             <p className="text-yellow-500/70 text-xs mt-0.5 flex items-center gap-1">
               <AlertCircle className="w-3 h-3" />
@@ -93,27 +172,14 @@ function ConfigInput({ configKey, item, value, onChange, disabled, voiceChannels
             </p>
           )}
         </div>
-        <input
-          type="search"
-          inputMode="decimal"
+        <NumberInput
           id={`duty-config-${configKey}`}
           name={`duty-config-${configKey}`}
           value={typeof value === 'number' ? value : 0}
-          onChange={(e) => {
-            const val = e.target.value
-            if (val === '' || /^-?\d*\.?\d*$/.test(val)) {
-              onChange(configKey, val === '' ? 0 : parseFloat(val) || 0)
-            }
-          }}
+          onChange={(val) => onChange(configKey, val)}
+          min={minValue}
           disabled={disabled || isSquadJSRequired}
-          autoComplete="off"
-          autoCorrect="off"
-          autoCapitalize="off"
-          spellCheck={false}
-          data-form-type="other"
-          data-lpignore="true"
-          data-1p-ignore="true"
-          className="w-24 bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-white text-right focus:outline-none focus:border-discord-blurple disabled:opacity-50"
+          className="w-24"
         />
       </div>
     )
@@ -123,7 +189,10 @@ function ConfigInput({ configKey, item, value, onChange, disabled, voiceChannels
     return (
       <div className="flex items-center justify-between">
         <div className="flex-1">
-          <label className="block text-sm font-medium text-gray-300">{item.label}</label>
+          <label className="text-sm font-medium text-gray-300 flex items-center">
+            {item.label}
+            {description && <InfoTooltip text={description} />}
+          </label>
         </div>
         <input
           type="search"
@@ -407,6 +476,27 @@ export default function DutySettings() {
             )
           })}
 
+          {/* Activity Target Calculator */}
+          <div className="lg:col-span-2">
+            <SettingsSection
+              title="Activity Target Calculator"
+              icon={Target}
+              description="Plan your weekly activity to meet your points goal"
+            >
+              <ActivityTargetCalculator
+                weeklyTarget={typeof config?.weekly_points_target?.value === 'number' ? config.weekly_points_target.value : 1000}
+                pointValues={{
+                  base_per_minute: typeof config?.points_base_per_minute?.value === 'number' ? config.points_base_per_minute.value : 1,
+                  voice_per_minute: typeof config?.points_voice_per_minute?.value === 'number' ? config.points_voice_per_minute.value : 0.5,
+                  ticket_response: typeof config?.points_ticket_response?.value === 'number' ? config.points_ticket_response.value : 5,
+                  admin_cam: typeof config?.points_admin_cam?.value === 'number' ? config.points_admin_cam.value : 3,
+                  ingame_chat: typeof config?.points_ingame_chat?.value === 'number' ? config.points_ingame_chat.value : 1,
+                  on_duty_multiplier: typeof config?.on_duty_multiplier?.value === 'number' ? config.on_duty_multiplier.value : 1.0,
+                }}
+              />
+            </SettingsSection>
+          </div>
+
           {/* Audit Log */}
           <div className="lg:col-span-2">
             <SettingsSection
@@ -435,9 +525,39 @@ export default function DutySettings() {
                         </span>
                         {entry.changeType === 'update' && (
                           <div className="text-gray-500 text-xs mt-1">
-                            <span className="line-through">{entry.oldValue}</span>
-                            {' → '}
-                            <span className="text-green-400">{entry.newValue}</span>
+                            {isVoiceChannelConfig(entry.configKey) ? (
+                              (() => {
+                                const changes = formatVoiceChannelChange(entry.oldValue, entry.newValue, voiceChannels)
+                                if (changes) {
+                                  return (
+                                    <div className="space-y-0.5">
+                                      {changes.added.length > 0 && (
+                                        <div className="text-green-400">Added: {changes.added.join(', ')}</div>
+                                      )}
+                                      {changes.removed.length > 0 && (
+                                        <div className="text-red-400">Removed: {changes.removed.join(', ')}</div>
+                                      )}
+                                      {changes.added.length === 0 && changes.removed.length === 0 && (
+                                        <span className="text-gray-500">No changes</span>
+                                      )}
+                                    </div>
+                                  )
+                                }
+                                return (
+                                  <>
+                                    <span className="line-through">{entry.oldValue}</span>
+                                    {' → '}
+                                    <span className="text-green-400">{entry.newValue}</span>
+                                  </>
+                                )
+                              })()
+                            ) : (
+                              <>
+                                <span className="line-through">{entry.oldValue}</span>
+                                {' → '}
+                                <span className="text-green-400">{entry.newValue}</span>
+                              </>
+                            )}
                           </div>
                         )}
                       </div>

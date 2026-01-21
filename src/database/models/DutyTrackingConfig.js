@@ -17,6 +17,7 @@ const DEFAULT_CONFIG = {
   points_ingame_chat: { value: 1, type: 'number', category: 'points', label: 'Points per in-game message' },
   points_server_per_minute: { value: 0.25, type: 'number', category: 'points', label: 'Points per minute on server' },
   on_duty_multiplier: { value: 1.0, type: 'number', category: 'points', label: 'On-duty point multiplier' },
+  weekly_points_target: { value: 1000, type: 'number', category: 'points', label: 'Weekly points target' },
 
   // Coverage thresholds
   coverage_low_threshold: { value: 2, type: 'number', category: 'coverage', label: 'Low coverage threshold (admins)' },
