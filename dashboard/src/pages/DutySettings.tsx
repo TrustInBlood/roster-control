@@ -471,6 +471,8 @@ export default function DutySettings() {
                           <span className="text-white font-medium">{entry.changedByName || 'Unknown'}</span>
                           {entry.changeType === 'enable' || entry.changeType === 'disable' ? (
                             <> {entry.changeType}d </>
+                          ) : entry.changeType === 'create' ? (
+                            <> set </>
                           ) : (
                             <> changed </>
                           )}
@@ -478,7 +480,7 @@ export default function DutySettings() {
                             {entry.configKey}
                           </code>
                         </span>
-                        {entry.changeType === 'update' && (
+                        {(entry.changeType === 'update' || entry.changeType === 'create') && (
                           <div className="text-gray-500 text-xs mt-1">
                             {isVoiceChannelConfig(entry.configKey) ? (
                               (() => {
@@ -500,16 +502,14 @@ export default function DutySettings() {
                                 }
                                 return (
                                   <>
-                                    <span className="line-through">{entry.oldValue}</span>
-                                    {' → '}
+                                    {entry.oldValue && <><span className="line-through">{entry.oldValue}</span>{' → '}</>}
                                     <span className="text-green-400">{entry.newValue}</span>
                                   </>
                                 )
                               })()
                             ) : (
                               <>
-                                <span className="line-through">{entry.oldValue}</span>
-                                {' → '}
+                                {entry.oldValue && <><span className="line-through">{entry.oldValue}</span>{' → '}</>}
                                 <span className="text-green-400">{entry.newValue}</span>
                               </>
                             )}
