@@ -106,3 +106,15 @@ export function useLinkAccount() {
     },
   })
 }
+
+export function useResetPlayerStats() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ steamid64, reason }: { steamid64: string; reason: string }) =>
+      playersApi.resetStats(steamid64, reason),
+    onSuccess: (_data, variables) => {
+      // Invalidate player profile to refresh stats reset date
+      queryClient.invalidateQueries({ queryKey: ['players', 'profile', variables.steamid64] })
+    },
+  })
+}

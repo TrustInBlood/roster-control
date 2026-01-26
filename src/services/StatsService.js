@@ -126,7 +126,17 @@ function setCooldown(userId, member = null) {
  */
 async function fetchStats(steamId) {
   try {
-    const response = await fetch(`${STATS_API_URL}?steamid=${steamId}`);
+    // Look up player's stats reset date
+    const Player = require('../database/models/Player');
+    const player = await Player.findBySteamId(steamId);
+
+    // Build URL with optional since parameter
+    let url = `${STATS_API_URL}?steamid=${steamId}`;
+    if (player?.stats_reset_at) {
+      url += `&since=${player.stats_reset_at.toISOString()}`;
+    }
+
+    const response = await fetch(url);
 
     if (!response.ok) {
       if (response.status === 404) {

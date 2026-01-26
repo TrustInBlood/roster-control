@@ -3,6 +3,8 @@ const router = express.Router();
 const { createServiceLogger } = require('../../utils/logger');
 const { requireAuth, requirePermission } = require('../middleware/auth');
 const PlayerProfileService = require('../../services/PlayerProfileService');
+const Player = require('../../database/models/Player');
+const { AuditLog } = require('../../database/models');
 
 const logger = createServiceLogger('PlayersAPI');
 
@@ -253,6 +255,70 @@ router.post('/:steamid64/link', requireAuth, requirePermission('MANAGE_ACCOUNT_L
   } catch (error) {
     logger.error('Error creating link from potential', { error: error.message, steamid64: req.params.steamid64 });
     res.status(500).json({ error: 'Failed to create link' });
+  }
+});
+
+// POST /api/v1/players/:steamid64/reset-stats - Reset player game statistics
+router.post('/:steamid64/reset-stats', requireAuth, requirePermission('RESET_PLAYER_STATS'), async (req, res) => {
+  try {
+    const { steamid64 } = req.params;
+    const { reason } = req.body;
+
+    // Validate Steam64 format
+    if (!/^7656\d{13}$/.test(steamid64)) {
+      return res.status(400).json({ error: 'Invalid Steam64 ID format' });
+    }
+
+    // Validate reason
+    if (!reason || reason.trim().length === 0) {
+      return res.status(400).json({ error: 'Reason is required' });
+    }
+
+    // Find the player
+    const player = await Player.findBySteamId(steamid64);
+    if (!player) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+
+    // Reset stats
+    const previousResetAt = player.stats_reset_at;
+    await player.resetStats();
+
+    // Create audit log
+    await AuditLog.create({
+      actionType: 'STATS_RESET',
+      actorType: 'dashboard_user',
+      actorId: req.user.id,
+      actorName: req.user.username,
+      targetType: 'player',
+      targetId: steamid64,
+      targetName: player.username,
+      description: `Game stats reset for player ${player.username} (${steamid64})`,
+      guildId: process.env.DISCORD_GUILD_ID,
+      metadata: {
+        steamId: steamid64,
+        reason: reason.trim(),
+        previousResetAt: previousResetAt,
+        newResetAt: player.stats_reset_at
+      }
+    });
+
+    logger.info('Player stats reset', {
+      steamid64,
+      username: player.username,
+      resetAt: player.stats_reset_at,
+      resetBy: req.user.username,
+      reason: reason.trim()
+    });
+
+    res.json({
+      success: true,
+      statsResetAt: player.stats_reset_at,
+      message: `Stats reset for ${player.username}`
+    });
+  } catch (error) {
+    logger.error('Error resetting player stats', { error: error.message, steamid64: req.params.steamid64 });
+    res.status(500).json({ error: 'Failed to reset player stats' });
   }
 });
 

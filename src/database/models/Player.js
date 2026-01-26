@@ -85,6 +85,14 @@ const Player = sequelize.define('Player', {
     type: DataTypes.TEXT,
     allowNull: true,
     comment: 'Admin notes about the player'
+  },
+
+  // Stats Reset At - When player's game stats were last reset
+  stats_reset_at: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    defaultValue: null,
+    comment: 'Timestamp of when player game stats were last reset'
   }
 }, {
   // Table name
@@ -135,6 +143,11 @@ Player.prototype.updateActivity = async function(serverId) {
 
 Player.prototype.addPlayTime = async function(minutes) {
   this.totalPlayTime += minutes;
+  return await this.save();
+};
+
+Player.prototype.resetStats = async function() {
+  this.stats_reset_at = new Date();
   return await this.save();
 };
 

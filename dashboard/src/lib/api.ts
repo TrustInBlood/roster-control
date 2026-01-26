@@ -539,6 +539,11 @@ export const playersApi = {
     const { data } = await api.post<LinkAccountResponse>(`/players/${steamid64}/link`, { discordUserId, reason })
     return data
   },
+
+  resetStats: async (steamid64: string, reason: string): Promise<{ success: boolean; statsResetAt: string; message: string }> => {
+    const { data } = await api.post<{ success: boolean; statsResetAt: string; message: string }>(`/players/${steamid64}/reset-stats`, { reason })
+    return data
+  },
 }
 
 // Seeding API

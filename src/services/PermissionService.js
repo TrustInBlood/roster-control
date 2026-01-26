@@ -100,6 +100,10 @@ const PERMISSION_DEFINITIONS = {
   MANAGE_INFO_BUTTONS: {
     description: 'Manage whitelist post info buttons',
     critical: false
+  },
+  RESET_PLAYER_STATS: {
+    description: 'Reset player game statistics',
+    critical: false
   }
 };
 
@@ -177,6 +181,10 @@ function getDefaultPermissions() {
       DISCORD_ROLES.SUPER_ADMIN
     ],
     MANAGE_INFO_BUTTONS: [
+      DISCORD_ROLES.SUPER_ADMIN
+    ],
+    RESET_PLAYER_STATS: [
+      ...getAllAdminRoles(),
       DISCORD_ROLES.SUPER_ADMIN
     ]
   };

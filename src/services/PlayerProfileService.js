@@ -569,7 +569,8 @@ class PlayerProfileService {
         },
         isStaff,
         staffRoles,
-        notes: player?.notes || null
+        notes: player?.notes || null,
+        statsResetAt: player?.stats_reset_at || null
       };
     } catch (error) {
       logger.error('Error getting player profile', { error: error.message, steamid64 });

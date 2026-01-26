@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { Activity, Shield, History, Link2, ExternalLink, TrendingUp, AlertTriangle } from 'lucide-react'
+import { Activity, Shield, History, Link2, ExternalLink, TrendingUp, AlertTriangle, BarChart3, RotateCcw } from 'lucide-react'
 import type { PlayerProfile } from '../../types/player'
 import { cn, formatRelativeTime } from '../../lib/utils'
 import { useUpgradeConfidence } from '../../hooks/useWhitelist'
+import { useResetPlayerStats } from '../../hooks/usePlayers'
+import { useAuth } from '../../hooks/useAuth'
 import { DutyStatsCard } from '../duty'
 
 interface PlayerOverviewProps {
@@ -21,9 +23,13 @@ function formatPlaytime(minutes: number): string {
 }
 
 export default function PlayerOverview({ profile, steamid64, onTabChange }: PlayerOverviewProps) {
+  const { hasPermission } = useAuth()
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const upgradeMutation = useUpgradeConfidence()
   const [upgradeReason, setUpgradeReason] = useState('')
+  const [showResetStatsModal, setShowResetStatsModal] = useState(false)
+  const resetStatsMutation = useResetPlayerStats()
+  const [resetStatsReason, setResetStatsReason] = useState('')
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -288,6 +294,39 @@ export default function PlayerOverview({ profile, steamid64, onTabChange }: Play
         )}
       </div>
 
+      {/* Game Stats Card */}
+      <div className="bg-discord-light rounded-lg p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="w-5 h-5 text-cyan-400" />
+            <h3 className="font-medium text-white">Game Stats</h3>
+          </div>
+          {hasPermission('RESET_PLAYER_STATS') && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowResetStatsModal(true)
+              }}
+              className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs font-medium transition-colors flex items-center gap-1"
+              title="Reset player's game statistics"
+            >
+              <RotateCcw className="w-3 h-3" />
+              Reset Stats
+            </button>
+          )}
+        </div>
+        <div className="space-y-2 text-sm">
+          {profile.statsResetAt ? (
+            <div className="flex justify-between">
+              <dt className="text-gray-400">Stats since</dt>
+              <dd className="text-white">{formatRelativeTime(profile.statsResetAt)}</dd>
+            </div>
+          ) : (
+            <p className="text-gray-400">Lifetime stats (never reset)</p>
+          )}
+        </div>
+      </div>
+
       {/* Discord Roles Card (if applicable) */}
       {profile.discordRoles && profile.discordRoles.length > 0 && (
         <div className="bg-discord-light rounded-lg p-4">
@@ -376,6 +415,61 @@ export default function PlayerOverview({ profile, steamid64, onTabChange }: Play
                   className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
                 >
                   {upgradeMutation.isPending ? 'Upgrading...' : 'Upgrade'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Stats Modal */}
+      {showResetStatsModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-discord-light rounded-lg w-full max-w-md mx-4 p-4">
+            <h3 className="text-lg font-semibold text-white mb-4">Reset Game Stats</h3>
+            <p className="text-sm text-gray-400 mb-4">
+              This will reset the player's game statistics (K/D, kills, deaths, etc.).
+              Stats will only be calculated from this point forward.
+            </p>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault()
+                if (!resetStatsReason.trim()) return
+                try {
+                  await resetStatsMutation.mutateAsync({ steamid64, reason: resetStatsReason })
+                  setShowResetStatsModal(false)
+                  setResetStatsReason('')
+                } catch {
+                  // Error handled by mutation
+                }
+              }}
+              className="space-y-4"
+            >
+              <textarea
+                value={resetStatsReason}
+                onChange={(e) => setResetStatsReason(e.target.value)}
+                placeholder="Reason for reset (required)"
+                rows={2}
+                required
+                className="w-full bg-discord-darker border border-discord-lighter rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 resize-none"
+              />
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowResetStatsModal(false)
+                    setResetStatsReason('')
+                  }}
+                  className="text-gray-400 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={resetStatsMutation.isPending || !resetStatsReason.trim()}
+                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
+                >
+                  {resetStatsMutation.isPending ? 'Resetting...' : 'Reset Stats'}
                 </button>
               </div>
             </form>

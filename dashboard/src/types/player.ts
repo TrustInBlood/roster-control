@@ -124,6 +124,7 @@ export interface PlayerProfile {
   isStaff: boolean
   staffRoles: string[]
   notes: string | null
+  statsResetAt: string | null
 }
 
 // Linked account from Discord user (all Steam accounts linked to one Discord user)
