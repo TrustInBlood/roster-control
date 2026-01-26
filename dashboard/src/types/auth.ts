@@ -39,3 +39,4 @@ export type Permission =
   | 'VIEW_PLAYERS'
   | 'MANAGE_ACCOUNT_LINKS'
   | 'MANAGE_INFO_BUTTONS'
+  | 'RESET_PLAYER_STATS'
