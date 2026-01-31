@@ -525,6 +525,15 @@ async function postBattleMetricsProfile(message, steamId, targetUser) {
       cblEnabled ? cblService.searchPlayer(steamId, cblTimeout) : Promise.resolve({ found: false })
     ]);
 
+    // Fetch BattleMetrics bans if player was found
+    let bmBansResult = { found: false, activeBansCount: 0 };
+    if (bmResult.found && bmResult.playerData?.id) {
+      bmBansResult = await battlemetricsService.getPlayerBans(
+        bmResult.playerData.id,
+        bmTimeout
+      );
+    }
+
     // Check if this Steam ID is verified linked to the target user
     const verifiedLink = await PlayerDiscordLink.findOne({
       where: {
@@ -573,7 +582,8 @@ async function postBattleMetricsProfile(message, steamId, targetUser) {
       linkStatusValue = `Not linked to <@${targetUser.id}>`;
     }
 
-    // Build CBL fields if data available
+    // Build BM ban fields and CBL fields if data available
+    const bmBanFields = buildBmBanFields(bmBansResult, bmResult.profileUrl);
     const cblFields = buildCblFields(cblResult);
 
     // Create components array (Link button only if user doesn't have any verified link)
@@ -599,6 +609,7 @@ async function postBattleMetricsProfile(message, steamId, targetUser) {
         .addFields(
           { name: 'Player Name', value: bmResult.playerData.name || 'Unknown', inline: true },
           { name: 'BM Profile', value: `[View Profile](${bmResult.profileUrl})`, inline: true },
+          ...bmBanFields,
           ...cblFields,
           { name: `${linkStatusEmoji} Account Link`, value: linkStatusValue, inline: false }
         )
@@ -614,6 +625,7 @@ async function postBattleMetricsProfile(message, steamId, targetUser) {
         isVerified,
         hasPotentialLink,
         userHasVerifiedAccount,
+        bmActiveBans: bmBansResult.activeBansCount,
         cblFound: cblResult.found,
         cblReputationPoints: cblResult.found ? cblResult.playerData?.reputationPoints : null
       });
@@ -629,6 +641,7 @@ async function postBattleMetricsProfile(message, steamId, targetUser) {
             value: 'This player has not been seen on any servers tracked by BattleMetrics, or their profile is private.',
             inline: false
           },
+          ...bmBanFields,
           ...cblFields,
           { name: `${linkStatusEmoji} Account Link`, value: linkStatusValue, inline: false }
         )
@@ -710,6 +723,64 @@ function buildCblFields(cblResult) {
       const org = ban.organisation !== 'Unknown' ? ` (${ban.organisation})` : '';
       const reason = ban.reason.length > 50 ? ban.reason.substring(0, 47) + '...' : ban.reason;
       return `- ${ban.banList}${org}: ${reason}`;
+    }).join('\n');
+
+    let banFieldValue = banList;
+    if (activeBansCount > 3) {
+      banFieldValue += `\n*...and ${activeBansCount - 3} more*`;
+    }
+
+    fields.push({
+      name: '🚫 Active Bans',
+      value: banFieldValue,
+      inline: false
+    });
+  }
+
+  return fields;
+}
+
+/**
+ * Build BattleMetrics ban embed fields from BM bans result
+ * Mirrors CBL format for consistency
+ * @param {Object} bmBansResult - Result from battlemetricsService.getPlayerBans()
+ * @param {string} profileUrl - BattleMetrics profile URL
+ * @returns {Array} Array of embed fields for BM ban data
+ */
+function buildBmBanFields(bmBansResult, profileUrl) {
+  if (!bmBansResult || !bmBansResult.found || bmBansResult.activeBansCount === 0) {
+    return [];
+  }
+
+  const { activeBans, activeBansCount } = bmBansResult;
+  const fields = [];
+
+  // Determine warning emoji based on ban count (mirrors CBL logic)
+  let banEmoji = '⚠️';
+  if (activeBansCount >= 3) {
+    banEmoji = '🚨';
+  }
+
+  // Build summary value
+  let summaryValue = `**${activeBansCount}** active ban${activeBansCount !== 1 ? 's' : ''}`;
+  if (profileUrl) {
+    summaryValue += `\n[View BM Profile](${profileUrl})`;
+  }
+
+  fields.push({
+    name: `${banEmoji} BattleMetrics Bans`,
+    value: summaryValue,
+    inline: false
+  });
+
+  // If there are active bans, list them (mirrors CBL active bans format)
+  if (activeBansCount > 0 && activeBans.length > 0) {
+    const banList = activeBans.slice(0, 3).map(ban => {
+      const org = ban.organization?.name ? ` (${ban.organization.name})` : '';
+      const admin = ban.admin?.name ? ` by ${ban.admin.name}` : '';
+      const banListName = ban.banList?.name || 'Unknown';
+      const reason = ban.reason.length > 50 ? ban.reason.substring(0, 47) + '...' : ban.reason;
+      return `- ${banListName}${org}${admin}: ${reason}`;
     }).join('\n');
 
     let banFieldValue = banList;

@@ -348,6 +348,133 @@ class BattleMetricsService {
   }
 
   /**
+   * Get active bans for a player from BattleMetrics
+   * @param {string} playerId - BattleMetrics player ID
+   * @param {number} timeout - Request timeout in milliseconds (default: 5000)
+   * @returns {Promise<Object>} Player ban data
+   */
+  async getPlayerBans(playerId, timeout = 5000) {
+    try {
+      loggerConsole.log('Fetching BattleMetrics bans for player:', playerId);
+
+      const response = await this.axiosInstance.get('/bans', {
+        params: {
+          'filter[player]': playerId,
+          'filter[expired]': false,
+          'include': 'user,server,organization,banList',
+          'page[size]': 100
+        },
+        timeout: timeout
+      });
+
+      const bans = response.data.data || [];
+      const included = response.data.included || [];
+
+      if (bans.length === 0) {
+        loggerConsole.log('No active bans found for player:', playerId);
+        return {
+          found: true,
+          playerId,
+          activeBans: [],
+          activeBansCount: 0
+        };
+      }
+
+      // Build lookup maps from included data
+      const userMap = new Map();
+      const serverMap = new Map();
+      const banListMap = new Map();
+      const orgMap = new Map();
+
+      for (const item of included) {
+        switch (item.type) {
+          case 'user':
+            userMap.set(item.id, {
+              id: item.id,
+              name: item.attributes?.nickname || 'Unknown'
+            });
+            break;
+          case 'server':
+            serverMap.set(item.id, {
+              id: item.id,
+              name: item.attributes?.name || 'Unknown'
+            });
+            break;
+          case 'banList':
+            banListMap.set(item.id, {
+              id: item.id,
+              name: item.attributes?.name || 'Unknown',
+              orgId: item.relationships?.organization?.data?.id
+            });
+            break;
+          case 'organization':
+            orgMap.set(item.id, {
+              id: item.id,
+              name: item.attributes?.name || 'Unknown'
+            });
+            break;
+        }
+      }
+
+      // Map bans with resolved relationships
+      const activeBans = bans.map(ban => {
+        const userId = ban.relationships?.user?.data?.id;
+        const serverId = ban.relationships?.server?.data?.id;
+        const banListId = ban.relationships?.banList?.data?.id;
+
+        const banList = banListMap.get(banListId);
+        const org = banList?.orgId ? orgMap.get(banList.orgId) : null;
+
+        return {
+          id: ban.id,
+          reason: ban.attributes?.reason || 'No reason provided',
+          note: ban.attributes?.note || '',
+          created: ban.attributes?.timestamp,
+          expires: ban.attributes?.expires,
+          admin: userMap.get(userId) || null,
+          server: serverMap.get(serverId) || null,
+          banList: banList ? { id: banList.id, name: banList.name } : null,
+          organization: org || null
+        };
+      });
+
+      loggerConsole.log('Found active bans for player:', {
+        playerId,
+        activeBansCount: activeBans.length
+      });
+
+      return {
+        found: true,
+        playerId,
+        activeBans,
+        activeBansCount: activeBans.length
+      };
+
+    } catch (error) {
+      if (error.code === 'ECONNABORTED') {
+        loggerConsole.warn('BattleMetrics ban lookup timed out:', {
+          playerId,
+          timeout
+        });
+      } else {
+        loggerConsole.error('Error fetching BattleMetrics bans:', {
+          playerId,
+          error: error.message,
+          status: error.response?.status
+        });
+      }
+
+      return {
+        found: false,
+        playerId,
+        activeBans: [],
+        activeBansCount: 0,
+        error: error.message
+      };
+    }
+  }
+
+  /**
    * Test connection to BattleMetrics API
    * @returns {Promise<boolean>} Connection status
    */
