@@ -583,7 +583,7 @@ async function postBattleMetricsProfile(message, steamId, targetUser) {
     }
 
     // Build BM ban fields and CBL fields if data available
-    const bmBanFields = buildBmBanFields(bmBansResult, bmResult.profileUrl);
+    const bmBanFields = buildBmBanFields(bmBansResult);
     const cblFields = buildCblFields(cblResult);
 
     // Create components array (Link button only if user doesn't have any verified link)
@@ -747,13 +747,12 @@ function buildCblFields(cblResult) {
  * @param {string} profileUrl - BattleMetrics profile URL
  * @returns {Array} Array of embed fields for BM ban data
  */
-function buildBmBanFields(bmBansResult, profileUrl) {
+function buildBmBanFields(bmBansResult) {
   if (!bmBansResult || !bmBansResult.found || bmBansResult.activeBansCount === 0) {
     return [];
   }
 
   const { activeBans, activeBansCount } = bmBansResult;
-  const fields = [];
 
   // Determine warning emoji based on ban count (mirrors CBL logic)
   let banEmoji = '⚠️';
@@ -761,41 +760,23 @@ function buildBmBanFields(bmBansResult, profileUrl) {
     banEmoji = '🚨';
   }
 
-  // Build summary value
-  let summaryValue = `**${activeBansCount}** active ban${activeBansCount !== 1 ? 's' : ''}`;
-  if (profileUrl) {
-    summaryValue += `\n[View BM Profile](${profileUrl})`;
+  // Build ban list
+  let banFieldValue = activeBans.slice(0, 3).map(ban => {
+    const reason = ban.reason.length > 50 ? ban.reason.substring(0, 47) + '...' : ban.reason;
+    const expiry = ban.expires ? new Date(ban.expires).toLocaleDateString() : 'Permanent';
+    const admin = ban.admin?.name || 'Unknown';
+    return `- ${reason} (${expiry}) by ${admin}`;
+  }).join('\n');
+
+  if (activeBansCount > 3) {
+    banFieldValue += `\n*...and ${activeBansCount - 3} more*`;
   }
 
-  fields.push({
+  return [{
     name: `${banEmoji} BattleMetrics Bans`,
-    value: summaryValue,
+    value: banFieldValue,
     inline: false
-  });
-
-  // If there are active bans, list them (mirrors CBL active bans format)
-  if (activeBansCount > 0 && activeBans.length > 0) {
-    const banList = activeBans.slice(0, 3).map(ban => {
-      const org = ban.organization?.name ? ` (${ban.organization.name})` : '';
-      const admin = ban.admin?.name ? ` by ${ban.admin.name}` : '';
-      const banListName = ban.banList?.name || 'Unknown';
-      const reason = ban.reason.length > 50 ? ban.reason.substring(0, 47) + '...' : ban.reason;
-      return `- ${banListName}${org}${admin}: ${reason}`;
-    }).join('\n');
-
-    let banFieldValue = banList;
-    if (activeBansCount > 3) {
-      banFieldValue += `\n*...and ${activeBansCount - 3} more*`;
-    }
-
-    fields.push({
-      name: '🚫 Active Bans',
-      value: banFieldValue,
-      inline: false
-    });
-  }
-
-  return fields;
+  }];
 }
 
 /**
