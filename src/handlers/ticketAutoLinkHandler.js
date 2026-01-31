@@ -186,10 +186,9 @@ async function handleTicketAutoLink(message) {
 
     if (steamIds.length === 0) {
       // Check for existing linked account (and potentially prompt)
-      // For bot messages: check for link and serve BM profile, but don't prompt
-      // For human messages: check for link OR prompt if not found
-      const allowPrompt = !message.author.bot;
-      await checkForMissingSteamId(message, allowPrompt);
+      // Always allow prompting - if we can identify the ticket creator (from bot mention or human author),
+      // we should prompt them for their Steam ID if they don't have one linked
+      await checkForMissingSteamId(message);
       return; // No Steam IDs found
     }
 
@@ -377,6 +376,8 @@ function extractUserMentionsFromContent(message) {
 
 /**
  * Find the ticket creator by checking recent messages in the channel
+ * First checks bot messages (like Ticket Tool) for mentioned users,
+ * then falls back to finding human message authors
  * @param {Message} message - Discord message object
  * @returns {User|null} - Found user or null
  */
@@ -384,18 +385,35 @@ async function findTicketCreator(message) {
   try {
     // Fetch recent messages from the channel
     const messages = await message.channel.messages.fetch({ limit: 20 });
-    
-    // Look for non-bot users who have sent messages in this channel
+
+    // First, check bot messages for mentioned users (Ticket Tool mentions the ticket creator)
+    for (const [, msg] of messages) {
+      if (msg.author.bot) {
+        // Check content mentions
+        const contentMentions = extractUserMentionsFromContent(msg);
+        if (contentMentions.length > 0) {
+          return contentMentions[0];
+        }
+
+        // Check embed mentions
+        const embedMentions = extractUserMentionsFromEmbeds(msg);
+        if (embedMentions.length > 0) {
+          return embedMentions[0];
+        }
+      }
+    }
+
+    // Fall back to finding non-bot users who have sent messages in this channel
     const humanUsers = [];
     for (const [, msg] of messages) {
       if (!msg.author.bot && !humanUsers.find(u => u.id === msg.author.id)) {
         humanUsers.push(msg.author);
       }
     }
-    
+
     // Return the first human user found (likely the ticket creator)
     return humanUsers.length > 0 ? humanUsers[0] : null;
-    
+
   } catch (error) {
     loggerConsole.error('Error fetching channel messages for ticket creator lookup:', error.message);
     return null;
@@ -712,11 +730,10 @@ function buildCblFields(cblResult) {
 /**
  * Check if a ticket message is missing a Steam ID and prompt user
  * First checks if ticket creator has a linked Steam account - if so, serves their BM profile
- * Otherwise prompts once at ticket start (if allowPrompt is true)
+ * Otherwise prompts once at ticket start
  * @param {Message} message - Discord message object
- * @param {boolean} allowPrompt - Whether to show prompt if no link found (false for bot messages)
  */
-async function checkForMissingSteamId(message, allowPrompt = true) {
+async function checkForMissingSteamId(message) {
   // Only proceed if prompting is enabled in config (still check for links even if prompting disabled)
   if (!TICKET_CONFIG.PROMPT_MISSING_STEAMID && !TICKET_CONFIG.BATTLEMETRICS_LOOKUP_ENABLED) {
     return;
@@ -809,8 +826,8 @@ async function checkForMissingSteamId(message, allowPrompt = true) {
       return;
     }
 
-    // No linked account - prompt for Steam ID (only if allowed)
-    if (allowPrompt && TICKET_CONFIG.PROMPT_MISSING_STEAMID) {
+    // No linked account - prompt for Steam ID
+    if (TICKET_CONFIG.PROMPT_MISSING_STEAMID) {
       const embed = new EmbedBuilder()
         .setColor(0xFFA500) // Orange for info/warning
         .setTitle('⚠️ Steam ID Required')
@@ -839,8 +856,6 @@ async function checkForMissingSteamId(message, allowPrompt = true) {
         channelName: message.channel.name
       });
     }
-    // If not allowed to prompt (bot message), don't mark as handled
-    // so a human message can still trigger the prompt later
   }
 }
 
