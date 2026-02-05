@@ -34,7 +34,7 @@ const config = {
       {
         id: 'server1',
         name: 'Squad Server 1',
-        host: '216.114.75.101',
+        host: '216.114.75.106',
         port: 10206,
         gamePort: 10214, // =B&B= #1 Steel Division + SuperMod
         token: process.env.SQUADJS_TOKEN_SERVER1,
@@ -54,7 +54,7 @@ const config = {
       {
         id: 'server3',
         name: 'Squad Server 3',
-        host: '216.114.75.101',
+        host: '216.114.75.106',
         port: 10205,
         gamePort: 10209, // =B&B= #3 Supermod + Steel Division
         token: process.env.SQUADJS_TOKEN_SERVER3,
@@ -64,7 +64,7 @@ const config = {
       {
         id: 'server4',
         name: 'Squad Server 4',
-        host: '216.114.75.101',
+        host: '216.114.75.106',
         port: 10204,
         gamePort: 10200, // =B&B= #4 Steel Division
         token: process.env.SQUADJS_TOKEN_SERVER4,
