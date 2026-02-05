@@ -54,7 +54,7 @@ const config = {
       {
         id: 'server3',
         name: 'Squad Server 3',
-        host: '216.114.75.106',
+        host: '216.114.75.101',
         port: 10205,
         gamePort: 10209, // =B&B= #3 Supermod + Steel Division
         token: process.env.SQUADJS_TOKEN_SERVER3,
