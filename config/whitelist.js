@@ -44,7 +44,7 @@ const config = {
       {
         id: 'server2',
         name: 'Squad Server 2',
-        host: '216.114.75.101',
+        host: '216.114.75.106',
         port: 10207,
         gamePort: 10219, // =B&B= #2 King of the Hill
         token: process.env.SQUADJS_TOKEN_SERVER2,
@@ -74,7 +74,7 @@ const config = {
       {
         id: 'server5',
         name: 'Squad Server 5',
-        host: '216.114.75.101',
+        host: '216.114.75.106',
         port: 10208,
         gamePort: 10229, // =B&B= #5 Steel Division
         token: process.env.SQUADJS_TOKEN_SERVER5,
