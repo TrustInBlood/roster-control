@@ -71,6 +71,8 @@ import type {
   PotentialLinksResponse,
   LinkAccountResponse,
   PlayerFilters,
+  PlayerGameStatsResponse,
+  KillfeedResponse,
 } from '../types/player'
 import type {
   StatsTemplatesListResponse,
@@ -542,6 +544,18 @@ export const playersApi = {
 
   resetStats: async (steamid64: string, reason: string): Promise<{ success: boolean; statsResetAt: string; message: string }> => {
     const { data } = await api.post<{ success: boolean; statsResetAt: string; message: string }>(`/players/${steamid64}/reset-stats`, { reason })
+    return data
+  },
+
+  getGameStats: async (steamid64: string): Promise<PlayerGameStatsResponse> => {
+    const { data } = await api.get<PlayerGameStatsResponse>(`/players/${steamid64}/stats`)
+    return data
+  },
+
+  getKillfeed: async (steamid64: string, limit = 50, offset = 0): Promise<KillfeedResponse> => {
+    const { data } = await api.get<KillfeedResponse>(`/players/${steamid64}/killfeed`, {
+      params: { limit, offset },
+    })
     return data
   },
 }

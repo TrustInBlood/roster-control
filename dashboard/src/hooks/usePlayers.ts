@@ -66,6 +66,28 @@ export function usePlayerWhitelistHistory(steamid64: string, enabled = true) {
   })
 }
 
+export function usePlayerGameStats(steamid64: string, enabled = true) {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['players', 'game-stats', steamid64],
+    queryFn: () => playersApi.getGameStats(steamid64),
+    enabled: !!user && !!steamid64 && enabled,
+    staleTime: 60 * 1000,
+    retry: 1,
+  })
+}
+
+export function usePlayerKillfeed(steamid64: string, limit = 50, offset = 0, enabled = true) {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['players', 'killfeed', steamid64, limit, offset],
+    queryFn: () => playersApi.getKillfeed(steamid64, limit, offset),
+    enabled: !!user && !!steamid64 && enabled,
+    staleTime: 60 * 1000,
+    retry: 1,
+  })
+}
+
 export function usePlayerUnlinkHistory(steamid64: string, enabled = true) {
   const { user } = useAuth()
   return useQuery({
@@ -115,6 +137,8 @@ export function useResetPlayerStats() {
     onSuccess: (_data, variables) => {
       // Invalidate player profile to refresh stats reset date
       queryClient.invalidateQueries({ queryKey: ['players', 'profile', variables.steamid64] })
+      // Invalidate game stats to refetch from external API with new reset date
+      queryClient.invalidateQueries({ queryKey: ['players', 'game-stats', variables.steamid64] })
     },
   })
 }

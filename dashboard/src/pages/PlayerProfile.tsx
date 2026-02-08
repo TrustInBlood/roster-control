@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Shield, User, Activity, History, Sprout, Briefcase, Link2 } from 'lucide-react'
+import { ArrowLeft, Shield, User, Activity, History, Sprout, Briefcase, Link2, BarChart3 } from 'lucide-react'
 import { usePlayerProfile } from '../hooks/usePlayers'
 import { useAuth } from '../hooks/useAuth'
 import { cn, formatRelativeTime } from '../lib/utils'
@@ -12,12 +12,14 @@ import PlayerAuditSection from '../components/player/PlayerAuditSection'
 import PlayerSeedingSection from '../components/player/PlayerSeedingSection'
 import PlayerDutySection from '../components/player/PlayerDutySection'
 import PlayerAccountSection from '../components/player/PlayerAccountSection'
+import PlayerStatsSection from '../components/player/PlayerStatsSection'
 
-type Tab = 'overview' | 'activity' | 'whitelist' | 'audit' | 'seeding' | 'duty' | 'account'
+type Tab = 'overview' | 'activity' | 'stats' | 'whitelist' | 'audit' | 'seeding' | 'duty' | 'account'
 
 const tabs: { id: Tab; label: string; icon: React.ElementType; permission?: string }[] = [
   { id: 'overview', label: 'Overview', icon: User },
   { id: 'activity', label: 'Activity', icon: Activity },
+  { id: 'stats', label: 'Stats', icon: BarChart3 },
   { id: 'whitelist', label: 'Whitelist', icon: Shield },
   { id: 'audit', label: 'Audit', icon: History, permission: 'VIEW_AUDIT' },
   { id: 'seeding', label: 'Seeding', icon: Sprout, permission: 'VIEW_SEEDING' },
@@ -207,6 +209,9 @@ export default function PlayerProfile() {
         )}
         {activeTab === 'activity' && (
           <PlayerActivitySection steamid64={steamid64!} />
+        )}
+        {activeTab === 'stats' && (
+          <PlayerStatsSection steamid64={steamid64!} profile={profile} />
         )}
         {activeTab === 'whitelist' && (
           <PlayerWhitelistSection steamid64={steamid64!} />

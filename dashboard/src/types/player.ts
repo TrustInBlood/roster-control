@@ -107,6 +107,44 @@ export interface PlayerWhitelistSummary {
   entryCount: number
 }
 
+// Game stats from external stats API
+export interface PlayerGameStats {
+  kills: number
+  deaths: number
+  kdRatio: number
+  teamkills: number
+  revivesGiven: number
+  revivesReceived: number
+  nemesis: string | null
+  lastSeen: string | null
+  playerName: string | null
+}
+
+export interface PlayerGameStatsResponse {
+  stats: PlayerGameStats
+  statsResetAt: string | null
+}
+
+// Individual kill/death event from killfeed API
+export interface KillfeedEntry {
+  type: 'kill' | 'death'
+  teamkill: boolean
+  attacker: string
+  attackerSteamId: string
+  victim: string
+  victimSteamId: string
+  weapon: string
+  serverId: string
+  timestamp: string
+}
+
+export interface KillfeedResponse {
+  steamId: string
+  playerName: string
+  count: number
+  killfeed: KillfeedEntry[]
+}
+
 // Full player profile response
 export interface PlayerProfile {
   steamid64: string

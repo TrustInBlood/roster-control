@@ -153,6 +153,72 @@ router.get('/:steamid64/whitelist', requireAuth, requirePermission('VIEW_PLAYERS
   }
 });
 
+// GET /api/v1/players/:steamid64/stats - Game stats from external API
+router.get('/:steamid64/stats', requireAuth, requirePermission('VIEW_PLAYERS'), async (req, res) => {
+  try {
+    const { steamid64 } = req.params;
+
+    if (!/^7656\d{13}$/.test(steamid64)) {
+      return res.status(400).json({ error: 'Invalid Steam64 ID format' });
+    }
+
+    const { fetchStats } = require('../../services/StatsService');
+    const result = await fetchStats(steamid64);
+
+    if (!result.success) {
+      const status = result.error?.includes('not found') ? 404 : 502;
+      return res.status(status).json({ error: result.error });
+    }
+
+    const player = await Player.findBySteamId(steamid64);
+
+    res.json({
+      stats: result.stats,
+      statsResetAt: player?.stats_reset_at || null
+    });
+  } catch (error) {
+    logger.error('Error getting player stats', { error: error.message, steamid64: req.params.steamid64 });
+    res.status(500).json({ error: 'Failed to get player stats' });
+  }
+});
+
+// GET /api/v1/players/:steamid64/killfeed - Kill/death event log from external API
+router.get('/:steamid64/killfeed', requireAuth, requirePermission('VIEW_PLAYERS'), async (req, res) => {
+  try {
+    const { steamid64 } = req.params;
+
+    if (!/^7656\d{13}$/.test(steamid64)) {
+      return res.status(400).json({ error: 'Invalid Steam64 ID format' });
+    }
+
+    const { limit = '50', offset = '0' } = req.query;
+
+    const player = await Player.findBySteamId(steamid64);
+
+    const STATS_API_URL = process.env.STATS_API_URL || 'http://216.114.75.106:12000/stats';
+    const baseUrl = STATS_API_URL.replace(/\/stats\/?$/, '');
+    let url = `${baseUrl}/killfeed?steamid=${steamid64}&limit=${limit}&offset=${offset}`;
+    if (player?.stats_reset_at) {
+      url += `&since=${player.stats_reset_at.toISOString()}`;
+    }
+
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return res.status(404).json({ error: 'Player not found' });
+      }
+      return res.status(502).json({ error: `Stats API returned ${response.status}` });
+    }
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    logger.error('Error getting player killfeed', { error: error.message, steamid64: req.params.steamid64 });
+    res.status(500).json({ error: 'Failed to get player killfeed' });
+  }
+});
+
 // GET /api/v1/players/:steamid64/unlinks - Unlink history
 router.get('/:steamid64/unlinks', requireAuth, requirePermission('VIEW_PLAYERS'), async (req, res) => {
   try {

@@ -8,7 +8,7 @@ const { generateStatsImage, DEFAULT_TEMPLATE } = require('./StatsImageService');
 const StatsTemplateService = require('./StatsTemplateService');
 
 // API endpoint for player stats - configurable via environment variable
-const STATS_API_URL = process.env.STATS_API_URL || 'http://216.114.75.101:12000/stats';
+const STATS_API_URL = process.env.STATS_API_URL || 'http://216.114.75.106:12000/stats';
 
 // Cooldown settings
 const COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes for regular users
