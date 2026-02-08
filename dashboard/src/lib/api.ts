@@ -552,10 +552,8 @@ export const playersApi = {
     return data
   },
 
-  getKillfeed: async (steamid64: string, limit = 50, offset = 0): Promise<KillfeedResponse> => {
-    const { data } = await api.get<KillfeedResponse>(`/players/${steamid64}/killfeed`, {
-      params: { limit, offset },
-    })
+  getKillfeed: async (steamid64: string): Promise<KillfeedResponse> => {
+    const { data } = await api.get<KillfeedResponse>(`/players/${steamid64}/killfeed`)
     return data
   },
 }

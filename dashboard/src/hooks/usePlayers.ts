@@ -77,11 +77,11 @@ export function usePlayerGameStats(steamid64: string, enabled = true) {
   })
 }
 
-export function usePlayerKillfeed(steamid64: string, limit = 50, offset = 0, enabled = true) {
+export function usePlayerKillfeed(steamid64: string, enabled = true) {
   const { user } = useAuth()
   return useQuery({
-    queryKey: ['players', 'killfeed', steamid64, limit, offset],
-    queryFn: () => playersApi.getKillfeed(steamid64, limit, offset),
+    queryKey: ['players', 'killfeed', steamid64],
+    queryFn: () => playersApi.getKillfeed(steamid64),
     enabled: !!user && !!steamid64 && enabled,
     staleTime: 60 * 1000,
     retry: 1,

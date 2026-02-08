@@ -191,16 +191,22 @@ router.get('/:steamid64/killfeed', requireAuth, requirePermission('VIEW_PLAYERS'
       return res.status(400).json({ error: 'Invalid Steam64 ID format' });
     }
 
-    const { limit = '50', offset = '0' } = req.query;
+    const { offset = '0' } = req.query;
 
     const player = await Player.findBySteamId(steamid64);
 
+    // Use stats_reset_at if set, otherwise default to 3 days ago
+    let since;
+    if (player?.stats_reset_at) {
+      since = player.stats_reset_at.toISOString();
+    } else {
+      const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+      since = threeDaysAgo.toISOString();
+    }
+
     const STATS_API_URL = process.env.STATS_API_URL || 'http://216.114.75.106:12000/stats';
     const baseUrl = STATS_API_URL.replace(/\/stats\/?$/, '');
-    let url = `${baseUrl}/killfeed?steamid=${steamid64}&limit=${limit}&offset=${offset}`;
-    if (player?.stats_reset_at) {
-      url += `&since=${player.stats_reset_at.toISOString()}`;
-    }
+    const url = `${baseUrl}/killfeed?steamid=${steamid64}&limit=200&offset=${offset}&since=${since}`;
 
     const response = await fetch(url);
 

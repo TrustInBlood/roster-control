@@ -5,8 +5,6 @@ import { useAuth } from '../../hooks/useAuth'
 import { cn, formatRelativeTime, formatDateTime } from '../../lib/utils'
 import type { PlayerProfile } from '../../types/player'
 
-const KILLFEED_PAGE_SIZE = 25
-
 interface PlayerStatsSectionProps {
   steamid64: string
   profile: PlayerProfile
@@ -18,10 +16,7 @@ export default function PlayerStatsSection({ steamid64, profile }: PlayerStatsSe
   const [showResetStatsModal, setShowResetStatsModal] = useState(false)
   const resetStatsMutation = useResetPlayerStats()
   const [resetStatsReason, setResetStatsReason] = useState('')
-  const [killfeedOffset, setKillfeedOffset] = useState(0)
-  const { data: killfeedData, isLoading: killfeedLoading } = usePlayerKillfeed(
-    steamid64, KILLFEED_PAGE_SIZE, killfeedOffset
-  )
+  const { data: killfeedData, isLoading: killfeedLoading } = usePlayerKillfeed(steamid64)
 
   if (isLoading) {
     return (
@@ -57,9 +52,6 @@ export default function PlayerStatsSection({ steamid64, profile }: PlayerStatsSe
 
   const { stats } = data
   const statsResetAt = data.statsResetAt ?? profile.statsResetAt
-  const killfeedPage = Math.floor(killfeedOffset / KILLFEED_PAGE_SIZE) + 1
-  const killfeedTotalPages = killfeedData ? Math.max(1, Math.ceil(killfeedData.count / KILLFEED_PAGE_SIZE)) : 1
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -252,34 +244,10 @@ export default function PlayerStatsSection({ steamid64, profile }: PlayerStatsSe
               </table>
             </div>
 
-            {/* Pagination */}
-            {killfeedTotalPages > 1 && (
-              <div className="flex items-center justify-between px-4">
-                <p className="text-sm text-gray-400">
-                  Showing {killfeedOffset + 1} to{' '}
-                  {Math.min(killfeedOffset + KILLFEED_PAGE_SIZE, killfeedData.count)} of{' '}
-                  {killfeedData.count} events
-                </p>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setKillfeedOffset(Math.max(0, killfeedOffset - KILLFEED_PAGE_SIZE))}
-                    disabled={killfeedOffset === 0}
-                    className="px-3 py-1 text-sm bg-discord-darker border border-discord-lighter rounded hover:bg-discord-lighter disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    Previous
-                  </button>
-                  <span className="text-sm text-gray-400">
-                    Page {killfeedPage} of {killfeedTotalPages}
-                  </span>
-                  <button
-                    onClick={() => setKillfeedOffset(killfeedOffset + KILLFEED_PAGE_SIZE)}
-                    disabled={killfeedPage >= killfeedTotalPages}
-                    className="px-3 py-1 text-sm bg-discord-darker border border-discord-lighter rounded hover:bg-discord-lighter disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
+            {killfeedData.count > 0 && (
+              <p className="text-sm text-gray-400 px-4">
+                {killfeedData.count} events in the last 3 days
+              </p>
             )}
           </>
         )}
