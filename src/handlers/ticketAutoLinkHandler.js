@@ -747,29 +747,41 @@ function buildCblFields(cblResult) {
  * @param {string} profileUrl - BattleMetrics profile URL
  * @returns {Array} Array of embed fields for BM ban data
  */
+// BattleMetrics ban list IDs to exclude from ticket embeds
+const EXCLUDED_BM_BAN_LISTS = new Set([
+  'f29df280-0371-11ef-a883-119fd02ca569'
+]);
+
 function buildBmBanFields(bmBansResult) {
   if (!bmBansResult || !bmBansResult.found || bmBansResult.activeBansCount === 0) {
     return [];
   }
 
-  const { activeBans, activeBansCount } = bmBansResult;
+  // Filter out excluded ban lists
+  const filteredBans = bmBansResult.activeBans.filter(
+    ban => !EXCLUDED_BM_BAN_LISTS.has(ban.banList?.id)
+  );
+
+  if (filteredBans.length === 0) {
+    return [];
+  }
 
   // Determine warning emoji based on ban count (mirrors CBL logic)
   let banEmoji = '⚠️';
-  if (activeBansCount >= 3) {
+  if (filteredBans.length >= 3) {
     banEmoji = '🚨';
   }
 
   // Build ban list
-  let banFieldValue = activeBans.slice(0, 3).map(ban => {
+  let banFieldValue = filteredBans.slice(0, 3).map(ban => {
     const reason = ban.reason.length > 50 ? ban.reason.substring(0, 47) + '...' : ban.reason;
     const expiry = ban.expires ? new Date(ban.expires).toLocaleDateString() : 'Permanent';
     const admin = ban.admin?.name || 'Unknown';
     return `- ${reason} (${expiry}) by ${admin}`;
   }).join('\n');
 
-  if (activeBansCount > 3) {
-    banFieldValue += `\n*...and ${activeBansCount - 3} more*`;
+  if (filteredBans.length > 3) {
+    banFieldValue += `\n*...and ${filteredBans.length - 3} more*`;
   }
 
   return [{
