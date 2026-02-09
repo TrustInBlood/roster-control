@@ -212,9 +212,14 @@ export default function PlayerStatsSection({ steamid64, profile }: PlayerStatsSe
                             {entry.teamkill ? 'TK' : 'Kill'}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30">
+                          <span className={cn(
+                            'inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border',
+                            entry.teamkill
+                              ? 'bg-orange-500/20 text-orange-400 border-orange-500/30'
+                              : 'bg-red-500/20 text-red-400 border-red-500/30'
+                          )}>
                             <Skull className="w-3 h-3" />
-                            Death
+                            {entry.teamkill ? 'TK\'d' : 'Death'}
                           </span>
                         )}
                       </td>
