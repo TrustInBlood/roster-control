@@ -107,8 +107,8 @@ async function handleButtonInteraction(interaction) {
 
     switch (customId) {
     case BUTTON_IDS.LINK:
-      // Legacy whitelist post link button
-      await handleLinkButton(interaction, LINK_SOURCES.WHITELIST_POST);
+      // Combined link/unlink button - routes based on current link status
+      await handleLinkOrUnlinkButton(interaction);
       break;
     case BUTTON_IDS.STATUS:
       await handleStatusButton(interaction);
@@ -129,6 +129,34 @@ async function handleButtonInteraction(interaction) {
   if (interaction.isModalSubmit()) {
     if (interaction.customId.startsWith(MODAL_ID_PREFIX)) {
       await handleLinkModalSubmit(interaction);
+    }
+  }
+}
+
+/**
+ * Handle the combined "Link/Unlink Steam ID" button click
+ * Checks if user has an existing link and routes to the appropriate flow
+ * @param {import('discord.js').Interaction} interaction
+ */
+async function handleLinkOrUnlinkButton(interaction) {
+  try {
+    const existingLink = await PlayerDiscordLink.findByDiscordId(interaction.user.id);
+
+    if (existingLink) {
+      // User is already linked - route to unlink flow
+      await handleUnlinkButton(interaction);
+    } else {
+      // User is not linked - route to link flow
+      await handleLinkButton(interaction, LINK_SOURCES.WHITELIST_POST);
+    }
+  } catch (error) {
+    serviceLogger.error('Error handling link/unlink button:', error);
+
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({
+        content: 'An error occurred. Please try again later.',
+        flags: MessageFlags.Ephemeral
+      });
     }
   }
 }

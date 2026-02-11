@@ -209,8 +209,8 @@ class WhitelistPostService {
       description: 'Use the buttons below to manage your whitelist access.\n\nYour Steam ID must be linked to your Discord account to manage your whitelist access on our servers.',
       fields: [
         {
-          name: 'Link Steam ID',
-          value: 'Connect your Steam account to your Discord.',
+          name: 'Link/Unlink Steam ID',
+          value: 'Connect or disconnect your Steam account from your Discord.',
           inline: false
         },
         {
@@ -236,7 +236,7 @@ class WhitelistPostService {
       .addComponents(
         new ButtonBuilder()
           .setCustomId(BUTTON_IDS.LINK)
-          .setLabel('Link Steam ID')
+          .setLabel('Link/Unlink Steam ID')
           .setStyle(ButtonStyle.Primary)
           .setEmoji('🔗'),
         new ButtonBuilder()
