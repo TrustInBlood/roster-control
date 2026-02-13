@@ -126,6 +126,7 @@ export const DUTY_TYPE_LABELS: Record<DutyType, string> = {
 
 // Staff Overview Types (lifetime stats with on/off duty breakdown)
 export type StaffOverviewSortBy = 'points' | 'time' | 'tickets' | 'voice' | 'server' | 'admin_cam' | 'chat';
+export type StaffOverviewSortOrder = 'asc' | 'desc';
 export type StaffOverviewPeriod = 'week' | 'month';
 
 export const STAFF_OVERVIEW_PERIOD_LABELS: Record<StaffOverviewPeriod, string> = {

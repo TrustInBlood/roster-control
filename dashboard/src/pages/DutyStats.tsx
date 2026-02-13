@@ -4,11 +4,12 @@ import { Link } from 'react-router-dom'
 import { useStaffOverview } from '../hooks/useDutyStats'
 import { DutySummaryCards, StaffOverview } from '../components/duty'
 import { useAuth } from '../hooks/useAuth'
-import type { StaffOverviewSortBy, StaffOverviewPeriod, DutySummaryStats } from '../types/duty'
+import type { StaffOverviewSortBy, StaffOverviewSortOrder, StaffOverviewPeriod, DutySummaryStats } from '../types/duty'
 import { STAFF_OVERVIEW_PERIOD_LABELS } from '../types/duty'
 
 export default function DutyStats() {
   const [staffOverviewSort, setStaffOverviewSort] = useState<StaffOverviewSortBy>('points')
+  const [staffOverviewSortOrder, setStaffOverviewSortOrder] = useState<StaffOverviewSortOrder>('desc')
   const [period, setPeriod] = useState<StaffOverviewPeriod>('week')
   const { hasPermission } = useAuth()
   const canManageSettings = hasPermission('MANAGE_DUTY_SETTINGS')
@@ -18,7 +19,16 @@ export default function DutyStats() {
     isLoading: staffOverviewLoading,
     refetch: refetchStaffOverview,
     isFetching: staffOverviewFetching,
-  } = useStaffOverview(staffOverviewSort, period)
+  } = useStaffOverview(staffOverviewSort, staffOverviewSortOrder, period)
+
+  const handleSortChange = (field: StaffOverviewSortBy) => {
+    if (field === staffOverviewSort) {
+      setStaffOverviewSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')
+    } else {
+      setStaffOverviewSort(field)
+      setStaffOverviewSortOrder('desc')
+    }
+  }
 
   const handleRefresh = () => {
     refetchStaffOverview()
@@ -100,7 +110,8 @@ export default function DutyStats() {
         entries={staffOverviewData?.data?.entries || []}
         isLoading={staffOverviewLoading}
         sortBy={staffOverviewSort}
-        onSortChange={setStaffOverviewSort}
+        sortOrder={staffOverviewSortOrder}
+        onSortChange={handleSortChange}
         hideHeader
       />
     </div>

@@ -242,6 +242,7 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
   try {
     const {
       sortBy = 'points',
+      sortOrder = 'desc',
       period = 'week',
       limit = 200
     } = req.query;
@@ -250,6 +251,12 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
     const validSortFields = ['points', 'time', 'tickets', 'voice', 'server', 'admin_cam', 'chat'];
     if (!validSortFields.includes(sortBy)) {
       return res.status(400).json({ error: 'Invalid sortBy. Must be: points, time, tickets, voice, server, admin_cam, or chat' });
+    }
+
+    // Validate sortOrder parameter
+    const validSortOrders = ['asc', 'desc'];
+    if (!validSortOrders.includes(sortOrder)) {
+      return res.status(400).json({ error: 'Invalid sortOrder. Must be: asc or desc' });
     }
 
     // Validate period parameter
@@ -502,15 +509,16 @@ router.get('/staff-overview', requireAuth, requirePermission('VIEW_DUTY'), async
       };
     });
 
-    // Sort by requested field
+    // Sort by requested field and order
+    const dir = sortOrder === 'asc' ? 1 : -1;
     const sortFunctions = {
-      'points': (a, b) => b.totalPoints - a.totalPoints,
-      'time': (a, b) => b.totalDutyMinutes - a.totalDutyMinutes,
-      'tickets': (a, b) => b.totalTicketResponses - a.totalTicketResponses,
-      'voice': (a, b) => b.totalVoiceMinutes - a.totalVoiceMinutes,
-      'server': (a, b) => b.totalServerMinutes - a.totalServerMinutes,
-      'admin_cam': (a, b) => b.totalAdminCamEvents - a.totalAdminCamEvents,
-      'chat': (a, b) => b.totalIngameChatMessages - a.totalIngameChatMessages
+      'points': (a, b) => (a.totalPoints - b.totalPoints) * dir,
+      'time': (a, b) => (a.totalDutyMinutes - b.totalDutyMinutes) * dir,
+      'tickets': (a, b) => (a.totalTicketResponses - b.totalTicketResponses) * dir,
+      'voice': (a, b) => (a.totalVoiceMinutes - b.totalVoiceMinutes) * dir,
+      'server': (a, b) => (a.totalServerMinutes - b.totalServerMinutes) * dir,
+      'admin_cam': (a, b) => (a.totalAdminCamEvents - b.totalAdminCamEvents) * dir,
+      'chat': (a, b) => (a.totalIngameChatMessages - b.totalIngameChatMessages) * dir
     };
     entries.sort(sortFunctions[sortBy]);
     entries = entries.slice(0, parsedLimit);

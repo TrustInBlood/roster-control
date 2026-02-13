@@ -97,6 +97,7 @@ import type {
   DutySessionsResponse,
   DutySessionResponse,
   StaffOverviewSortBy,
+  StaffOverviewSortOrder,
   StaffOverviewPeriod,
   StaffOverviewResponse,
 } from '../types/duty'
@@ -699,10 +700,11 @@ export const dutyApi = {
 
   getStaffOverview: async (
     sortBy: StaffOverviewSortBy = 'points',
+    sortOrder: StaffOverviewSortOrder = 'desc',
     period: StaffOverviewPeriod = 'week'
   ): Promise<StaffOverviewResponse> => {
     const { data } = await api.get<StaffOverviewResponse>('/duty/staff-overview', {
-      params: { sortBy, period },
+      params: { sortBy, sortOrder, period },
     })
     return data
   },

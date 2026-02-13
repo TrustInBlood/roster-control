@@ -1108,7 +1108,7 @@ async function handleInfoButton(buttonInteraction, targetUser, steamid64, author
 
   // Add back button
   const uniqueId = `${buttonInteraction.id}_${buttonInteraction.user.id}_${Date.now()}`;
-  const backButtonId = `info_back_${uniqueId}`;
+  const backButtonId = `wl_back_${uniqueId}`;
 
   const backRow = new ActionRowBuilder()
     .addComponents(

@@ -1,13 +1,14 @@
 import { useState } from 'react'
-import { Clock, MessageSquare, Mic, Star, User, ArrowUpDown, Gamepad2, Camera, MessageCircle, Search, X } from 'lucide-react'
+import { Clock, MessageSquare, Mic, Star, User, ArrowUpDown, ArrowUp, ArrowDown, Gamepad2, Camera, MessageCircle, Search, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import type { StaffOverviewEntry, StaffOverviewSortBy } from '../../types/duty'
+import type { StaffOverviewEntry, StaffOverviewSortBy, StaffOverviewSortOrder } from '../../types/duty'
 import { formatMinutes } from '../../lib/dutyUtils'
 
 interface StaffOverviewProps {
   entries: StaffOverviewEntry[]
   isLoading?: boolean
   sortBy: StaffOverviewSortBy
+  sortOrder?: StaffOverviewSortOrder
   onSortChange: (sortBy: StaffOverviewSortBy) => void
   hideHeader?: boolean
 }
@@ -26,6 +27,7 @@ export default function StaffOverview({
   entries,
   isLoading,
   sortBy,
+  sortOrder = 'desc',
   onSortChange,
   hideHeader = false,
 }: StaffOverviewProps) {
@@ -68,6 +70,13 @@ export default function StaffOverview({
     )
   }
 
+  const SortIcon = ({ field }: { field: StaffOverviewSortBy }) => {
+    if (sortBy !== field) return <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-50 transition-opacity" />
+    return sortOrder === 'desc'
+      ? <ArrowDown className="w-3 h-3 text-discord-blurple" />
+      : <ArrowUp className="w-3 h-3 text-discord-blurple" />
+  }
+
   const SortableHeader = ({
     field,
     children,
@@ -78,15 +87,13 @@ export default function StaffOverview({
     icon?: React.ComponentType<{ className?: string }>
   }) => (
     <th
-      className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white transition-colors"
+      className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white transition-colors group"
       onClick={() => onSortChange(field)}
     >
       <div className="flex items-center gap-1">
         {Icon && <Icon className="w-3 h-3" />}
         {children}
-        {sortBy === field && (
-          <ArrowUpDown className="w-3 h-3 text-discord-blurple" />
-        )}
+        <SortIcon field={field} />
       </div>
     </th>
   )
@@ -101,7 +108,7 @@ export default function StaffOverview({
               <p className="text-xs text-gray-400 mt-1">All-time activity including off-duty contributions</p>
             </div>
             <div className="text-xs text-gray-500">
-              Sorted by: <span className="text-gray-300">{SORT_LABELS[sortBy]}</span>
+              Sorted by: <span className="text-gray-300">{SORT_LABELS[sortBy]} ({sortOrder === 'desc' ? 'High to Low' : 'Low to High'})</span>
             </div>
           </div>
         </div>
@@ -165,51 +172,51 @@ export default function StaffOverview({
                 Staff Member
               </th>
               {/* Duty Stats (Green) */}
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white transition-colors bg-green-400/5" onClick={() => onSortChange('time')}>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white transition-colors bg-green-400/5 group" onClick={() => onSortChange('time')}>
                 <div className="flex items-center gap-1">
                   <Clock className="w-3 h-3" />
                   Duty Time
-                  {sortBy === 'time' && <ArrowUpDown className="w-3 h-3 text-discord-blurple" />}
+                  <SortIcon field="time" />
                 </div>
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider bg-green-400/5">
                 Sessions
               </th>
               {/* Discord Activity (Purple) */}
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white transition-colors bg-purple-400/5" onClick={() => onSortChange('voice')}>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white transition-colors bg-purple-400/5 group" onClick={() => onSortChange('voice')}>
                 <div className="flex items-center gap-1">
                   <Mic className="w-3 h-3" />
                   Voice
-                  {sortBy === 'voice' && <ArrowUpDown className="w-3 h-3 text-discord-blurple" />}
+                  <SortIcon field="voice" />
                 </div>
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white transition-colors bg-purple-400/5" onClick={() => onSortChange('tickets')}>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white transition-colors bg-purple-400/5 group" onClick={() => onSortChange('tickets')}>
                 <div className="flex items-center gap-1">
                   <MessageSquare className="w-3 h-3" />
                   Tickets
-                  {sortBy === 'tickets' && <ArrowUpDown className="w-3 h-3 text-discord-blurple" />}
+                  <SortIcon field="tickets" />
                 </div>
               </th>
               {/* In-Game Activity (Blue) */}
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white transition-colors bg-blue-400/5" onClick={() => onSortChange('server')}>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white transition-colors bg-blue-400/5 group" onClick={() => onSortChange('server')}>
                 <div className="flex items-center gap-1">
                   <Gamepad2 className="w-3 h-3" />
                   Server
-                  {sortBy === 'server' && <ArrowUpDown className="w-3 h-3 text-discord-blurple" />}
+                  <SortIcon field="server" />
                 </div>
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white transition-colors bg-blue-400/5" onClick={() => onSortChange('admin_cam')}>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white transition-colors bg-blue-400/5 group" onClick={() => onSortChange('admin_cam')}>
                 <div className="flex items-center gap-1">
                   <Camera className="w-3 h-3" />
                   Admin Cam
-                  {sortBy === 'admin_cam' && <ArrowUpDown className="w-3 h-3 text-discord-blurple" />}
+                  <SortIcon field="admin_cam" />
                 </div>
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white transition-colors bg-blue-400/5" onClick={() => onSortChange('chat')}>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white transition-colors bg-blue-400/5 group" onClick={() => onSortChange('chat')}>
                 <div className="flex items-center gap-1">
                   <MessageCircle className="w-3 h-3" />
                   Chat
-                  {sortBy === 'chat' && <ArrowUpDown className="w-3 h-3 text-discord-blurple" />}
+                  <SortIcon field="chat" />
                 </div>
               </th>
               <SortableHeader field="points" icon={Star}>
