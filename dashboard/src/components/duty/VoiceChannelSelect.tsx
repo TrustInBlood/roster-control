@@ -96,7 +96,7 @@ export default function VoiceChannelSelect({
         >
           <span className="text-gray-400 text-sm">
             {selectedIds.length === 0
-              ? 'Select channels to exclude...'
+              ? 'Select channels...'
               : `${selectedIds.length} channel${selectedIds.length > 1 ? 's' : ''} selected`}
           </span>
           <ChevronDown

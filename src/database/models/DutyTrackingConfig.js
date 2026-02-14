@@ -29,6 +29,9 @@ const DEFAULT_CONFIG = {
   // Excluded voice channels (array of channel IDs) - e.g., AFK channel
   excluded_voice_channels: { value: [], type: 'json', category: 'channels', label: 'Excluded voice channels (e.g., AFK)' },
 
+  // Ticket tracking
+  track_ticket_responses: { value: true, type: 'boolean', category: 'channels', label: 'Track ticket responses' },
+
   // Ticket channel pattern
   ticket_channel_pattern: { value: 'ticket-*', type: 'string', category: 'channels', label: 'Ticket channel pattern' }
 };
