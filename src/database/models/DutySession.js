@@ -288,7 +288,10 @@ DutySession.getSessionsNeedingWarning = async function(timeoutHours = 8, warning
     where: {
       isActive: true,
       warningSentAt: null,
-      sessionStart: { [Op.lt]: warningThreshold }
+      [Op.and]: sequelize.where(
+        sequelize.fn('COALESCE', sequelize.col('timeout_extended_at'), sequelize.col('session_start')),
+        { [Op.lt]: warningThreshold }
+      )
     }
   });
 };
@@ -300,7 +303,10 @@ DutySession.getExpiredSessions = async function(timeoutHours = 8, warningMinutes
   return this.findAll({
     where: {
       isActive: true,
-      sessionStart: { [Op.lt]: expiredThreshold },
+      [Op.and]: sequelize.where(
+        sequelize.fn('COALESCE', sequelize.col('timeout_extended_at'), sequelize.col('session_start')),
+        { [Op.lt]: expiredThreshold }
+      ),
       warningSentAt: { [Op.lt]: warningThreshold }
     }
   });
