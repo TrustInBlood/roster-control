@@ -502,6 +502,95 @@ class SquadJSConnectionManager {
     return false;
   }
 
+  // ============================================
+  // Live Reload - Dynamic Server Management
+  // ============================================
+
+  /**
+   * Handle server list changes from the database.
+   * Diffs current connections vs new list and connects/disconnects/reconnects as needed.
+   * @param {Array} newServers - Array of server objects with { id, name, host, port, gamePort, token, enabled, seedThreshold }
+   */
+  async handleServersChanged(newServers) {
+    const currentIds = new Set(this.connections.keys());
+    const newIds = new Set(newServers.map(s => s.id));
+
+    // 1. Disconnect removed servers
+    for (const id of currentIds) {
+      if (!newIds.has(id)) {
+        this.logger.info('Server removed from config, disconnecting', { serverId: id });
+        await this.disconnectServer(id);
+      }
+    }
+
+    // 2. Connect new servers
+    for (const server of newServers) {
+      if (!currentIds.has(server.id)) {
+        this.logger.info('New server added, connecting', { serverId: server.id, name: server.name });
+        await this.connectToServer(server);
+      }
+    }
+
+    // 3. Reconnect servers with changed host/port/token
+    for (const server of newServers) {
+      if (currentIds.has(server.id)) {
+        const existing = this.connections.get(server.id);
+        if (existing && this.serverConfigChanged(existing.server, server)) {
+          this.logger.info('Server config changed, reconnecting', {
+            serverId: server.id,
+            name: server.name
+          });
+          await this.reconnectServer(server);
+        } else if (existing) {
+          // Update non-connection-critical fields (name, seedThreshold) without reconnecting
+          existing.server = { ...existing.server, name: server.name, seedThreshold: server.seedThreshold, gamePort: server.gamePort };
+        }
+      }
+    }
+
+    // Update internal servers list
+    this.servers = newServers;
+  }
+
+  /**
+   * Gracefully disconnect a single server
+   */
+  async disconnectServer(serverId) {
+    // Clear reconnect timer
+    if (this.reconnectTimers.has(serverId)) {
+      clearTimeout(this.reconnectTimers.get(serverId));
+      this.reconnectTimers.delete(serverId);
+    }
+
+    const connection = this.connections.get(serverId);
+    if (connection && connection.socket) {
+      connection.socket.disconnect();
+      this.logger.info('Disconnected server', {
+        serverId,
+        serverName: connection.server.name
+      });
+    }
+
+    this.connections.delete(serverId);
+  }
+
+  /**
+   * Reconnect a server with new config (host/port/token changed)
+   */
+  async reconnectServer(server) {
+    await this.disconnectServer(server.id);
+    await this.connectToServer(server);
+  }
+
+  /**
+   * Check if server config has changed in a way that requires reconnection
+   */
+  serverConfigChanged(oldServer, newServer) {
+    return oldServer.host !== newServer.host ||
+      oldServer.port !== newServer.port ||
+      oldServer.token !== newServer.token;
+  }
+
   disconnect() {
     // Clear BattleMetrics refresh timer
     if (this.battleMetricsRefreshTimer) {

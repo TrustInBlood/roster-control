@@ -18,6 +18,7 @@ import DutyStats from './pages/DutyStats'
 import DutySettings from './pages/DutySettings'
 import InfoButtons from './pages/InfoButtons'
 import Settings from './pages/Settings'
+import Connections from './pages/Connections'
 import AccessDenied from './pages/AccessDenied'
 
 function ProtectedRoute() {
@@ -78,6 +79,7 @@ function App() {
           <Route path="duty" element={<DutyStats />} />
           <Route path="admin/duty-settings" element={<DutySettings />} />
           <Route path="admin/info-buttons" element={<InfoButtons />} />
+          <Route path="admin/connections" element={<Connections />} />
           <Route path="settings" element={<Settings />} />
         </Route>
       </Route>

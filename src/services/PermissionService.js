@@ -53,6 +53,10 @@ const PERMISSION_DEFINITIONS = {
     description: 'Manage duty tracking settings',
     critical: true
   },
+  MANAGE_CONNECTIONS: {
+    description: 'Manage server connections and integration settings',
+    critical: true
+  },
   VIEW_AUDIT: {
     description: 'View audit logs',
     critical: false
@@ -185,6 +189,9 @@ function getDefaultPermissions() {
     ],
     RESET_PLAYER_STATS: [
       ...getAllAdminRoles(),
+      DISCORD_ROLES.SUPER_ADMIN
+    ],
+    MANAGE_CONNECTIONS: [
       DISCORD_ROLES.SUPER_ADMIN
     ]
   };

@@ -7,18 +7,55 @@ const PlaytimeTrackingService = require('./PlaytimeTrackingService');
 const InGameCommandService = require('./InGameCommandService');
 const { initializeDutySquadJSTrackingService, getDutySquadJSTrackingService } = require('./DutySquadJSTrackingService');
 const { VerificationCode } = require('../database/models');
-const { config: whitelistConfig, validateConfig } = require('../../config/whitelist');
+const { getConnectionConfigService } = require('./ConnectionConfigService');
 
 async function setupWhitelistRoutes(app, _sequelize, logger, discordClient) {
   logger.info('Setting up whitelist integration');
 
-  // Validate configuration
+  // Load configuration from database (with fallback to config file)
+  const configService = getConnectionConfigService();
+  let whitelistConfig;
+
   try {
-    validateConfig();
-    logger.info('Whitelist configuration validated successfully');
+    const servers = await configService.getServers();
+    if (servers.length === 0) {
+      logger.info('No servers in database, attempting to seed from config file...');
+      try {
+        const { config: fileConfig } = require('../../config/whitelist');
+        const { SquadJSServer } = require('../database/models');
+
+        for (const server of fileConfig.squadjs.servers) {
+          const existing = await SquadJSServer.getByKey(server.id);
+          if (!existing) {
+            await SquadJSServer.create({
+              serverKey: server.id,
+              name: server.name,
+              host: server.host,
+              port: server.port,
+              gamePort: server.gamePort,
+              token: server.token,
+              enabled: server.enabled,
+              seedThreshold: server.seedThreshold,
+              displayOrder: fileConfig.squadjs.servers.indexOf(server),
+              createdByName: 'AutoSeed'
+            });
+          }
+        }
+
+        configService.invalidateServersCache();
+        logger.info('Seeded servers from config file');
+      } catch (seedError) {
+        logger.warn('Could not seed from config file', { error: seedError.message });
+      }
+    }
+
+    whitelistConfig = await configService.getWhitelistConfigCompat();
+    logger.info('Configuration loaded from database');
   } catch (error) {
-    logger.error('Whitelist configuration validation failed', { error: error.message });
-    throw error;
+    logger.warn('Database config not available, falling back to config file', { error: error.message });
+    const { config: fileConfig, validateConfig } = require('../../config/whitelist');
+    validateConfig();
+    whitelistConfig = fileConfig;
   }
 
   // Initialize role-based whitelist sync service
@@ -98,6 +135,27 @@ async function setupWhitelistRoutes(app, _sequelize, logger, discordClient) {
   const inGameCommandService = new InGameCommandService(connectionManager, whitelistConfig);
   const dutySquadJSTrackingService = initializeDutySquadJSTrackingService(connectionManager, discordClient);
 
+  // Register live reload: when servers change in DB, update connections
+  configService.onServersChanged(async () => {
+    try {
+      const servers = await configService.getEnabledServers();
+      const formatted = servers.map(s => ({
+        id: s.serverKey,
+        name: s.name,
+        host: s.host,
+        port: s.port,
+        gamePort: s.gamePort,
+        token: s.token,
+        enabled: s.enabled,
+        seedThreshold: s.seedThreshold
+      }));
+      await connectionManager.handleServersChanged(formatted);
+      logger.info('Server connections updated from database', { serverCount: formatted.length });
+    } catch (error) {
+      logger.error('Failed to update server connections', { error: error.message });
+    }
+  });
+
   try {
     await connectionManager.connect();
     squadJSService.initialize();
@@ -136,7 +194,6 @@ async function setupWhitelistRoutes(app, _sequelize, logger, discordClient) {
   // Note: SIGINT/SIGTERM handlers are in index.js to avoid duplicate shutdown calls
 
   logger.info('Whitelist integration setup complete', {
-    routes: Object.keys(whitelistConfig.paths),
     cacheRefreshSeconds: whitelistConfig.cache.refreshSeconds,
     preferEosID: whitelistConfig.identifiers.preferEosID,
     squadJSServers: whitelistConfig.squadjs.servers.length,

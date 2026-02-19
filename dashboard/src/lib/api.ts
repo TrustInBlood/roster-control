@@ -793,4 +793,70 @@ export const userPreferencesApi = {
   },
 }
 
+import type {
+  SquadJSServer,
+  ConnectionConfig,
+  ConnectionConfigCategory,
+  DbStatus,
+  ConnectionAuditEntry,
+  CreateServerRequest,
+  UpdateServerRequest
+} from '../types/connections'
+
+export const connectionsApi = {
+  getServers: async (): Promise<{ success: boolean; data: SquadJSServer[] }> => {
+    const { data } = await api.get('/connections/servers')
+    return data
+  },
+
+  getServer: async (key: string): Promise<{ success: boolean; data: SquadJSServer }> => {
+    const { data } = await api.get(`/connections/servers/${key}`)
+    return data
+  },
+
+  createServer: async (request: CreateServerRequest): Promise<{ success: boolean; data: SquadJSServer }> => {
+    const { data } = await api.post('/connections/servers', request)
+    return data
+  },
+
+  updateServer: async (key: string, request: UpdateServerRequest): Promise<{ success: boolean; data: SquadJSServer }> => {
+    const { data } = await api.put(`/connections/servers/${key}`, request)
+    return data
+  },
+
+  deleteServer: async (key: string): Promise<{ success: boolean }> => {
+    const { data } = await api.delete(`/connections/servers/${key}`, {
+      data: { confirm: key }
+    })
+    return data
+  },
+
+  reconnectServer: async (key: string): Promise<{ success: boolean }> => {
+    const { data } = await api.post(`/connections/servers/${key}/reconnect`)
+    return data
+  },
+
+  getSettings: async (): Promise<{ success: boolean; data: { config: ConnectionConfig; categories: Record<string, ConnectionConfigCategory> } }> => {
+    const { data } = await api.get('/connections/settings')
+    return data
+  },
+
+  updateSettings: async (updates: Record<string, boolean | number | string>): Promise<{ success: boolean }> => {
+    const { data } = await api.put('/connections/settings', { updates })
+    return data
+  },
+
+  getDbStatus: async (): Promise<{ success: boolean; data: DbStatus }> => {
+    const { data } = await api.get('/connections/db-status')
+    return data
+  },
+
+  getAuditLog: async (limit?: number): Promise<{ success: boolean; data: ConnectionAuditEntry[] }> => {
+    const { data } = await api.get('/connections/audit', {
+      params: limit ? { limit } : undefined
+    })
+    return data
+  },
+}
+
 export default api

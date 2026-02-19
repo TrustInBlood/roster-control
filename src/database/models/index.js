@@ -20,6 +20,9 @@ const DutyActivityEvent = require('./DutyActivityEvent');
 const SeedingTime = require('./SeedingTime');
 const ServerSeedingSnapshot = require('./ServerSeedingSnapshot');
 
+// Import connection config models
+const { ConnectionConfig, ConnectionConfigAudit } = require('./ConnectionConfig');
+
 // Import and initialize whitelist models (factory functions)
 const GroupFactory = require('./Group');
 const WhitelistFactory = require('./Whitelist');
@@ -35,6 +38,7 @@ const StatsTemplateRoleMappingFactory = require('./StatsTemplateRoleMapping');
 const PotentialPlayerLinkFactory = require('./PotentialPlayerLink');
 const InfoPostButtonFactory = require('./InfoPostButton');
 const UserPreferenceFactory = require('./UserPreference');
+const SquadJSServerFactory = require('./SquadJSServer');
 
 const Group = GroupFactory(sequelize);
 const Whitelist = WhitelistFactory(sequelize);
@@ -50,6 +54,7 @@ const StatsTemplateRoleMapping = StatsTemplateRoleMappingFactory(sequelize);
 const PotentialPlayerLink = PotentialPlayerLinkFactory(sequelize);
 const InfoPostButton = InfoPostButtonFactory(sequelize);
 const UserPreference = UserPreferenceFactory(sequelize);
+const SquadJSServer = SquadJSServerFactory(sequelize);
 
 // Define associations
 PlayerSession.belongsTo(Player, { foreignKey: 'player_id', as: 'player' });
@@ -99,5 +104,8 @@ module.exports = {
   ServerSeedingSnapshot,
   PotentialPlayerLink,
   InfoPostButton,
-  UserPreference
+  UserPreference,
+  SquadJSServer,
+  ConnectionConfig,
+  ConnectionConfigAudit
 };
