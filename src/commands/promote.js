@@ -34,9 +34,9 @@ const PROMOTION_TARGETS = {
     roles: [DISCORD_ROLES.MEMBER, DISCORD_ROLES.MODERATOR_T1, DISCORD_ROLES.STAFF],
     welcomeChannel: 'MODERATOR_CHAT',
     welcomeMessage: (userId) =>
-      `**Let's welcome our new moderator!!!** <@${userId}>\n\n` +
+      `**Let's welcome our new Moderator!!!** <@${userId}>\n\n` +
       `Make sure to read all the rules in <#${CHANNELS.MOD_RULES}>\n` +
-      `And visit the <#${CHANNELS.ADMIN_ACADEMY}> to learn about and earn access to BattleMetrics controls and Ticket Support!`,
+      `And visit the <#${CHANNELS.ADMIN_ACADEMY}> and read the moderator tier 1 guide to get started!`,
     auditActionType: 'MODERATOR_PROMOTED',
     logTitle: 'Moderator Added'
   },
@@ -48,7 +48,7 @@ const PROMOTION_TARGETS = {
     welcomeMessage: (userId) =>
       `**Congratulations on your promotion to Moderator T2!!!** <@${userId}>\n\n` +
       `Just a reminder to review the rules in <#${CHANNELS.MOD_RULES}>\n` +
-      `And check out <#${CHANNELS.ADMIN_ACADEMY}> if you haven't already!`,
+      `And check out <#${CHANNELS.ADMIN_ACADEMY}> and read the moderator tier 2 guide to get started!`,
     auditActionType: 'MODERATOR_T2_PROMOTED',
     logTitle: 'Moderator T2 Added'
   }
